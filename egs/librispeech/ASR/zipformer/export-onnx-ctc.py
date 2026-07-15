@@ -283,9 +283,9 @@ def export_ctc_model_onnx(
             "x_lens": {0: "N"},
             "log_probs": {0: "N", 1: "T"},
             "log_probs_len": {0: "N"},
-        }
+        },
         **get_onnx_export_kwargs(),
-    )
+)
 
     meta_data = {
         "model_type": "zipformer2_ctc",

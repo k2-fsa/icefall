@@ -155,7 +155,6 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import num_tokens, str2bool
-from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -329,9 +328,7 @@ def export_encoder_model_onnx(
     # submit a pull request on PyTorch GitHub.
     #
     # I cannot find which statement causes the above error.
-    # torch.onnx.export(,
-        **get_onnx_export_kwargs(),
-    ) will use torch.jit.trace() internally, which
+    # torch.onnx.export() will use torch.jit.trace() internally, which
     # works well for the current reworked model
     initial_states = [encoder_model.get_init_state() for _ in range(batch_size)]
     states = stack_states(initial_states)
@@ -405,8 +402,7 @@ def export_encoder_model_onnx(
             "new_avg_cache": {0: "N"},
             "new_attn_cache": {0: "N"},
             "new_cnn_cache": {0: "N"},
-        }
-        **get_onnx_export_kwargs(),
+        },
     )
     logging.info(f"Saved to {encoder_filename}")
 
@@ -480,8 +476,7 @@ def export_decoder_model_onnx(
         dynamic_axes={
             "y": {0: "N"},
             "decoder_out": {0: "N"},
-        }
-        **get_onnx_export_kwargs(),
+        },
     )
     logging.info(f"Saved to {decoder_filename}")
 
@@ -526,8 +521,7 @@ def export_decoder_model_onnx_triton(
         dynamic_axes={
             "y": {0: "N"},
             "decoder_out": {0: "N"},
-        }
-        **get_onnx_export_kwargs(),
+        },
     )
     logging.info(f"Saved to {decoder_filename}")
 
@@ -591,8 +585,7 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        }
-        **get_onnx_export_kwargs(),
+        },
     )
     logging.info(f"Saved to {joiner_filename}")
 
@@ -609,7 +602,7 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "projected_encoder_out": {0: "N"},
         },
-    , **get_onnx_export_kwargs())
+    )
     logging.info(f"Saved to {encoder_proj_filename}")
 
     decoder_out = torch.rand(1, decoder_out_dim, dtype=torch.float32)
@@ -625,7 +618,7 @@ def export_joiner_model_onnx(
             "decoder_out": {0: "N"},
             "projected_decoder_out": {0: "N"},
         },
-    , **get_onnx_export_kwargs())
+    )
     logging.info(f"Saved to {decoder_proj_filename}")
 
 
@@ -663,8 +656,7 @@ def export_joiner_model_onnx_triton(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        }
-        **get_onnx_export_kwargs(),
+        },
     )
     logging.info(f"Saved to {joiner_filename}")
 

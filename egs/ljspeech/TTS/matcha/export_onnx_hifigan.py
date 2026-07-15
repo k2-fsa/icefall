@@ -87,7 +87,8 @@ def main():
                 "mel": {0: "N", 2: "L"},
                 "audio": {0: "N", 1: "L"},
             },
-        , **get_onnx_export_kwargs())
+            **get_onnx_export_kwargs(),
+)
 
         meta_data = {
             "model_type": "hifigan",

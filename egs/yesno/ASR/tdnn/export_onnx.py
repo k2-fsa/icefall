@@ -123,7 +123,8 @@ def main():
             "x": {0: "N", 1: "T"},
             "log_prob": {0: "N", 1: "T"},
         },
-    , **get_onnx_export_kwargs())
+        **get_onnx_export_kwargs(),
+)
 
     logging.info(f"Saved to {onnx_filename}")
     meta_data = {

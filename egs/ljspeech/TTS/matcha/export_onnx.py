@@ -169,9 +169,9 @@ def main():
                 "x": {0: "N", 1: "L"},
                 "x_length": {0: "N"},
                 "mel": {0: "N", 2: "L"},
-            }
-        **get_onnx_export_kwargs(),
-    )
+            },
+            **get_onnx_export_kwargs(),
+)
 
         meta_data = {
             "model_type": "matcha-tts",

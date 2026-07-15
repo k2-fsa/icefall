@@ -20,6 +20,7 @@
 This file is to test that models can be exported to onnx.
 """
 import os
+
 from icefall import is_module_available
 
 if not is_module_available("onnxruntime"):
@@ -69,7 +70,8 @@ def test_conv2d_subsampling():
             "x": {0: "N", 1: "T"},
             "y": {0: "N", 1: "T"},
         },
-    , **get_onnx_export_kwargs())
+        **get_onnx_export_kwargs(),
+)
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -124,9 +126,9 @@ def test_rel_pos():
             "x": {0: "N", 1: "T"},
             "y": {0: "N", 1: "T"},
             "pos_emb": {0: "N", 1: "T"},
-        }
+        },
         **get_onnx_export_kwargs(),
-    )
+)
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -213,9 +215,9 @@ def test_conformer_encoder_layer():
             "pos_emb": {0: "N", 1: "T"},
             "src_key_padding_mask": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
-        }
+        },
         **get_onnx_export_kwargs(),
-    )
+)
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -299,9 +301,9 @@ def test_conformer_encoder():
             "pos_emb": {0: "N", 1: "T"},
             "src_key_padding_mask": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
-        }
+        },
         **get_onnx_export_kwargs(),
-    )
+)
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -357,9 +359,9 @@ def test_conformer():
             "x_lens": {0: "N"},
             "y": {0: "N", 1: "T"},
             "y_lens": {0: "N"},
-        }
+        },
         **get_onnx_export_kwargs(),
-    )
+)
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
     options.intra_op_num_threads = 1

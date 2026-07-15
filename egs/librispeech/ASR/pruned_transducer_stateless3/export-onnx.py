@@ -272,9 +272,9 @@ def export_encoder_model_onnx(
             "x_lens": {0: "N"},
             "encoder_out": {0: "N", 1: "T"},
             "encoder_out_lens": {0: "N"},
-        }
+        },
         **get_onnx_export_kwargs(),
-    )
+)
 
     meta_data = {
         "model_type": "conformer",
@@ -327,7 +327,8 @@ def export_decoder_model_onnx(
             "y": {0: "N"},
             "decoder_out": {0: "N"},
         },
-    , **get_onnx_export_kwargs())
+        **get_onnx_export_kwargs(),
+)
 
     meta_data = {
         "context_size": str(context_size),
@@ -372,9 +373,9 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        }
+        },
         **get_onnx_export_kwargs(),
-    )
+)
     meta_data = {
         "joiner_dim": str(joiner_dim),
     }

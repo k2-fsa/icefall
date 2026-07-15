@@ -412,9 +412,9 @@ def export_encoder_model_onnx(
             **outputs,
         }
         if dynamic_batch
-        else {}
+        else {},
         **get_onnx_export_kwargs(),
-    )
+)
 
     add_meta_data(filename=encoder_filename, meta_data=meta_data)
 
@@ -467,7 +467,8 @@ def export_decoder_model_onnx(
         }
         if dynamic_batch
         else {},
-    , **get_onnx_export_kwargs())
+        **get_onnx_export_kwargs(),
+)
     meta_data = {
         "context_size": str(context_size),
         "vocab_size": str(vocab_size),
@@ -514,9 +515,9 @@ def export_joiner_model_onnx(
             "logit": {0: "N"},
         }
         if dynamic_batch
-        else {}
+        else {},
         **get_onnx_export_kwargs(),
-    )
+)
     meta_data = {
         "joiner_dim": str(joiner_dim),
     }
