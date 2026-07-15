@@ -160,6 +160,7 @@ if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_NAME}" == x"wor
     log "Decoding with $method"
 
     ./zipformer/decode.py \
+      --on-the-fly-feats False \
       --decoding-method $method \
       --epoch 30 \
       --avg 1 \
