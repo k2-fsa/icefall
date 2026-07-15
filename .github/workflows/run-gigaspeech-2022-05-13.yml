@@ -80,7 +80,7 @@ jobs:
               .github/scripts/run-gigaspeech-pruned-transducer-stateless2-2022-05-12.sh
 
       - name: Display decoding results for gigaspeech pruned_transducer_stateless2
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-decode'
+        if: matrix.torch-version == '2.13.0' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-decode')
         shell: bash
         run: |
           cd egs/gigaspeech/ASR/
