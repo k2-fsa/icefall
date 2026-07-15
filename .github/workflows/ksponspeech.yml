@@ -36,7 +36,7 @@ jobs:
 
       - name: Cache kaldifeat
         id: my-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/tmp/kaldifeat

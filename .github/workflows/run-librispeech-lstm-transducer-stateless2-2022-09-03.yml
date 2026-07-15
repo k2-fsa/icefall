@@ -34,12 +34,12 @@ jobs:
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
@@ -53,7 +53,7 @@ jobs:
 
       - name: Cache kaldifeat
         id: my-cache
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/tmp/kaldifeat
@@ -67,7 +67,7 @@ jobs:
 
       - name: Cache LibriSpeech test-clean and test-other datasets
         id: libri-test-clean-and-test-other-data
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/tmp/download
@@ -86,7 +86,7 @@ jobs:
 
       - name: Cache LibriSpeech test-clean and test-other fbank features
         id: libri-test-clean-and-test-other-fbank
-        uses: actions/cache@v2
+        uses: actions/cache@v4
         with:
           path: |
             ~/tmp/fbank-libri
