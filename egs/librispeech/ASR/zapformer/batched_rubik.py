@@ -307,8 +307,15 @@ def limit_singular_values(x, l):
         X = a * X + B @ X
         inv = a * inv + B @ inv
 
+
+    ans = inv @ x
+
     # scale == l a / (l a + 1) == I - (l a + I)^{-1}
-    return inv @ x
+    if random.random() < 0.002:
+        ratio = ans.norm(dim=(-2, -1)) / (x.norm(dim=(-2, -1)) + 1.0e-20)
+        logging.info(f"limit_singular_values, limit={l.flatten()}, ratio={ratio}")
+    return ans
+
 
 
 
