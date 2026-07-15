@@ -67,6 +67,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import num_tokens, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -487,7 +488,8 @@ def export_streaming_ctc_model_onnx(
             **outputs,
         }
         if dynamic_batch
-        else {},
+        else {},,
+        **get_onnx_export_kwargs(),
     )
 
     add_meta_data(

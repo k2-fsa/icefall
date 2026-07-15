@@ -2457,3 +2457,28 @@ def time_warp(
             )
 
     return features
+
+
+def get_onnx_export_kwargs():
+    """Return extra kwargs for torch.onnx.export for backward compatibility.
+
+    Newer versions of PyTorch (>= 2.9.0) default to dynamo-based ONNX export,
+    which doesn't support ``dynamic_axes``. This function checks whether the
+    current torch version supports the ``dynamo`` parameter and returns
+    ``dynamo=False`` if so, falling back to the legacy export path.
+
+    Returns:
+        A dict of keyword arguments to pass to ``torch.onnx.export``.
+    """
+    import inspect as _inspect
+
+    kwargs = dict()
+    try:
+        export_sig = _inspect.signature(torch.onnx.export)
+        if "dynamo" in export_sig.parameters:
+            kwargs["dynamo"] = False
+        if "external_data" in export_sig.parameters:
+            kwargs["external_data"] = False
+    except (ValueError, TypeError):
+        pass
+    return kwargs

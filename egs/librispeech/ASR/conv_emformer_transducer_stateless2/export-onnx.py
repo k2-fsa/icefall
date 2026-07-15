@@ -70,6 +70,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import num_tokens, setup_logger, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -368,7 +369,8 @@ def export_encoder_model_onnx(
             "encoder_out": {0: "N"},
             **inputs,
             **outputs,
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     add_meta_data(filename=encoder_filename, meta_data=meta_data)
@@ -414,7 +416,7 @@ def export_decoder_model_onnx(
             "y": {0: "N"},
             "decoder_out": {0: "N"},
         },
-    )
+    , **get_onnx_export_kwargs())
 
     meta_data = {
         "context_size": str(context_size),
@@ -459,7 +461,8 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
     meta_data = {
         "joiner_dim": str(joiner_dim),

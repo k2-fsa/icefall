@@ -84,6 +84,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, num_tokens, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -282,7 +283,8 @@ def export_ctc_model_onnx(
             "x_lens": {0: "N"},
             "log_probs": {0: "N", 1: "T"},
             "log_probs_len": {0: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     meta_data = {

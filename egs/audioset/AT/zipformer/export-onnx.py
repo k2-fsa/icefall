@@ -53,6 +53,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -221,7 +222,8 @@ def export_audio_tagging_model_onnx(
             "x": {0: "N", 1: "T"},
             "x_lens": {0: "N"},
             "probs": {0: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     meta_data = {

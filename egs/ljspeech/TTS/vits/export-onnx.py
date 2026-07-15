@@ -43,6 +43,7 @@ from tokenizer import Tokenizer
 from train import get_model, get_params
 
 from icefall.checkpoint import load_checkpoint
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -203,7 +204,8 @@ def export_model_onnx(
             "tokens": {0: "N", 1: "T"},
             "tokens_lens": {0: "N"},
             "audio": {0: "N", 1: "T"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     if model.model.spks is None:

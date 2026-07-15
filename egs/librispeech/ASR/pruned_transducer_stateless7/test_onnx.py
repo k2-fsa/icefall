@@ -20,8 +20,8 @@
 This file is to test that models can be exported to onnx.
 """
 import os
-
 from icefall import is_module_available
+from icefall.utils import get_onnx_export_kwargs
 
 if not is_module_available("onnxruntime"):
     raise ValueError("Please 'pip install onnxruntime' first.")
@@ -65,7 +65,7 @@ def test_conv2d_subsampling():
             "x": {0: "N", 1: "T"},
             "y": {0: "N", 1: "T"},
         },
-    )
+    , **get_onnx_export_kwargs())
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -120,7 +120,7 @@ def test_rel_pos():
             "x": {0: "N", 1: "T"},
             "pos_emb": {0: "N", 1: "T"},
         },
-    )
+    , **get_onnx_export_kwargs())
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -196,7 +196,8 @@ def test_zipformer_encoder_layer():
             "x": {0: "T", 1: "N"},
             "pos_emb": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     options = ort.SessionOptions()
@@ -277,7 +278,8 @@ def test_zipformer_encoder():
         dynamic_axes={
             "x": {0: "T", 1: "N"},
             "y": {0: "T", 1: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     options = ort.SessionOptions()
@@ -333,7 +335,8 @@ def test_zipformer():
             "x_lens": {0: "N"},
             "y": {0: "N", 1: "T"},
             "y_lens": {0: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1

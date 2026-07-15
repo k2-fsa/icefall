@@ -20,7 +20,6 @@
 This file is to test that models can be exported to onnx.
 """
 import os
-
 from icefall import is_module_available
 
 if not is_module_available("onnxruntime"):
@@ -38,6 +37,7 @@ from conformer import (
 from scaling_converter import convert_scaled_to_non_scaled
 
 from icefall.utils import make_pad_mask
+from icefall.utils import get_onnx_export_kwargs
 
 ort.set_default_logger_severity(3)
 
@@ -69,7 +69,7 @@ def test_conv2d_subsampling():
             "x": {0: "N", 1: "T"},
             "y": {0: "N", 1: "T"},
         },
-    )
+    , **get_onnx_export_kwargs())
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -124,7 +124,8 @@ def test_rel_pos():
             "x": {0: "N", 1: "T"},
             "y": {0: "N", 1: "T"},
             "pos_emb": {0: "N", 1: "T"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     options = ort.SessionOptions()
@@ -212,7 +213,8 @@ def test_conformer_encoder_layer():
             "pos_emb": {0: "N", 1: "T"},
             "src_key_padding_mask": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     options = ort.SessionOptions()
@@ -297,7 +299,8 @@ def test_conformer_encoder():
             "pos_emb": {0: "N", 1: "T"},
             "src_key_padding_mask": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     options = ort.SessionOptions()
@@ -354,7 +357,8 @@ def test_conformer():
             "x_lens": {0: "N"},
             "y": {0: "N", 1: "T"},
             "y_lens": {0: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1

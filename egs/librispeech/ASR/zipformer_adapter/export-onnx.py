@@ -84,6 +84,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, num_tokens, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -315,7 +316,8 @@ def export_encoder_model_onnx(
             "x_lens": {0: "N"},
             "encoder_out": {0: "N", 1: "T"},
             "encoder_out_lens": {0: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
 
     meta_data = {
@@ -369,7 +371,7 @@ def export_decoder_model_onnx(
             "y": {0: "N"},
             "decoder_out": {0: "N"},
         },
-    )
+    , **get_onnx_export_kwargs())
 
     meta_data = {
         "context_size": str(context_size),
@@ -414,7 +416,8 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        },
+        },,
+        **get_onnx_export_kwargs(),
     )
     meta_data = {
         "joiner_dim": str(joiner_dim),

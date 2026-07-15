@@ -129,6 +129,17 @@ done
 
 echo "GITHUB_EVENT_NAME: ${GITHUB_EVENT_NAME}"
 echo "GITHUB_EVENT_LABEL_NAME: ${GITHUB_EVENT_LABEL_NAME}"
+
+# Only run the expensive decode step for torch >= 2.13.0
+torch_version=$(python3 -c "import torch; print(torch.__version__.split('+')[0])")
+log "torch version: $torch_version"
+if python3 -c "import sys; v='$torch_version'.split('.'); sys.exit(0 if (int(v[0]),int(v[1])) >= (2,13) else 1)"; then
+  log "torch >= 2.13.0, running decode step"
+else
+  log "torch < 2.13.0, skipping decode step"
+  exit 0
+fi
+
 if [[ x"${GITHUB_EVENT_NAME}" == x"schedule" || x"${GITHUB_EVENT_NAME}" == x"workflow_dispatch" || x"${GITHUB_EVENT_LABEL_NAME}" == x"run-decode"  ]]; then
   mkdir -p zipformer/exp
   ln -s $PWD/$repo/exp/pretrained.pt zipformer/exp/epoch-30.pt

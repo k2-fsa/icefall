@@ -28,6 +28,7 @@ from train import get_params
 
 from icefall.checkpoint import average_checkpoints, load_checkpoint
 from icefall.lexicon import Lexicon
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -122,7 +123,7 @@ def main():
             "x": {0: "N", 1: "T"},
             "log_prob": {0: "N", 1: "T"},
         },
-    )
+    , **get_onnx_export_kwargs())
 
     logging.info(f"Saved to {onnx_filename}")
     meta_data = {
