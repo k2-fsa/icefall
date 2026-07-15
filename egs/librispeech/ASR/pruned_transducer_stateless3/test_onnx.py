@@ -124,7 +124,7 @@ def test_rel_pos():
             "x": {0: "N", 1: "T"},
             "y": {0: "N", 1: "T"},
             "pos_emb": {0: "N", 1: "T"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
 
@@ -213,7 +213,7 @@ def test_conformer_encoder_layer():
             "pos_emb": {0: "N", 1: "T"},
             "src_key_padding_mask": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
 
@@ -299,7 +299,7 @@ def test_conformer_encoder():
             "pos_emb": {0: "N", 1: "T"},
             "src_key_padding_mask": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
 
@@ -357,7 +357,7 @@ def test_conformer():
             "x_lens": {0: "N"},
             "y": {0: "N", 1: "T"},
             "y_lens": {0: "N"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
     options = ort.SessionOptions()

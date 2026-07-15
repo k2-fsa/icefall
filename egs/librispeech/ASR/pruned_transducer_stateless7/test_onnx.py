@@ -196,7 +196,7 @@ def test_zipformer_encoder_layer():
             "x": {0: "T", 1: "N"},
             "pos_emb": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
 
@@ -278,7 +278,7 @@ def test_zipformer_encoder():
         dynamic_axes={
             "x": {0: "T", 1: "N"},
             "y": {0: "T", 1: "N"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
 
@@ -335,7 +335,7 @@ def test_zipformer():
             "x_lens": {0: "N"},
             "y": {0: "N", 1: "T"},
             "y_lens": {0: "N"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
     options = ort.SessionOptions()

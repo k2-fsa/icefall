@@ -488,7 +488,7 @@ def export_streaming_ctc_model_onnx(
             **outputs,
         }
         if dynamic_batch
-        else {},,
+        else {}
         **get_onnx_export_kwargs(),
     )
 

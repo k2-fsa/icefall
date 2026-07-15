@@ -177,7 +177,7 @@ def main():
                 "x": {0: "N", 1: "L"},
                 "x_length": {0: "N"},
                 "mel": {0: "N", 2: "L"},
-            },,
+            }
         **get_onnx_export_kwargs(),
     )
 

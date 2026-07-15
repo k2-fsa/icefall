@@ -569,7 +569,7 @@ def export_encoder_model_onnx(
             **outputs,
         }
         if dynamic_batch
-        else {},,
+        else {}
         **get_onnx_export_kwargs(),
     )
 
@@ -676,7 +676,7 @@ def export_joiner_model_onnx(
             "logit": {0: "N"},
         }
         if dynamic_batch
-        else {},,
+        else {}
         **get_onnx_export_kwargs(),
     )
     meta_data = {

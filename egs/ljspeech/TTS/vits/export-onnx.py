@@ -204,7 +204,7 @@ def export_model_onnx(
             "tokens": {0: "N", 1: "T"},
             "tokens_lens": {0: "N"},
             "audio": {0: "N", 1: "T"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
 

@@ -368,7 +368,7 @@ def export_encoder_model_onnx(
             "encoder_out": {0: "N"},
             **inputs,
             **outputs,
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
 
@@ -460,7 +460,7 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
     meta_data = {

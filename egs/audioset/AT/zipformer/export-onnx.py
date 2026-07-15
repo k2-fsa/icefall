@@ -222,7 +222,7 @@ def export_audio_tagging_model_onnx(
             "x": {0: "N", 1: "T"},
             "x_lens": {0: "N"},
             "probs": {0: "N"},
-        },,
+        }
         **get_onnx_export_kwargs(),
     )
 

@@ -531,7 +531,7 @@ def export_joiner_model_onnx(
             "logit": {0: "N"},
         }
         if dynamic_axes
-        else {},,
+        else {}
         **get_onnx_export_kwargs(),
     )
     meta_data = {
