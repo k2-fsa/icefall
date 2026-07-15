@@ -8,12 +8,6 @@ on:
     types: [labeled]
 
   schedule:
-    # minute (0-59)
-    # hour (0-23)
-    # day of the month (1-31)
-    # month (1-12)
-    # day of the week (0-6)
-    # nightly build at 15:50 UTC time every day
     - cron: "50 15 * * *"
 
   workflow_dispatch:
@@ -23,47 +17,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  generate_build_matrix:
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generating build matrix
+        id: set-matrix
+        run: |
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10")
+          echo "::set-output name=matrix::${MATRIX}"
+
   run_librispeech_lstm_transducer_stateless2_2022_09_03:
     if: github.event.label.name == 'ready' || github.event.label.name == 'LODR' || github.event.label.name == 'shallow-fusion' || github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ${{ matrix.os }}
+    needs: generate_build_matrix
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
+    runs-on: ubuntu-latest
     strategy:
-      matrix:
-        os: [ubuntu-latest]
-        python-version: [3.8]
-
       fail-fast: false
+      matrix:
+        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-          cache-dependency-path: '**/requirements-ci.txt'
-
-      - name: Install Python dependencies
-        run: |
-          grep -v '^#' ./requirements-ci.txt  | xargs -n 1 -L 1 pip install
-          pip uninstall -y protobuf
-          pip install --no-binary protobuf protobuf==3.20.*
-
-      - name: Cache kaldifeat
-        id: my-cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/tmp/kaldifeat
-          key: cache-tmp-${{ matrix.python-version }}-2023-05-22
-
-      - name: Install kaldifeat
-        if: steps.my-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          .github/scripts/install-kaldifeat.sh
 
       - name: Cache LibriSpeech test-clean and test-other datasets
         id: libri-test-clean-and-test-other-data
@@ -99,21 +82,31 @@ jobs:
           .github/scripts/compute-fbank-librispeech-test-clean-and-test-other.sh
 
       - name: Inference with pre-trained model
-        shell: bash
-        env:
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
-        run: |
-          mkdir -p egs/librispeech/ASR/data
-          ln -sfv ~/tmp/fbank-libri egs/librispeech/ASR/data/fbank
-          ls -lh egs/librispeech/ASR/data/*
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+              --volume ${{ github.home }}/tmp:/root/tmp
+              -e GITHUB_EVENT_NAME=${{ github.event_name }}
+              -e GITHUB_EVENT_LABEL_NAME=${{ github.event.label.name }}
+            shell: bash
+            run: |
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+              git config --global --add safe.directory /icefall
 
-          sudo apt-get -qq install git-lfs tree
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/kaldifeat/python:$PYTHONPATH
-          export PYTHONPATH=~/tmp/kaldifeat/build/lib:$PYTHONPATH
+              python3 -m torch.utils.collect_env
+              python3 -m k2.version
+              pip list
 
-          .github/scripts/run-librispeech-lstm-transducer-stateless2-2022-09-03.sh
+              mkdir -p egs/librispeech/ASR/data
+              ln -sfv /root/tmp/fbank-libri egs/librispeech/ASR/data/fbank
+              ls -lh egs/librispeech/ASR/data/*
+
+              apt-get install -y -q git-lfs tree
+
+              .github/scripts/run-librispeech-lstm-transducer-stateless2-2022-09-03.sh
 
       - name: Display decoding results for lstm_transducer_stateless2
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -129,10 +122,6 @@ jobs:
           echo "===fast_beam_search==="
           find fast_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
           find fast_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
-
-          # echo "===modified beam search==="
-          # find modified_beam_search -name "log-*" -exec grep -n --color "best for test-clean" {} + | sort -n -k2
-          # find modified_beam_search -name "log-*" -exec grep -n --color "best for test-other" {} + | sort -n -k2
 
       - name: Display decoding results for lstm_transducer_stateless2
         if: github.event.label.name == 'shallow-fusion'
@@ -161,5 +150,5 @@ jobs:
         uses: actions/upload-artifact@v4
         if: github.event_name == 'schedule' || github.event.label.name == 'shallow-fusion' || github.event.label.name == 'LODR' || github.event_name == 'workflow_dispatch'
         with:
-          name: torch-${{ matrix.torch }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-lstm_transducer_stateless2-2022-09-03
+          name: torch-${{ matrix.torch-version }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-lstm_transducer_stateless2-2022-09-03
           path: egs/librispeech/ASR/lstm_transducer_stateless2/exp/

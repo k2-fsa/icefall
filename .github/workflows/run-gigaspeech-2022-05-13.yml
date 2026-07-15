@@ -62,10 +62,9 @@ jobs:
             image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
+              -e GITHUB_EVENT_NAME=${{ github.event_name }}
+              -e GITHUB_EVENT_LABEL_NAME=${{ github.event.label.name }}
             shell: bash
-            env: |
-              GITHUB_EVENT_NAME: ${{ github.event_name }}
-              GITHUB_EVENT_LABEL_NAME: ${{ github.event.label.name }}
             run: |
               export PYTHONPATH=/icefall:$PYTHONPATH
               cd /icefall
@@ -75,7 +74,7 @@ jobs:
               python3 -m k2.version
               pip list
 
-              sudo apt-get install -y -q git-lfs
+              apt-get install -y -q git-lfs
 
               .github/scripts/run-gigaspeech-pruned-transducer-stateless2-2022-05-12.sh
 
