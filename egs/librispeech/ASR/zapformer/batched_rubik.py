@@ -265,6 +265,53 @@ polar_express_coeffs = [
 ]
 
 
+def limit_singular_values(x, l):
+    dtype = torch.float
+    if x.ndim != 3:
+        orig_shape = x.shape
+        batch_size = x.shape[0]
+        rows, cols = matrix_shape(x.shape[1:])
+        if isinstance(l, Tensor):
+            l = l.reshape(batch_size, 1, 1)
+        return limit_singular_values(x.reshape(batch_size, rows, cols), l).reshape(*orig_shape)
+
+    # maps singular values a -> a / (a/l + 1) which is equivalent to a if a << l and l if a >> l.
+    assert x.ndim == 3
+    (batch_size, rows, cols) = x.shape
+    if rows > cols:
+        return limit_singular_values(x.mT, l).mT
+
+    # Polar express
+    # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
+    X = x.to(dtype)
+    X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-6)
+
+    # assume rows <= cols
+    ns_steps = 5
+    for a, b, c in polar_express_coeffs[:ns_steps]:
+        A = X @ X.mT
+        B = b * A + c * (A @ A)
+        X = a * X + B @ X
+
+    a = x @ X.mT
+    # a is like the absolute value of x, as a symmetric (rows x rows) matrix.
+    eye = torch.eye(rows, device=X.device, dtype=X.dtype)
+    al_plus_one = a / l + eye
+    X = al_plus_one.to(dtype=dtype)
+    den = (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-6)
+    X = X / den
+    inv = eye / den # will become (l a + 1)^{-1}
+    for a, b, c in polar_express_coeffs[:ns_steps]:
+        A = X @ X.mT
+        B = b * A + c * (A @ A)
+        X = a * X + B @ X
+        inv = a * inv + B @ inv
+
+    # scale == l a / (l a + 1) == I - (l a + I)^{-1}
+    return inv @ x
+
+
+
 def decay(moving_grad, eps, step):
     moving_grad = moving_grad.clone()
     num_steps = 2
@@ -467,8 +514,9 @@ def scaling_step(group, param, state, grad):
 
     scale_ratio = scale / old_scale
 
-    delta_scale = (scale_ratio * (1 - 0.5 * (lr ** 2))) - 1
-    return param * delta_scale  +  scale * delta
+    param_for_decay = limit_singular_values(param, 2.0 * scale)
+
+    return (scale_ratio - 1) * param - (0.5 * lr ** 2) * param_for_decay  +  scale * delta
 
 
 def adam_step(group, state, grad):
@@ -728,6 +776,19 @@ def _test_scaled_three_way_product():
     # but the result won't be identical to the input if the singular values are not all identical.
     assert not torch.allclose(x, scaled_three_way_product(x), atol=1.0e-03)
 
+
+def _test_limit_singular_values():
+    batch_size, rows, cols = 2, 20, 30
+
+    l = 3.0
+    a = torch.randn(batch_size, rows, cols)
+    U, S, V = torch.linalg.svd(a)
+    print("Initially, singular values are ", S)
+    b = limit_singular_values(a, l)
+    U, S, V = torch.linalg.svd(b)
+    print(f"After limit_singular_values with l={l}, singular values are {S}")
+
+
 if __name__ == "__main__":
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
@@ -745,5 +806,6 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
+    _test_limit_singular_values()
     _test_scaled_three_way_product()
     _test_batched_rubik(hidden_dim)
