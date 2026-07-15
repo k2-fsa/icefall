@@ -70,7 +70,7 @@ RUN pip install --no-cache-dir \
 
 ARG TORCHCODEC_VERSION=""
 RUN if [ -n "${TORCHCODEC_VERSION}" ]; then \
-      pip install --no-cache-dir torchcodec==${TORCHCODEC_VERSION}+cpu -f https://download.pytorch.org/whl/torchcodec; \
+      pip install --no-cache-dir torchcodec==${TORCHCODEC_VERSION} -f https://download.pytorch.org/whl/torchcodec; \
     fi && \
     ldconfig
 

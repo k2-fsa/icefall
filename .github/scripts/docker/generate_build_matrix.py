@@ -88,11 +88,12 @@ def get_kaldifeat_version(torch_version):
 
 # torchcodec version per torch version, from
 # https://github.com/meta-pytorch/torchcodec#installing-torchcodec
+# Note: +cpu suffix only exists for torchcodec >= 0.11.0
 def get_torchcodec_version(torch_version):
     if version_ge(torch_version, "2.12"):
-        return "0.14.0"
+        return "0.14.0+cpu"
     if version_ge(torch_version, "2.11"):
-        return "0.11.0"
+        return "0.11.0+cpu"
     if version_ge(torch_version, "2.10"):
         return "0.10.0"
     if version_ge(torch_version, "2.9"):
