@@ -514,7 +514,8 @@ def scaling_step(group, param, state, grad):
 
     scale_ratio = scale / old_scale
 
-    param_for_decay = limit_singular_values(param, 2.0 * scale)
+    rows, cols = matrix_shape(param.shape[1:])
+    param_for_decay = limit_singular_values(param, 2.0 * scale * max(rows, cols) ** 0.5)
 
     return (scale_ratio - 1) * param - (0.5 * lr ** 2) * param_for_decay  +  scale * delta
 
