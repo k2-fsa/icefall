@@ -71,11 +71,13 @@ jobs:
               .github/scripts/multi_zh-hans/ASR/run.sh
 
       - name: Show models
+        if: matrix.torch-version == '2.13.0'
         shell: bash
         run: |
           ls -lh *.tar.bz2
 
       - name: upload model to https://github.com/k2-fsa/sherpa-onnx
+        if: matrix.torch-version == '2.13.0'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true

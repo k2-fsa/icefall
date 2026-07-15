@@ -38,8 +38,8 @@ jobs:
         id: set-matrix
         run: |
           # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10"
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10")
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0")
           echo "::set-output name=matrix::${MATRIX}"
 
   run_gigaspeech_2023_10_17_zipformer:
@@ -81,6 +81,7 @@ jobs:
               .github/scripts/run-gigaspeech-zipformer-2023-10-17.sh
 
       - name: upload model to https://github.com/k2-fsa/sherpa-onnx
+        if: matrix.torch-version == '2.13.0'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true
@@ -105,7 +106,7 @@ jobs:
 
       - name: Upload decoding results for gigaspeech zipformer
         uses: actions/upload-artifact@v4
-        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode' || github.event_name == 'workflow_dispatch'
+        if: matrix.torch-version == '2.13.0' && (github.event_name == 'schedule' || github.event.label.name == 'run-decode' || github.event_name == 'workflow_dispatch')
         with:
           name: torch-${{ matrix.torch-version }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-zipformer-2022-11-11
           path: egs/gigaspeech/ASR/zipformer/exp/

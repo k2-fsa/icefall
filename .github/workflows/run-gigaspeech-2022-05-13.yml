@@ -37,8 +37,8 @@ jobs:
         id: set-matrix
         run: |
           # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10"
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10")
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0")
           echo "::set-output name=matrix::${MATRIX}"
 
   run_gigaspeech_2022_05_13:
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload decoding results for gigaspeech pruned_transducer_stateless2
         uses: actions/upload-artifact@v4
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-decode'
+        if: matrix.torch-version == '2.13.0' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-decode')
         with:
           name: torch-${{ matrix.torch-version }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-gigaspeech-pruned_transducer_stateless2-2022-05-12
           path: egs/gigaspeech/ASR/pruned_transducer_stateless2/exp/

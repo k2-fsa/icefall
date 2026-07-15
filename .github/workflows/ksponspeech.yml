@@ -20,8 +20,8 @@ jobs:
       - name: Generating build matrix
         id: set-matrix
         run: |
-          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10"
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10")
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0")
           echo "::set-output name=matrix::${MATRIX}"
 
   ksponspeech:
@@ -70,6 +70,7 @@ jobs:
           ls -lh $src
 
       - name: Upload model to huggingface (2024-06-24)
+        if: matrix.torch-version == '2.13.0'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         uses: nick-fields/retry@v3
@@ -104,6 +105,7 @@ jobs:
             rm -rf hf
 
       - name: Upload model to huggingface (2024-06-16)
+        if: matrix.torch-version == '2.13.0'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         uses: nick-fields/retry@v3
@@ -139,6 +141,7 @@ jobs:
             rm -rf hf
 
       - name: Prepare for release (2024-06-16)
+        if: matrix.torch-version == '2.13.0'
         shell: bash
         run: |
           src=/tmp/model-2024-06-16
@@ -148,6 +151,7 @@ jobs:
           ls -lh
 
       - name: Prepare for release (2024-06-24)
+        if: matrix.torch-version == '2.13.0'
         shell: bash
         run: |
           src=/tmp/model-2024-06-24
@@ -157,6 +161,7 @@ jobs:
           ls -lh
 
       - name: Release exported onnx models
+        if: matrix.torch-version == '2.13.0'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true

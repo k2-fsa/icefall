@@ -29,8 +29,8 @@ jobs:
       - name: Generating build matrix
         id: set-matrix
         run: |
-          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10"
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10")
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0")
           echo "::set-output name=matrix::${MATRIX}"
 
   run_librispeech_lstm_transducer_stateless2_2022_09_03:
@@ -148,7 +148,7 @@ jobs:
 
       - name: Upload decoding results for lstm_transducer_stateless2
         uses: actions/upload-artifact@v4
-        if: github.event_name == 'schedule' || github.event.label.name == 'shallow-fusion' || github.event.label.name == 'LODR' || github.event_name == 'workflow_dispatch'
+        if: matrix.torch-version == '2.13.0' && (github.event_name == 'schedule' || github.event.label.name == 'shallow-fusion' || github.event.label.name == 'LODR' || github.event_name == 'workflow_dispatch')
         with:
           name: torch-${{ matrix.torch-version }}-python-${{ matrix.python-version }}-ubuntu-latest-cpu-lstm_transducer_stateless2-2022-09-03
           path: egs/librispeech/ASR/lstm_transducer_stateless2/exp/
