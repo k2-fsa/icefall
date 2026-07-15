@@ -56,6 +56,8 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
+              python3 -m pip install onnxscript lilcom
+
               python3 -m pip install --upgrade pip black==22.3.0 flake8==5.0.4 click==8.1.0 isort==5.10.1
 
       - name: Run flake8
@@ -69,6 +71,8 @@ jobs:
             run: |
               cd /icefall
               git config --global --add safe.directory /icefall
+
+              python3 -m pip install onnxscript lilcom
 
               python3 -m pip install --upgrade black==22.3.0 flake8==5.0.4 click==8.1.0 isort==5.10.1
 
@@ -90,6 +94,8 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
+              python3 -m pip install onnxscript lilcom
+
               python3 -m pip install --upgrade black==22.3.0 click==8.1.0
               black --check --diff .
 
@@ -104,6 +110,8 @@ jobs:
             run: |
               cd /icefall
               git config --global --add safe.directory /icefall
+
+              python3 -m pip install onnxscript lilcom
 
               python3 -m pip install --upgrade isort==5.10.1
               isort --check --diff .

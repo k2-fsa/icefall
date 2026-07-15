@@ -69,4 +69,6 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
+              python3 -m pip install onnxscript lilcom
+
               .github/scripts/librispeech/ASR/run.sh

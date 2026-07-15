@@ -41,6 +41,7 @@ RUN pip install --no-cache-dir \
       cython \
       diffusers \
       dill \
+      lilcom \
       espnet_tts_frontend \
       graphviz \
       kaldi-decoder \

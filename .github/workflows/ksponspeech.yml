@@ -51,6 +51,8 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
+              python3 -m pip install onnxscript lilcom
+
               python3 -m torch.utils.collect_env
               python3 -m k2.version
               pip list

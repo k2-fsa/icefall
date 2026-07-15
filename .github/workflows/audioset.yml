@@ -70,6 +70,8 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
+              python3 -m pip install onnxscript lilcom
+
               .github/scripts/audioset/AT/run.sh
 
       - name: Show model files
