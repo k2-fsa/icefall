@@ -69,6 +69,7 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
-              python3 -m pip install onnxscript lilcom torchcodec
+              python3 -m pip install onnxscript lilcom
+              python3 -c "import torch; v=torch.__version__.split('.'); exit(0 if (int(v[0]),int(v[1])) >= (2,9) else 1)" && python3 -m pip install torchcodec==0.14.0+cpu -f https://download.pytorch.org/whl/torchcodec || true
 
               .github/scripts/aishell/ASR/run.sh
