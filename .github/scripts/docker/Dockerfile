@@ -42,6 +42,7 @@ RUN pip install --no-cache-dir \
       diffusers \
       dill \
       lilcom \
+      torchcodec \
       espnet_tts_frontend \
       graphviz \
       kaldi-decoder \

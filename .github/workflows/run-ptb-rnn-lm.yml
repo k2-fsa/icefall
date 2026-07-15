@@ -60,7 +60,7 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
-              python3 -m pip install onnxscript lilcom
+              python3 -m pip install onnxscript lilcom torchcodec
 
               python3 -m torch.utils.collect_env
               python3 -m k2.version
@@ -81,7 +81,7 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
-              python3 -m pip install onnxscript lilcom
+              python3 -m pip install onnxscript lilcom torchcodec
 
               cd egs/ptb/LM
               ./train-rnn-lm.sh --world-size 1 --num-epochs 5 --use-epoch 4 --use-avg 2

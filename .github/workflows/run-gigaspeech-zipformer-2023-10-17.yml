@@ -72,7 +72,7 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
-              python3 -m pip install onnxscript lilcom
+              python3 -m pip install onnxscript lilcom torchcodec
 
               python3 -m torch.utils.collect_env
               python3 -m k2.version
@@ -94,7 +94,7 @@ jobs:
           tag: asr-models
 
       - name: Display decoding results for gigaspeech zipformer
-        if: github.event_name == 'schedule' || github.event.label.name == 'run-decode' || github.event_name == 'workflow_dispatch'
+        if: matrix.torch-version == '2.13.0' && (github.event_name == 'schedule' || github.event.label.name == 'run-decode' || github.event_name == 'workflow_dispatch')
         shell: bash
         run: |
           cd egs/gigaspeech/ASR/

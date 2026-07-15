@@ -76,7 +76,7 @@ jobs:
 
               git config --global --add safe.directory /icefall
 
-              python3 -m pip install onnxscript lilcom
+              python3 -m pip install onnxscript lilcom torchcodec
 
               .github/scripts/baker_zh/TTS/run-matcha.sh
 

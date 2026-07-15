@@ -68,7 +68,7 @@ jobs:
               cd /icefall
               git config --global --add safe.directory /icefall
 
-              python3 -m pip install onnxscript lilcom
+              python3 -m pip install onnxscript lilcom torchcodec
 
               pytest -v -s ./test
 
