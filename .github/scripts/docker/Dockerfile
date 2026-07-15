@@ -68,9 +68,9 @@ RUN pip install --no-cache-dir \
       tensorboard \
       typeguard
 
-# Install torchcodec (CPU version) only for torch >= 2.9.0
-RUN if python3 -c "import torch; v=torch.__version__.split('.'); exit(0 if (int(v[0]),int(v[1])) >= (2,9) else 1)"; then \
-      pip install --no-cache-dir torchcodec==0.14.0+cpu -f https://download.pytorch.org/whl/torchcodec; \
+ARG TORCHCODEC_VERSION=""
+RUN if [ -n "${TORCHCODEC_VERSION}" ]; then \
+      pip install --no-cache-dir torchcodec==${TORCHCODEC_VERSION}+cpu -f https://download.pytorch.org/whl/torchcodec; \
     fi
 
 # RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \

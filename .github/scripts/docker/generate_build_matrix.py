@@ -86,8 +86,22 @@ def get_kaldifeat_version(torch_version):
     return "1.25.5.dev20241029"
 
 
+# torchcodec version per torch version, from
+# https://github.com/meta-pytorch/torchcodec#installing-torchcodec
+def get_torchcodec_version(torch_version):
+    if version_ge(torch_version, "2.12"):
+        return "0.14.0"
+    if version_ge(torch_version, "2.11"):
+        return "0.11.0"
+    if version_ge(torch_version, "2.10"):
+        return "0.10.0"
+    if version_ge(torch_version, "2.9"):
+        return "0.9.0"
+    return ""
+
+
 def get_matrix(min_torch_version, specified_torch_version, specified_python_version):
-    version = "20260712"
+    version = "20260715"
 
     # torchaudio 2.5.0 does not support python 3.13
     python_version = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
@@ -154,6 +168,7 @@ def get_matrix(min_torch_version, specified_torch_version, specified_python_vers
                 {
                     "k2-version": get_k2_version(t),
                     "kaldifeat-version": get_kaldifeat_version(t),
+                    "torchcodec-version": get_torchcodec_version(t),
                     "version": version,
                     "python-version": p,
                     "torch-version": t,

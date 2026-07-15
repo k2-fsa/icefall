@@ -78,6 +78,7 @@ jobs:
             --build-arg TORCHAUDIO_VERSION=$torchaudio_version \
             --build-arg K2_VERSION=${{ matrix.k2-version }} \
             --build-arg KALDIFEAT_VERSION=${{ matrix.kaldifeat-version }} \
+            --build-arg TORCHCODEC_VERSION=${{ matrix.torchcodec-version }} \
             .
 
           docker image ls
