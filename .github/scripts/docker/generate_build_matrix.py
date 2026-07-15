@@ -117,9 +117,11 @@ def get_matrix(min_torch_version, specified_torch_version, specified_python_vers
     torch_version += ["2.8.0"]
     torch_version += ["2.9.0", "2.9.1"]
     torch_version += ["2.10.0"]
-    torch_version += ["2.11.0"]
-    torch_version += ["2.12.0", "2.12.1"]
-    torch_version += ["2.13.0"]
+    #  torch_version += ["2.11.0"]
+    #  torch_version += ["2.12.0", "2.12.1"]
+    #  torch_version += ["2.13.0"]
+
+    min_torch_version = "2.9.0"
 
     if specified_torch_version:
         torch_version = [specified_torch_version]
