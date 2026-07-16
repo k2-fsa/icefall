@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 import onnx
 import torch
+from icefall.utils import get_onnx_export_kwargs
 from infer import load_vocoder
 
 
@@ -86,7 +87,8 @@ def main():
                 "mel": {0: "N", 2: "L"},
                 "audio": {0: "N", 1: "L"},
             },
-        )
+            **get_onnx_export_kwargs(),
+)
 
         meta_data = {
             "model_type": "hifigan",

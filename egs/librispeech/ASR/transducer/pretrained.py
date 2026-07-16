@@ -39,7 +39,7 @@ from typing import List
 import k2
 import kaldifeat
 import torch
-import torchaudio
+import soundfile as sf
 from beam_search import beam_search, greedy_search
 from conformer import Conformer
 from decoder import Decoder
@@ -86,7 +86,7 @@ def get_parser():
         type=str,
         nargs="+",
         help="The input sound file(s) to transcribe. "
-        "Supported formats are those supported by torchaudio.load(). "
+        "Supported formats include wav, flac, and other formats supported by soundfile. "
         "For example, wav and flac are supported. "
         "The sample rate has to be 16kHz.",
     )
@@ -185,7 +185,13 @@ def read_sound_files(
     """
     ans = []
     for f in filenames:
-        wave, sample_rate = torchaudio.load(f)
+        data, sample_rate = sf.read(f, dtype='float32')
+
+        if len(data.shape) == 1:
+
+            data = data[:, None]
+
+        wave = torch.from_numpy(data.T)  # [channel, time]
         assert (
             sample_rate == expected_sample_rate
         ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"

@@ -74,6 +74,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, num_tokens, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -393,7 +394,8 @@ def export_encoder_model_onnx(
         input_names=input_names,
         output_names=output_names,
         dynamic_axes=dynamic_axes_dict if dynamic_axes else {},
-    )
+        **get_onnx_export_kwargs(),
+)
 
     meta_data = {
         "model_type": "zipformer2",
@@ -454,7 +456,8 @@ def export_decoder_model_onnx(
         }
         if dynamic_axes
         else {},
-    )
+        **get_onnx_export_kwargs(),
+)
 
     meta_data = {
         "context_size": str(context_size),
@@ -503,7 +506,8 @@ def export_joiner_model_onnx(
         }
         if dynamic_axes
         else {},
-    )
+        **get_onnx_export_kwargs(),
+)
     meta_data = {
         "joiner_dim": str(joiner_dim),
     }

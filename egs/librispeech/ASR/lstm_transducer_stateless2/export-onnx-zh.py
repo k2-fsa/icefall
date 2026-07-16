@@ -72,6 +72,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import num_tokens, setup_logger, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -315,7 +316,8 @@ def export_encoder_model_onnx(
             "new_state0": {1: "N"},
             "new_state1": {1: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     meta_data = {
         "model_type": "lstm",
@@ -372,7 +374,8 @@ def export_decoder_model_onnx(
             "y": {0: "N"},
             "decoder_out": {0: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     meta_data = {
         "context_size": str(context_size),
@@ -418,7 +421,8 @@ def export_joiner_model_onnx(
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
     meta_data = {
         "joiner_dim": str(joiner_dim),
     }

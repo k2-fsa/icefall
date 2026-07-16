@@ -41,6 +41,7 @@ RUN pip install --no-cache-dir \
       cython \
       diffusers \
       dill \
+      lilcom \
       espnet_tts_frontend \
       graphviz \
       kaldi-decoder \
@@ -54,6 +55,7 @@ RUN pip install --no-cache-dir \
       numba \
       "numpy<2.0" \
       onnxoptimizer \
+      onnxscript \
       onnxsim \
       onnx \
       onnxmltools \
@@ -65,6 +67,12 @@ RUN pip install --no-cache-dir \
       six \
       tensorboard \
       typeguard
+
+ARG TORCHCODEC_VERSION=""
+RUN if [ -n "${TORCHCODEC_VERSION}" ]; then \
+      pip install --no-cache-dir torchcodec==${TORCHCODEC_VERSION} --index-url=https://download.pytorch.org/whl/cpu; \
+    fi && \
+    ldconfig
 
 # RUN git clone https://github.com/k2-fsa/icefall /workspace/icefall && \
 #     cd /workspace/icefall && \

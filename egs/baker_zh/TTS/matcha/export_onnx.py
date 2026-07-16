@@ -26,6 +26,7 @@ from tokenizer import Tokenizer
 from train import get_model, get_params
 
 from icefall.checkpoint import load_checkpoint
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -177,7 +178,8 @@ def main():
                 "x_length": {0: "N"},
                 "mel": {0: "N", 2: "L"},
             },
-        )
+            **get_onnx_export_kwargs(),
+)
 
         meta_data = {
             "model_type": "matcha-tts",

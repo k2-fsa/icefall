@@ -59,6 +59,7 @@ from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import setup_logger
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -267,7 +268,8 @@ def export_encoder_model_onnx(
             "encoder_out": {0: "N", 1: "T"},
             "encoder_out_lens": {0: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     meta_data = {
         "model_type": "conformer",
@@ -320,7 +322,8 @@ def export_decoder_model_onnx(
             "y": {0: "N"},
             "decoder_out": {0: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     meta_data = {
         "context_size": str(context_size),
@@ -366,7 +369,8 @@ def export_joiner_model_onnx(
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
     meta_data = {
         "joiner_dim": str(joiner_dim),
     }

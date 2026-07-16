@@ -38,6 +38,7 @@ from conformer import (
 from scaling_converter import convert_scaled_to_non_scaled
 
 from icefall.utils import make_pad_mask
+from icefall.utils import get_onnx_export_kwargs
 
 ort.set_default_logger_severity(3)
 
@@ -69,7 +70,8 @@ def test_conv2d_subsampling():
             "x": {0: "N", 1: "T"},
             "y": {0: "N", 1: "T"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -125,7 +127,8 @@ def test_rel_pos():
             "y": {0: "N", 1: "T"},
             "pos_emb": {0: "N", 1: "T"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -213,7 +216,8 @@ def test_conformer_encoder_layer():
             "src_key_padding_mask": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -298,7 +302,8 @@ def test_conformer_encoder():
             "src_key_padding_mask": {0: "N", 1: "T"},
             "y": {0: "T", 1: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
@@ -355,7 +360,8 @@ def test_conformer():
             "y": {0: "N", 1: "T"},
             "y_lens": {0: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
     options = ort.SessionOptions()
     options.inter_op_num_threads = 1
     options.intra_op_num_threads = 1
