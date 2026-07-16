@@ -87,7 +87,7 @@ def compute_fbank_switchboard(
     perturb_speed: Optional[bool] = True,
 ):
     src_dir = Path(f"data/manifests/{dir_name}")
-    output_dir = Path(f"data/fbank/{dir_name}_split16")
+    output_dir = Path(f"data/fbank_nb/{dir_name}_split16")
     num_jobs = min(1, os.cpu_count())
     num_mel_bins = 80
 
@@ -105,7 +105,7 @@ def compute_fbank_switchboard(
     suffix = "jsonl.gz"
     split_dir = Path("data/manifests/swbd_split16/")
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=16000))
+    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=8000))
 
     with get_executor() as ex:  # Initialize the executor only once.
         partition = "all"
@@ -122,7 +122,6 @@ def compute_fbank_switchboard(
                 split_dir
                 / f"swbd_train_all_trimmed.{str(split_index).zfill(2)}.jsonl.gz"
             )
-            .resample(16000)
             .to_eager()
             .filter(lambda c: c.duration > 2.0)
         )

@@ -66,14 +66,8 @@ def get_args():
     parser.add_argument(
         "--perturb-speed",
         type=str2bool,
-        default=True,
+        default=False,
         help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
-    )
-
-    parser.add_argument(
-        "--split-index",
-        type=int,
-        required=True,
     )
 
     return parser.parse_args()
@@ -81,13 +75,12 @@ def get_args():
 
 def compute_fbank_switchboard(
     dir_name: str,
-    split_index: int,
     bpe_model: Optional[str] = None,
     dataset: Optional[str] = None,
     perturb_speed: Optional[bool] = True,
 ):
     src_dir = Path(f"data/manifests/{dir_name}")
-    output_dir = Path(f"data/fbank/{dir_name}_split16")
+    output_dir = Path(f"data/fbank_nb/{dir_name}")
     num_jobs = min(1, os.cpu_count())
     num_mel_bins = 80
 
@@ -103,47 +96,32 @@ def compute_fbank_switchboard(
 
     prefix = dir_name
     suffix = "jsonl.gz"
-    split_dir = Path("data/manifests/swbd_split16/")
+    manifests = {
+        "eval2000": "data/manifests/eval2000/eval2000_cuts_all_trimmed.jsonl.gz",
+    }
+    assert manifests is not None
 
-    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=16000))
+    extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins, sampling_rate=8000))
 
     with get_executor() as ex:  # Initialize the executor only once.
         partition = "all"
-        cuts_filename = (
-            f"{prefix}_cuts_{partition}.{str(split_index).zfill(2)}.{suffix}"
-        )
+        cuts_filename = f"{prefix}_cuts_{partition}.{suffix}"
         print(cuts_filename)
         if (output_dir / cuts_filename).is_file():
             logging.info(f"{prefix} already exists - skipping.")
             return
         logging.info(f"Processing {prefix}")
-        cut_set = (
-            CutSet.from_file(
-                split_dir
-                / f"swbd_train_all_trimmed.{str(split_index).zfill(2)}.jsonl.gz"
-            )
-            .resample(16000)
-            .to_eager()
-            .filter(lambda c: c.duration > 2.0)
-        )
+        cut_set = CutSet.from_file(manifests[prefix])
 
-        if bpe_model:
-            cut_set = filter_cuts(cut_set, sp)
-        if perturb_speed:
-            logging.info(f"Doing speed perturb")
-            cut_set = cut_set + cut_set.perturb_speed(0.9) + cut_set.perturb_speed(1.1)
         cut_set = cut_set.compute_and_store_features(
             extractor=extractor,
-            storage_path=f"{output_dir}/{prefix}_feats_{partition}_{str(split_index).zfill(2)}",
+            storage_path=f"{output_dir}/{prefix}_feats_{partition}",
             # when an executor is specified, make more partitions
             num_jobs=num_jobs if ex is None else 80,
             executor=ex,
             storage_type=LilcomChunkyWriter,
         )
-        cut_set = cut_set.trim_to_supervisions(
-            keep_overlapping=False,
-            min_duration=None,
-        )
+        cut_set = cut_set.trim_to_supervisions(keep_overlapping=False)
         cut_set.to_file(output_dir / cuts_filename)
 
 
@@ -153,10 +131,8 @@ if __name__ == "__main__":
     logging.basicConfig(format=formatter, level=logging.INFO)
     args = get_args()
     logging.info(vars(args))
-
     compute_fbank_switchboard(
-        dir_name="swbd",
-        split_index=args.split_index,
+        dir_name="eval2000",
         bpe_model=args.bpe_model,
         dataset=args.dataset,
         perturb_speed=args.perturb_speed,
