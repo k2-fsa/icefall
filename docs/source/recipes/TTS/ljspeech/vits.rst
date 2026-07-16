@@ -19,7 +19,7 @@ Install extra dependencies
 .. code-block:: bash
 
   pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html
-  pip install numba espnet_tts_frontend
+  pip install numba espnet_tts_frontend cython
 
 Data preparation
 ----------------
