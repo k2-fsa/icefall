@@ -7,7 +7,7 @@ apt-get install -y sox
 
 python3 -m pip install piper_phonemize -f https://k2-fsa.github.io/icefall/piper_phonemize.html
 python3 -m pip install espnet_tts_frontend
-python3 -m pip install numba conformer==0.3.2 diffusers librosa
+python3 -m pip install numba conformer==0.3.2 diffusers==0.30.0 librosa
 
 log() {
   # This function is from espnet

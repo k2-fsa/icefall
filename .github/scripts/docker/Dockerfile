@@ -37,9 +37,9 @@ RUN pip install --no-cache-dir \
       \
       git+https://github.com/lhotse-speech/lhotse \
       kaldifeat==${_KALDIFEAT_VERSION} -f https://csukuangfj.github.io/kaldifeat/cpu.html \
-      conformer==0.3.2 \
+      "conformer==0.3.2" \
       cython \
-      diffusers \
+      "diffusers==0.30.0" \
       dill \
       lilcom \
       espnet_tts_frontend \
