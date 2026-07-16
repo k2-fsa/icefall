@@ -264,57 +264,66 @@ polar_express_coeffs = [
     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
 ]
 
+polar_express_coeffs8 = [  # taken directly from paper https://arxiv.org/pdf/2505.16932 page 16
+    (8.28721201814563, -23.595886519098837, 17.300387312530933),
+    (4.107059111542203, -2.9478499167379106, 0.5448431082926601),
+    (3.9486908534822946, -2.908902115962949, 0.5518191394370137),
+    (3.3184196573706015, -2.488488024314874, 0.51004894012372),
+    (2.300652019954817, -1.6689039845747493, 0.4188073119525673),
+    (1.891301407787398, -1.2679958271945868, 0.37680408948524835),
+    (1.8750014808534479, -1.2500016453999487, 0.3750001645474248),
+    (1.875, -1.25, 0.375), # subsequent coeffs equal this numerically
+]
 
 def limit_singular_values(x, l):
-    dtype = torch.float
+    """
+    Maps singular values of x with the mapping a -> a / sqrt((a/l)**2 + 1), which is close to a->a for
+    a << l, and close to l for a >> l.  So a little like a continuous version of the function
+    singular_value.clamp(max=l)
+    """
+    return l * limit_singular_values_to_one(x / l)
+
+
+def limit_singular_values_to_one(x):
+    # a recurrence that maps singular values of x with the mapping a ->  a / (a^2 + 1).sqrt(),
+    # which limits them to at most 1 while
     if x.ndim != 3:
         orig_shape = x.shape
         batch_size = x.shape[0]
         rows, cols = matrix_shape(x.shape[1:])
-        if isinstance(l, Tensor):
-            l = l.reshape(batch_size, 1, 1)
-        return limit_singular_values(x.reshape(batch_size, rows, cols), l).reshape(*orig_shape)
+        return limit_singular_values_to_one(x.reshape(batch_size, rows, cols)).reshape(*orig_shape)
 
-    # maps singular values a -> a / (a/l + 1) which is equivalent to a if a << l and l if a >> l.
+    dtype = COMPUTE_DTYPE
+    orig_dtype = x.dtype
+
+    # maps singular values a -> a / (a + 1) which is equivalent to a if a << 1 and 1 if a >> 1.
     assert x.ndim == 3
     (batch_size, rows, cols) = x.shape
     if rows > cols:
-        return limit_singular_values(x.mT, l).mT
+        return limit_singular_values_to_one(x.mT).mT
 
     # Polar express
     # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
     X = x.to(dtype)
-    X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-6)
+    # define sym(X) as (X @ X^T)^{1/2}.
+    # versus the normal formula, the den value is increased by 1.  that is because we are dividing
+    # not by sym(X) but by sym(X) + I
+    den = (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1.01)
+    X = X / den
+    # will become inverse
+    inverse = torch.eye(rows, device=X.device, dtype=X.dtype) / den
 
     # assume rows <= cols
     ns_steps = 5
     for a, b, c in polar_express_coeffs[:ns_steps]:
-        A = X @ X.mT
+        A = X @ X.mT  +  inverse @ inverse.mT
         B = b * A + c * (A @ A)
         X = a * X + B @ X
-
-    a = x @ X.mT
-    # a is like the absolute value of x, as a symmetric (rows x rows) matrix.
-    eye = torch.eye(rows, device=X.device, dtype=X.dtype)
-    al_plus_one = a / l + eye
-    X = al_plus_one.to(dtype=dtype)
-    den = (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-6)
-    X = X / den
-    inv = eye / den # will become (l a + 1)^{-1}
-    for a, b, c in polar_express_coeffs[:ns_steps]:
-        A = X @ X.mT
-        B = b * A + c * (A @ A)
-        X = a * X + B @ X
-        inv = a * inv + B @ inv
+        inverse = a * inverse + B @ inverse
 
 
-    ans = inv @ x
+    return X.to(orig_dtype)
 
-    # scale == l a / (l a + 1) == I - (l a + I)^{-1}
-    if random.random() < 0.002:
-        ratio = ans.norm(dim=(-2, -1)) / (x.norm(dim=(-2, -1)) + 1.0e-20)
-        logging.info(f"limit_singular_values, limit={l.flatten()}, ratio={ratio}")
-    return ans
 
 
 
@@ -785,16 +794,53 @@ def _test_scaled_three_way_product():
     assert not torch.allclose(x, scaled_three_way_product(x), atol=1.0e-03)
 
 
+
+def _test_limit_singular_values_to_one():
+    batch_size, rows, cols = 2, 5, 10
+
+    a = 0.2 * torch.randn(batch_size, rows, cols)
+    U, S, V = torch.linalg.svd(a)
+    S2 = S / (S * S + 1).sqrt()
+    print(f"Initially, singular values are {S}")
+    b = limit_singular_values_to_one(a)
+    U, S, V = torch.linalg.svd(b)
+    print(f"After limit_singular_values_to_one, singular values are {S} vs should be {S2}, ratio={S/S2}")
+
+
 def _test_limit_singular_values():
-    batch_size, rows, cols = 2, 20, 30
+    batch_size, rows, cols = 1, 10, 20
 
     l = 3.0
     a = torch.randn(batch_size, rows, cols)
     U, S, V = torch.linalg.svd(a)
+    S2 = S / ((S/l)**2 + 1).sqrt()
     print("Initially, singular values are ", S)
     b = limit_singular_values(a, l)
     U, S, V = torch.linalg.svd(b)
-    print(f"After limit_singular_values with l={l}, singular values are {S}")
+    print(f"After limit_singular_values with l={l}, singular values are {S} versus should be {S2}, ratio={S/S2}")
+
+
+def _test_polar_express():
+    batch_size, rows, cols = 1, 10, 20
+
+    l = 3.0
+    a = torch.randn(batch_size, rows, cols)
+    U, S, V = torch.linalg.svd(a)
+
+    X = a / (a.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-06)
+    # assume rows <= cols
+    ns_steps = 5
+    n = 0
+    for a, b, c in polar_express_coeffs[:ns_steps]:
+        A = X @ X.mT
+        B = b * A + c * (A @ A)
+        X = a * X + B @ X
+
+        U, S, V = torch.linalg.svd(X)
+        print(f"After newton_schulz step {n}, singular values are {S}")
+        n += 1
+
+
 
 
 if __name__ == "__main__":
@@ -814,6 +860,8 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
+    _test_limit_singular_values_to_one()
     _test_limit_singular_values()
+    _test_polar_express()
     _test_scaled_three_way_product()
     _test_batched_rubik(hidden_dim)
