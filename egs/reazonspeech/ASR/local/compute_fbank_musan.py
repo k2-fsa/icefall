@@ -94,12 +94,14 @@ def compute_fbank_musan(
     logging.info("Extracting features for Musan")
 
     if whisper_fbank:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device == "cpu":
+            logging.warning("CUDA not available; using WhisperFbank on CPU.")
         extractor = WhisperFbank(
-            WhisperFbankConfig(num_filters=num_mel_bins, device="cuda")
+            WhisperFbankConfig(num_filters=num_mel_bins, device=device)
         )
     else:
         extractor = Fbank(FbankConfig(num_mel_bins=num_mel_bins))
-
     with get_executor() as ex:  # Initialize the executor only once.
         # create chunks of Musan with duration 5 - 10 seconds
         musan_cuts = (

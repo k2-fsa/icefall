@@ -21,7 +21,7 @@
 
 This script takes as input `lang_dir`, which should contain::
 
-    - lang_dir/bbpe.model,
+    - lang_dir/bbpe_2000/bbpe.model
     - lang_dir/words.txt
 
 and generates the following files in the directory `lang_dir`:
@@ -173,7 +173,8 @@ def get_args():
         "--lang-dir",
         type=str,
         help="""Input and output directory.
-        It should contain the bpe.model and words.txt
+        It should contain the words.txt file and the
+        bbpe model in a subdirectory (e.g., bbpe_2000/bbpe.model).
         """,
     )
 
@@ -182,6 +183,13 @@ def get_args():
         type=str,
         default="<UNK>",
         help="The out of vocabulary word in lexicon.",
+    )
+
+    parser.add_argument(
+        "--vocab-size",
+        type=int,
+        default=2000,  # Add a default value for vocab_size for consistency
+        help="Vocabulary size used for BPE training (determines the bbpe model directory).",
     )
 
     parser.add_argument(
@@ -206,6 +214,9 @@ def main():
     lang_dir = Path(args.lang_dir)
     model_file = lang_dir / "bbpe.model"
 
+    if not model_file.is_file():
+        raise FileNotFoundError(f"BPE model not found at: {model_file}")
+
     word_sym_table = k2.SymbolTable.from_file(lang_dir / "words.txt")
 
     words = word_sym_table.symbols
@@ -216,7 +227,7 @@ def main():
         if w in words:
             words.remove(w)
 
-    lexicon, token_sym_table = generate_lexicon(model_file, words, args.oov)
+    lexicon, token_sym_table = generate_lexicon(str(model_file), words, args.oov)
 
     lexicon_disambig, max_disambig = add_disambig_symbols(lexicon)
 
