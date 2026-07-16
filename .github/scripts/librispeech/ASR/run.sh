@@ -42,6 +42,7 @@ function prepare_data() {
   ./local/compute_fbank_librispeech.py --dataset "dev-clean dev-other test-clean test-other train-clean-100" --perturb-speed False
   ls -lh data/fbank
 
+  pip install --force-reinstall kaldifst
   ./prepare.sh --stage 5 --stop-stage 6
 }
 
