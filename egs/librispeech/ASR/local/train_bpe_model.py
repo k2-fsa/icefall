@@ -55,6 +55,12 @@ def get_args():
         help="Vocabulary size for BPE training",
     )
 
+    parser.add_argument(
+        "--unk-surface",
+        type=str,
+        help="Unknown symbol surface",
+    )
+
     return parser.parse_args()
 
 
@@ -101,6 +107,7 @@ def main():
             unk_id=unk_id,
             bos_id=-1,
             eos_id=-1,
+            **(dict(unk_surface=args.unk_surface) if args.unk_surface else dict()),
         )
     else:
         print(f"{model_file} exists - skipping")
