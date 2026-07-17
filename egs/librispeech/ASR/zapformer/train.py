@@ -1459,11 +1459,10 @@ def run(rank, world_size, args):
     logging.info(f"Copies per epoch: {copies_per_epoch}")
 
     # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.
-    # this configuration is halfway between a linear function (1 to 0) and the conventional
-    # cosine LR scheduler.  It decays to a minimum of 0.025.
+    # this configuration is just linear decay from 1 to 0.025.
     scheduler = InterpCosineLRScheduler(optimizer,
                                         min_factor=0.025,
-                                        linear_scale=0.5,
+                                        linear_scale=1.0,
                                         batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:
