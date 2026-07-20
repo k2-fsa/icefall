@@ -85,7 +85,7 @@ except:
 
 from variable_combined_scheduler import VariableCombinedLRScheduler
 try:
-    from variable_combined_scheduler import InterpCosineLRScheduler
+    from variable_combined_scheduler import LambdaLRScheduler
     LRSchedulerType = VariableCombinedLRScheduler
 except:
     pass
@@ -1458,12 +1458,15 @@ def run(rank, world_size, args):
     logging.info(f"Num epochs = {len(copies_per_epoch)}, num-real-epochs={sum(copies_per_epoch)} vs target {params.num_real_epochs}")
     logging.info(f"Copies per epoch: {copies_per_epoch}")
 
-    # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.
-    # this LR-factor in this configuration is linear decay from 1 to 0.025.
-    scheduler = InterpCosineLRScheduler(optimizer,
-                                        min_factor=0.025,
-                                        linear_scale=1.0,
-                                        batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
+
+    def progress_to_lr_factor(progress):
+        min_factor = 0.025
+        fourth_power_scale = 0.25  # rest is linear.
+        # the function (1 - progress) ** 4 decreases fastest closer to progress == 0.
+        factor = fourth_power_scale * ((1 - progress) ** 4) + (1 - fourth_power_scale) * (1 - progress)
+        return min_factor + (1.0 - min_factor) * factor
+
+    scheduler = LambdaLRScheduler(optimizer, progress_to_lr_factor)
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
