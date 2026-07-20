@@ -1461,9 +1461,9 @@ def run(rank, world_size, args):
 
     def progress_to_lr_factor(progress):
         min_factor = 0.025
-        fourth_power_scale = 0.25  # rest is linear.
-        # the function (1 - progress) ** 4 decreases fastest closer to progress == 0.
-        factor = fourth_power_scale * ((1 - progress) ** 4) + (1 - fourth_power_scale) * (1 - progress)
+        power_scale = 0.3  # rest is linear.
+        # the function (1 - progress) ** 10 decreases fastest closer to progress == 0.
+        factor = power_scale * ((1 - progress) ** 10.0) + (1 - power_scale) * (1 - progress)
         return min_factor + (1.0 - min_factor) * factor
 
     scheduler = LambdaLRScheduler(optimizer, func=progress_to_lr_factor,
