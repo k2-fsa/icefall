@@ -1466,7 +1466,8 @@ def run(rank, world_size, args):
         factor = fourth_power_scale * ((1 - progress) ** 4) + (1 - fourth_power_scale) * (1 - progress)
         return min_factor + (1.0 - min_factor) * factor
 
-    scheduler = LambdaLRScheduler(optimizer, progress_to_lr_factor)
+    scheduler = LambdaLRScheduler(optimizer, func=progress_to_lr_factor,
+                                  batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
