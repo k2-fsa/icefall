@@ -173,6 +173,17 @@ class InterpCosineLRScheduler(VariableCombinedLRScheduler):
         return [x * factor for x in self.base_lrs]
 
 
+class LambdaLRScheduler(VariableCombinedLRScheduler):
+    def __init__(self, *args, func, **kwargs):
+        self.func = func
+        super().__init__(*args, **kwargs)
+
+    def get_lr(self):
+        progress = self.get_progress()
+        factor = self.func(progress)
+        return [x * factor for x in self.base_lrs]
+
+
 class LinearLRScheduler(VariableCombinedLRScheduler):
     def __init__(self,
                  *args,

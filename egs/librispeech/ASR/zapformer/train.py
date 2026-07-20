@@ -79,7 +79,7 @@ try:
     from batched_rubik import BatchedRubik
     # could also have done:
     # from rubik import Rubik
-except:
+except ImportError:
     pass
 
 
@@ -87,7 +87,7 @@ from variable_combined_scheduler import VariableCombinedLRScheduler
 try:
     from variable_combined_scheduler import LambdaLRScheduler
     LRSchedulerType = VariableCombinedLRScheduler
-except:
+except ImportError:
     pass
 
 SchedulerType = "VariableCombinedLRScheduler"
