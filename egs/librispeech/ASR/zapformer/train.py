@@ -1219,12 +1219,12 @@ def train_one_epoch(
             scaler.scale(loss).backward()
             num_accum_steps = scheduler.set_batch(batch_idx)  # sets batch-count within the epoch, and sets the LRs; and gives the num accum steps
             accum += 1
+            param_plotter.step(params.batch_idx_train)
             if accum >= num_accum_steps:
                 accum = 0
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
-            param_plotter.step(params.batch_idx_train)
 
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
