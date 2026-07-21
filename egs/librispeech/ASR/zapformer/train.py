@@ -1189,6 +1189,8 @@ def train_one_epoch(
             rank=0,
         )
 
+    accum = 0
+
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
             set_batch_count(model, get_adjusted_batch_count(params))
@@ -1215,11 +1217,15 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
-            scheduler.set_batch(batch_idx)  # sets batch-count within the epoch, and sets the LRs.
-            scaler.step(optimizer)
-            scaler.update()
+            num_accum_steps = scheduler.set_batch(batch_idx)  # sets batch-count within the epoch, and sets the LRs; and gives the num accum steps
+            accum += 1
+            if accum >= num_accum_steps:
+                accum = 0
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
             param_plotter.step(params.batch_idx_train)
-            optimizer.zero_grad()
+
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
             save_bad_model()
@@ -1293,7 +1299,7 @@ def train_one_epoch(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, "
+                f"lr: {cur_lr:.2e}, accum: {num_accum_steps}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
             )
 
@@ -1301,6 +1307,10 @@ def train_one_epoch(
             if tb_writer is not None:
                 tb_writer.add_scalar(
                     "train/learning_rate", cur_lr, params.batch_idx_train
+                )
+
+                tb_writer.add_scalar(
+                    "train/accum_steps", num_accum_steps, params.batch_idx_train
                 )
 
                 loss_info.write_summary(

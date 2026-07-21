@@ -86,11 +86,17 @@ class VariableCombinedLRScheduler(object):
         # e.g. return [some_formula(self.batch, self.epoch, base_lr) for base_lr in self.base_lrs ]
         raise NotImplementedError
 
-    def set_batch(self, batch: int):
-        """ Sets the batch index within the epoch, with zero-based counting (not that this matters much)."""
+    def set_batch(self, batch: int) -> int:
+        """ Sets the batch index within the epoch, with zero-based counting (not that this matters much)
+            Returns the number of accumulation steps
+        ."""
         # set the within-epoch batch index.
         self.batch = batch
         self._set_lrs()
+        try:
+            return self.num_accum_steps
+        except AttributeError:
+            return 1
 
     def set_epoch(self, epoch: int):
         """ Sets the epoch with one-based counting, so the first epoch is 1; the epoch should not exceed the num_epochs used
@@ -181,6 +187,11 @@ class LambdaLRScheduler(VariableCombinedLRScheduler):
     def get_lr(self):
         progress = self.get_progress()
         factor = self.func(progress)
+
+        max_factor = 1  # could try e.g. 0.66, 0.5.
+        self.num_accum_steps = max(1, int((max_factor / factor) ** 2))
+        factor = factor * (self.num_accum_steps ** 0.5)
+
         return [x * factor for x in self.base_lrs]
 
 
