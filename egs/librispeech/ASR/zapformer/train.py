@@ -1446,7 +1446,7 @@ def run(rank, world_size, args):
     optimizer = BatchedRubik(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=False),
         lr=params.base_lr,
-        beta1=0.95,
+        beta1=0.8,
     )
 
     if True:
