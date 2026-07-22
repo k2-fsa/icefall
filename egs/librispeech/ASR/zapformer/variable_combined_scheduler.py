@@ -189,7 +189,8 @@ class LambdaLRScheduler(VariableCombinedLRScheduler):
         factor = self.func(progress)
 
         max_factor = 1  # could try e.g. 0.66, 0.5.
-        self.num_accum_steps = max(1, int((max_factor / factor) ** 2))
+        max_accum_steps = 8
+        self.num_accum_steps = min(max_accum_steps, max(1, int((max_factor / factor) ** 2)))
         factor = factor * (self.num_accum_steps ** 0.5)
 
         return [x * factor for x in self.base_lrs]
