@@ -383,10 +383,9 @@ def muon_internal(
     All in one compiled graph to eliminate Python overhead between ops.
     Some of the constants are 0-D CPU tensors to avoid recompilation when values change.
     """
-
-    # Nesterov momentum
     momentum_buffer.lerp_(stacked_grads, 1 - beta1)
-    g = torch.lerp(stacked_grads, momentum_buffer, beta1)
+    # nesterov would be: torch.lerp(stacked_grads, momentum_buffer, beta1)
+    g = momentum_buffer
 
     (batch_size, rows, cols) = g.shape
     if rows > cols:
