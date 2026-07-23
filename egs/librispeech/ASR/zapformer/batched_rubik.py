@@ -150,39 +150,21 @@ def scaled_three_way_product(x):
     x = x * (x_meansq * max(rows, cols)) ** (-1/3)
     return three_way_product(x)
 
-def compute_alpha(x: Tensor, y: Tensor, beta: float) -> Tensor:
+def compute_scale(x: Tensor, y: Tensor) -> Tensor:
     """
-    Solve the equation: ||x + alpha y||_2^2 == ||beta x||_2^2
+    Solve the equation: ||x - scale y||_2^2 == [minimum]
 
-          x.x + 2 alpha y.x + alpha^2 y.y = beta^2 x.x
-      alpha^2 y.y + 2 alpha x.y + (1-beta^2) x.x = 0
-     (a,b,c) = (y.y, 2 alpha x.y, x.x)
-        alpha = (-b + sqrt(b^2 - 4ac) ) / 2a      # this is the solution closest to zero.
-                                                  # treat the thing inside the sqrt as zero if
-                                                  # negative, this
-    # factoring out 2 from the top and bottom we get:
-       so alpha = (-x.y + sqrt(x.y * y.x  - (1-beta^2) x.x * y.y)) / y.y
-     ... we treat the thing inside the sqrt as zero if it is negative,
-      which gives us the closest real solution
+          x.x - 2 scale y.x + scale^2 y.y = 0
+       scale^2 y.y - 2 scale x.y = 0
+d/d[scale]:
+           2 scale y.y = 2 x.y
+                 scale = x.y / y.y
     """
     eps = 1.0e-40
-    xx = x.square().mean(dim=(1, 2), keepdim=True)
     xy = (x * y).mean(dim=(1, 2), keepdim=True)
     yy = y.square().mean(dim=(1, 2), keepdim=True)
-    yyeps = yy + eps
+    return xy / (yy + eps)
 
-    # this alpha is the value that solves exactly for the requested difference in norm.
-    # this will be negative.
-    alpha = (-xy + (xy**2 - (1-beta*beta) * xx * yy).clamp(min=0).sqrt()) / yyeps
-
-    # min_sum_scale is the value of alpha that would minimize the norm of a + alpha y.
-    min_sum_scale = -xy / yyeps
-    # safety_factor = 0.5 means we are only willing to go halfway to that value that minimizes the norm,
-    # to avoid change of eigenvalue sign / overshoot, which can ultimately lead to certain
-    # parameter eigenvalues getting too large.
-    safety_factor = 0.5
-
-    return torch.maximum(safety_factor * min_sum_scale, alpha)  # return the closet to zero of these two formulae.
 
 
 def matrix_shape(shape):
@@ -310,6 +292,7 @@ def limit_singular_values_to_one(x):
     # not by sym(X) but by sym(X) + I
     den = (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1.01)
     X = X / den
+
     # will become inverse
     inverse = torch.eye(rows, device=X.device, dtype=X.dtype) / den
 
@@ -372,7 +355,7 @@ def muon_internal(
     stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
     beta1: float,
-    beta2: float,
+    alpha: float,
     lr: float,
     eps: float,
     ns_steps: int,
@@ -409,28 +392,37 @@ def muon_internal(
     # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
     X = g.bfloat16() if COMPUTE_DTYPE == torch.bfloat16 else g
     X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-6)
+    X0 = None
     if g.size(-2) > g.size(-1): # Tall matrix
         for a, b, c in polar_express_coeffs[:ns_steps]:
             A = X.mT @ X
+            if X0 is None:
+                X0 = X @ A
             B = b * A + c * (A @ A)
             X = a * X + X @ B
     else: # Wide matrix (original math)
         for a, b, c in polar_express_coeffs[:ns_steps]:
             A = X @ X.mT
+            if X0 is None:
+                X0 = A @ X
             B = b * A + c * (A @ A)
             X = a * X + B @ X
-    g = X
+
+    # the alpha term is an attempt to attenuate the top singular value of the gradient,
+    # to minimize instability.
+    g_norm = X  # version of g for normalization purposes, not including subtraction of top singular value
+    g = X - (alpha * compute_scale(X, X0)) * X0
 
     #if scale is not None:
     #    g = g * scale  # apply it the 2nd time for symmetry
 
     expected_rms = max(rows, cols) ** -0.5
     if rows > cols:
-        row_rms = (g ** 2).mean(dim=2, keepdim=True).sqrt() + eps
+        row_rms = (g_norm ** 2).mean(dim=2, keepdim=True).sqrt() + eps
         row_scale = (expected_rms / row_rms)
         g = g * row_scale
     elif cols > rows:
-        col_rms = (g ** 2).mean(dim=1, keepdim=True).sqrt() + eps
+        col_rms = (g_norm ** 2).mean(dim=1, keepdim=True).sqrt() + eps
         col_scale = (expected_rms / col_rms)
         g = g * col_scale
 
@@ -450,7 +442,11 @@ def muon_core_step(group, state, grad):
     step = state["step"]
     beta1_ceil = 1. - 1. / (10. + 0.2 * step)
     beta1 = min(group["beta1"], beta1_ceil)
-    beta2 = min(0.9, step / (step + 1))
+
+    # alpha is the amount of the grad that we subtract from the orthogonalized grad inside muon, relative
+    # to the amount that would minimize the norm of the result.  The idea is to mostly remove/cancel out
+    # the dominant singular value of the raw gradient in order to minimize instability.
+    alpha = min(0.75, step / 500)
 
     orig_shape = grad.shape
     batch_size = orig_shape[0]
@@ -474,7 +470,7 @@ def muon_core_step(group, state, grad):
 
     grad = grad.to(COMPUTE_DTYPE) if grad.dtype != COMPUTE_DTYPE else grad.clone()
     step = muon_internal(grad.to(COMPUTE_DTYPE), momentum_buffer,
-                         beta1, beta2, lr, eps, 5, step)
+                         beta1, alpha, lr, eps, 5, step)
 
     return step.reshape(orig_shape)
 
