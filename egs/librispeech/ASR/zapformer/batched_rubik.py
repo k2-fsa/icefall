@@ -396,22 +396,24 @@ def muon_internal(
     if g.size(-2) > g.size(-1): # Tall matrix
         for a, b, c in polar_express_coeffs[:ns_steps]:
             A = X.mT @ X
-            if X0 is None:
-                X0 = X @ A
-            B = b * A + c * (A @ A)
+            Asq = A @ A
+            if X0 is None:  # set X0 to X with top singular value normalized close to 1.
+                X0 = X * (((Asq ** 2).sum(dim=(-2, -1), keepdim=True) + 1e-20) ** (-1/8))
+            B = b * A + c * Asq
             X = a * X + X @ B
     else: # Wide matrix (original math)
         for a, b, c in polar_express_coeffs[:ns_steps]:
             A = X @ X.mT
+            Asq = A @ A
             if X0 is None:
-                X0 = A @ X
-            B = b * A + c * (A @ A)
+                X0 = X * (((Asq ** 2).sum(dim=(-2, -1), keepdim=True) + 1e-20) ** (-1/8))
+            B = b * A + c * Asq
             X = a * X + B @ X
 
     # the alpha term is an attempt to attenuate the top singular value of the gradient,
     # to minimize instability.
     g_norm = X  # version of g for normalization purposes, not including subtraction of top singular value
-    g = X - (alpha * compute_scale(X, X0)) * X0
+    g = X - alpha * X0
 
     #if scale is not None:
     #    g = g * scale  # apply it the 2nd time for symmetry
