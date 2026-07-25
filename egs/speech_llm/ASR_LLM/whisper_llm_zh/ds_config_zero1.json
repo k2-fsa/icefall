@@ -5,7 +5,7 @@
         "loss_scale_window": 100,
         "initial_scale_power": 16,
         "hysteresis": 2,
-        "min_loss_scale": 0.01
+        "min_loss_scale": 1
     },
     "zero_optimization": {
         "stage": 1,

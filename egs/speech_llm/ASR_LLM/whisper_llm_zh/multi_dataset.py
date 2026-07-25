@@ -15,13 +15,10 @@
 # limitations under the License.
 
 
-import glob
 import logging
-import re
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
-import lhotse
 from lhotse import CutSet, load_manifest_lazy
 
 
@@ -50,103 +47,13 @@ class MultiDataset:
     def train_cuts(self) -> CutSet:
         logging.info("About to get multidataset train cuts")
 
-        # THCHS-30
-        logging.info("Loading THCHS-30 in lazy mode")
-        thchs_30_cuts = load_manifest_lazy(
-            self.fbank_dir / "thchs_30_cuts_train.jsonl.gz"
-        )
-
-        # AISHELL-1
-        logging.info("Loading Aishell-1 in lazy mode")
-        aishell_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell_cuts_train.jsonl.gz"
-        )
-
-        # AISHELL-2
-        logging.info("Loading Aishell-2 in lazy mode")
-        aishell_2_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell2_cuts_train.jsonl.gz"
-        )
-
-        # AISHELL-4
-        logging.info("Loading Aishell-4 in lazy mode")
-        aishell_4_L_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell4_cuts_train_L.jsonl.gz"
-        )
-        aishell_4_M_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell4_cuts_train_M.jsonl.gz"
-        )
-        aishell_4_S_cuts = load_manifest_lazy(
-            self.fbank_dir / "aishell4_cuts_train_S.jsonl.gz"
-        )
-
-        # ST-CMDS
-        logging.info("Loading ST-CMDS in lazy mode")
-        stcmds_cuts = load_manifest_lazy(self.fbank_dir / "stcmds_cuts_train.jsonl.gz")
-
-        # Primewords
-        logging.info("Loading Primewords in lazy mode")
-        primewords_cuts = load_manifest_lazy(
-            self.fbank_dir / "primewords_cuts_train.jsonl.gz"
-        )
-
-        # MagicData
-        logging.info("Loading MagicData in lazy mode")
-        magicdata_cuts = load_manifest_lazy(
-            self.fbank_dir / "magicdata_cuts_train.jsonl.gz"
-        )
-
-        # Ali-Meeting
-        logging.info("Loading Ali-Meeting in lazy mode")
-        alimeeting_cuts = load_manifest_lazy(
-            self.fbank_dir / "alimeeting-far_cuts_train.jsonl.gz"
-        )
-
         # WeNetSpeech
         logging.info("Loading WeNetSpeech in lazy mode")
         wenetspeech_L_cuts = load_manifest_lazy(
             self.fbank_dir / "wenetspeech" / "cuts_L_fixed.jsonl.gz"
         )
 
-        # KeSpeech
-        logging.info("Loading KeSpeech in lazy mode")
-        kespeech_1_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_train_phase1.jsonl.gz"
-        )
-        kespeech_2_cuts = load_manifest_lazy(
-            self.fbank_dir / "kespeech" / "kespeech-asr_cuts_train_phase2.jsonl.gz"
-        )
-
-        return CutSet.mux(
-            thchs_30_cuts,
-            aishell_cuts,
-            aishell_2_cuts,
-            aishell_4_L_cuts,
-            aishell_4_M_cuts,
-            aishell_4_S_cuts,
-            alimeeting_cuts,
-            stcmds_cuts,
-            primewords_cuts,
-            magicdata_cuts,
-            wenetspeech_L_cuts,
-            kespeech_1_cuts,
-            kespeech_2_cuts,
-            weights=[
-                len(thchs_30_cuts),
-                len(aishell_cuts),
-                len(aishell_2_cuts),
-                len(aishell_4_L_cuts),
-                len(aishell_4_M_cuts),
-                len(aishell_4_S_cuts),
-                len(alimeeting_cuts),
-                len(stcmds_cuts),
-                len(primewords_cuts),
-                len(magicdata_cuts),
-                len(wenetspeech_L_cuts),
-                len(kespeech_1_cuts),
-                len(kespeech_2_cuts),
-            ],
-        )
+        return wenetspeech_L_cuts
 
     def dev_cuts(self) -> CutSet:
         logging.info("About to get multidataset dev cuts")
@@ -247,8 +154,7 @@ class MultiDataset:
         }
 
     def aishell_train_cuts(self) -> CutSet:
-        logging.info("About to get multidataset train cuts")
-        logging.info("Loading Aishell-1 in lazy mode")
+        logging.info("Loading Aishell-1 train set in lazy mode")
         aishell_cuts = load_manifest_lazy(
             self.fbank_dir / "aishell_cuts_train.jsonl.gz"
         )
@@ -256,8 +162,7 @@ class MultiDataset:
         return aishell_cuts
 
     def aishell_dev_cuts(self) -> CutSet:
-        logging.info("About to get multidataset dev cuts")
-        logging.info("Loading Aishell set in lazy mode")
+        logging.info("Loading Aishell-1 dev set in lazy mode")
         aishell_dev_cuts = load_manifest_lazy(
             self.fbank_dir / "aishell_cuts_dev.jsonl.gz"
         )
@@ -265,8 +170,7 @@ class MultiDataset:
         return aishell_dev_cuts
 
     def aishell_test_cuts(self) -> CutSet:
-        logging.info("About to get multidataset test cuts")
-        logging.info("Loading Aishell set in lazy mode")
+        logging.info("Loading Aishell-1 test set in lazy mode")
         aishell_test_cuts = load_manifest_lazy(
             self.fbank_dir / "aishell_cuts_test.jsonl.gz"
         )
@@ -276,8 +180,7 @@ class MultiDataset:
         }
 
     def aishell2_train_cuts(self) -> CutSet:
-        logging.info("About to get multidataset train cuts")
-        logging.info("Loading Aishell-2 in lazy mode")
+        logging.info("Loading Aishell-2 train set in lazy mode")
         aishell_2_cuts = load_manifest_lazy(
             self.fbank_dir / "aishell2_cuts_train.jsonl.gz"
         )
@@ -285,8 +188,7 @@ class MultiDataset:
         return aishell_2_cuts
 
     def aishell2_dev_cuts(self) -> CutSet:
-        logging.info("About to get multidataset dev cuts")
-        logging.info("Loading Aishell-2 set in lazy mode")
+        logging.info("Loading Aishell-2 dev set in lazy mode")
         aishell2_dev_cuts = load_manifest_lazy(
             self.fbank_dir / "aishell2_cuts_dev.jsonl.gz"
         )
@@ -294,8 +196,7 @@ class MultiDataset:
         return aishell2_dev_cuts
 
     def aishell2_test_cuts(self) -> CutSet:
-        logging.info("About to get multidataset test cuts")
-        logging.info("Loading Aishell-2 set in lazy mode")
+        logging.info("Loading Aishell-2 test set in lazy mode")
         aishell2_test_cuts = load_manifest_lazy(
             self.fbank_dir / "aishell2_cuts_test.jsonl.gz"
         )
@@ -304,9 +205,28 @@ class MultiDataset:
             "aishell2_test": aishell2_test_cuts,
         }
 
+    def wenetspeech_dev_cuts(self) -> CutSet:
+        logging.info("Loading WeNetSpeech DEV set in lazy mode")
+        wenetspeech_dev_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_DEV_fixed.jsonl.gz"
+        )
+
+        return {
+            "wenetspeech-dev": wenetspeech_dev_cuts,
+        }
+
+    def wenetspeech_test_net_cuts(self) -> CutSet:
+        logging.info("Loading WeNetSpeech-net test set in lazy mode")
+        wenetspeech_test_net_cuts = load_manifest_lazy(
+            self.fbank_dir / "wenetspeech" / "cuts_TEST_NET.jsonl.gz"
+        )
+
+        return {
+            "wenetspeech-net_test": wenetspeech_test_net_cuts,
+        }
+    
     def wenetspeech_test_meeting_cuts(self) -> CutSet:
-        logging.info("About to get multidataset test cuts")
-        logging.info("Loading WeNetSpeech set in lazy mode")
+        logging.info("Loading WeNetSpeech-meeting test set in lazy mode")
         wenetspeech_test_meeting_cuts = load_manifest_lazy(
             self.fbank_dir / "wenetspeech" / "cuts_TEST_MEETING.jsonl.gz"
         )
@@ -316,7 +236,7 @@ class MultiDataset:
         }
 
     def speechio_test_cuts(self) -> Dict[str, CutSet]:
-        logging.info("About to get multidataset test cuts")
+        logging.info("Loading SpeechIO test set in lazy mode")
         start_index = 0
         end_index = 26
         dataset_parts = []

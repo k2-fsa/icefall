@@ -1,6 +1,5 @@
 librosa
-deepspeed
+deepspeed>=0.16.9
 transformers>=4.37.0
 flash-attn
 peft
-openai-whisper
