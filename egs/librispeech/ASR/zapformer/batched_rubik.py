@@ -360,7 +360,6 @@ def muon_internal(
     stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
     beta1: float,
-    alpha: float,
     lr: float,
     eps: float,
     ns_steps: int,
@@ -397,39 +396,31 @@ def muon_internal(
     # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
     X = g.bfloat16() if COMPUTE_DTYPE == torch.bfloat16 else g
     X = X / (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1e-6)
-    X0 = None
     if g.size(-2) > g.size(-1): # Tall matrix
         for a, b, c in polar_express_coeffs[:ns_steps]:
             A = X.mT @ X
             Asq = A @ A
-            if X0 is None:  # set X0 to X with top singular value normalized close to 1.
-                X0 = X * (((Asq ** 2).sum(dim=(-2, -1), keepdim=True) + 1e-20) ** (-1/8))
             B = b * A + c * Asq
             X = a * X + X @ B
     else: # Wide matrix (original math)
         for a, b, c in polar_express_coeffs[:ns_steps]:
             A = X @ X.mT
             Asq = A @ A
-            if X0 is None:
-                X0 = X * (((Asq ** 2).sum(dim=(-2, -1), keepdim=True) + 1e-20) ** (-1/8))
             B = b * A + c * Asq
             X = a * X + B @ X
 
-    # the alpha term is an attempt to attenuate the top singular value of the gradient,
-    # to minimize instability.
-    g_norm = X  # version of g for normalization purposes, not including subtraction of top singular value
-    g = X - alpha * X0
+    g = X
 
     #if scale is not None:
     #    g = g * scale  # apply it the 2nd time for symmetry
 
     expected_rms = max(rows, cols) ** -0.5
     if rows > cols:
-        row_rms = (g_norm ** 2).mean(dim=2, keepdim=True).sqrt() + eps
+        row_rms = (g ** 2).mean(dim=2, keepdim=True).sqrt() + eps
         row_scale = (expected_rms / row_rms)
         g = g * row_scale
     elif cols > rows:
-        col_rms = (g_norm ** 2).mean(dim=1, keepdim=True).sqrt() + eps
+        col_rms = (g ** 2).mean(dim=1, keepdim=True).sqrt() + eps
         col_scale = (expected_rms / col_rms)
         g = g * col_scale
 
@@ -449,11 +440,6 @@ def muon_core_step(group, state, grad):
     step = state["step"]
     beta1_ceil = 1. - 1. / (10. + 0.2 * step)
     beta1 = min(group["beta1"], beta1_ceil)
-
-    # alpha is the amount of the grad that we subtract from the orthogonalized grad inside muon, relative
-    # to the amount that would minimize the norm of the result.  The idea is to mostly remove/cancel out
-    # the dominant singular value of the raw gradient in order to minimize instability.
-    alpha = min(0.75, step / 500)
 
     orig_shape = grad.shape
     batch_size = orig_shape[0]
@@ -477,7 +463,7 @@ def muon_core_step(group, state, grad):
 
     grad = grad.to(COMPUTE_DTYPE) if grad.dtype != COMPUTE_DTYPE else grad.clone()
     step = muon_internal(grad.to(COMPUTE_DTYPE), momentum_buffer,
-                         beta1, alpha, lr, eps, 5, step)
+                         beta1, lr, eps, 5, step)
 
     return step.reshape(orig_shape)
 
