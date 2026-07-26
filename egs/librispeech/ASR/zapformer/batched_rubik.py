@@ -257,23 +257,24 @@ polar_express_coeffs8 = [  # taken directly from paper https://arxiv.org/pdf/250
     (1.875, -1.25, 0.375), # subsequent coeffs equal this numerically
 ]
 
-def limit_singular_values(x, l):
+def limit_singular_values(x, l, row_col_limits: bool):
     """
     Maps singular values of x with the mapping a -> a / sqrt((a/l)**2 + 1), which is close to a->a for
     a << l, and close to l for a >> l.  So a little like a continuous version of the function
     singular_value.clamp(max=l)
     """
-    return l * limit_singular_values_to_one(x / l)
+    return l * limit_singular_values_to_one(x / l, row_col_limits)
 
 
-def limit_singular_values_to_one(x):
+
+def limit_singular_values_to_one(x, row_col_limits: bool):
     # a recurrence that maps singular values of x with the mapping a ->  a / (a^2 + 1).sqrt(),
     # which limits them to at most 1 while
     if x.ndim != 3:
         orig_shape = x.shape
         batch_size = x.shape[0]
         rows, cols = matrix_shape(x.shape[1:])
-        return limit_singular_values_to_one(x.reshape(batch_size, rows, cols)).reshape(*orig_shape)
+        return limit_singular_values_to_one(x.reshape(batch_size, rows, cols), row_col_limits).reshape(*orig_shape)
 
     dtype = COMPUTE_DTYPE
     orig_dtype = x.dtype
@@ -282,7 +283,7 @@ def limit_singular_values_to_one(x):
     assert x.ndim == 3
     (batch_size, rows, cols) = x.shape
     if rows > cols:
-        return limit_singular_values_to_one(x.mT).mT
+        return limit_singular_values_to_one(x.mT, row_col_limits).mT
 
     # Polar express
     # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
@@ -304,6 +305,10 @@ def limit_singular_values_to_one(x):
         X = a * X + B @ X
         inverse = a * inverse + B @ inverse
 
+    if row_col_limits:
+        expected_rms = max(rows, cols) ** -0.5  # expected RMS of elements, if singular values are 1.
+        X = X * (expected_rms / (X ** 2).mean(dim=1, keepdim=True).sqrt().clamp(min=expected_rms))
+        X = X * (expected_rms / (X ** 2).mean(dim=2, keepdim=True).sqrt().clamp(min=expected_rms))
 
     return X.to(orig_dtype)
 
@@ -528,7 +533,8 @@ def scaling_step(group, param, state, grad):
     scale_ratio = scale / old_scale
 
     rows, cols = matrix_shape(param.shape[1:])
-    param_for_decay = limit_singular_values(param, 2.0 * scale * max(rows, cols) ** 0.5)
+    param_for_decay = limit_singular_values(param, 2.0 * scale * max(rows, cols) ** 0.5,
+                                            row_col_limits=True)
 
     if random.random() < 0.002:
         ratio = param_for_decay.norm(dim=(-2, -1)) / (param.norm(dim=(-2, -1)) + 1.0e-20)
@@ -804,7 +810,7 @@ def _test_limit_singular_values_to_one():
     U, S, V = torch.linalg.svd(a)
     S2 = S / (S * S + 1).sqrt()
     print(f"Initially, singular values are {S}")
-    b = limit_singular_values_to_one(a)
+    b = limit_singular_values_to_one(a, row_col_limits=False)
     U, S, V = torch.linalg.svd(b)
     print(f"After limit_singular_values_to_one, singular values are {S} vs should be {S2}, ratio={S/S2}")
 
@@ -817,7 +823,7 @@ def _test_limit_singular_values():
     U, S, V = torch.linalg.svd(a)
     S2 = S / ((S/l)**2 + 1).sqrt()
     print("Initially, singular values are ", S)
-    b = limit_singular_values(a, l)
+    b = limit_singular_values(a, l, row_col_limits=False)
     U, S, V = torch.linalg.svd(b)
     print(f"After limit_singular_values with l={l}, singular values are {S} versus should be {S2}, ratio={S/S2}")
 
