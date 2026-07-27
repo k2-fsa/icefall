@@ -1465,7 +1465,7 @@ def run(rank, world_size, args):
 
     def progress_to_lr_factor(progress):
         min_factor = 0.025
-        square_proportion = 0.1
+        square_proportion = 0.2
         factor = (1 - progress)
         # LR decreases faster initially.
         factor = square_proportion * (factor ** 2) + (1 - square_proportion) * factor
