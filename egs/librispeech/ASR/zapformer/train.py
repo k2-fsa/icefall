@@ -1242,6 +1242,12 @@ def train_one_epoch(
                         save_bad_model()
                         raise_grad_scale_is_too_small_error(cur_grad_scale)
 
+                    if (batch_idx % 25 < num_accum_steps and cur_grad_scale < 2.0 or
+                        batch_idx % 100 < num_accum_steps and cur_grad_scale < 8.0 or
+                        batch_idx % 400 < num_accum_steps and cur_grad_scale < 32.0):
+                        scaler.update(cur_grad_scale * 2.0)
+
+
 
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
