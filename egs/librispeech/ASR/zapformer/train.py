@@ -1650,14 +1650,7 @@ def run(rank, world_size, args):
             seed=seed,
         )  # otherwise use all default settings.
 
-        if torch.cuda.is_available():
-            with torch.cuda.device(rank):
-                # set CUDA seed for "my GPU" in a rank-and-epoch-dependent way.
-                # This is not not very important, it should just affect the
-                # AddNoise() module in subsampling.py
-                torch.cuda.manual_seed(seed)
-        else:
-            torch.manual_seed(seed)
+        torch.manual_seed(seed)
 
         if tb_writer is not None:
             tb_writer.add_scalar("train/epoch", epoch, params.batch_idx_train)
