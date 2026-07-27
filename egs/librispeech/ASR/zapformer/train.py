@@ -1226,6 +1226,23 @@ def train_one_epoch(
                 scaler.update()
                 optimizer.zero_grad()
 
+
+                if params.use_autocast:
+                    cur_grad_scale = get_scaler_scale()
+
+                    if cur_grad_scale < 0.01:
+                        if not saved_bad_model:
+                            save_bad_model(suffix="-first-warning")
+                            saved_bad_model = True
+                            if not params.inf_check:
+                                register_inf_check_hooks(model)
+                        logging.warning(f"Grad scale is small: {cur_grad_scale}")
+
+                    if cur_grad_scale < 1.0e-05:
+                        save_bad_model()
+                        raise_grad_scale_is_too_small_error(cur_grad_scale)
+
+
         except Exception as e:
             logging.info(f"Caught exception: {e}.")
             save_bad_model()
@@ -1267,29 +1284,6 @@ def train_one_epoch(
                 topk=params.keep_last_k,
                 rank=rank,
             )
-
-        if params.use_autocast:
-            cur_grad_scale = get_scaler_scale()
-
-            if cur_grad_scale < 0.01:
-                if not saved_bad_model:
-                    save_bad_model(suffix="-first-warning")
-                    saved_bad_model = True
-                    if not params.inf_check:
-                        register_inf_check_hooks(model)
-                logging.warning(f"Grad scale is small: {cur_grad_scale}")
-
-            if cur_grad_scale < 1.0e-05:
-                save_bad_model()
-                raise_grad_scale_is_too_small_error(cur_grad_scale)
-
-            # If the grad scale was less than 1, try increasing it.    The _growth_interval
-            # of the grad scaler is configurable, but we can't configure it to have different
-            # behavior depending on the current grad scale.
-            if (batch_idx % 25 == 0 and cur_grad_scale < 2.0 or
-                batch_idx % 100 == 0 and cur_grad_scale < 8.0 or
-                batch_idx % 400 == 0 and cur_grad_scale < 32.0):
-                scaler.update(cur_grad_scale * 2.0)
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())
