@@ -747,6 +747,15 @@ def swash_and_deriv(x: Tensor):
     y = 0.25 * log_denom - 0.08 * x - 0.07831542175
     return y, deriv
 
+def silu(x: Tensor):
+    return x * x.sigmoid()
+
+def silu_and_deriv(x: Tensor):
+    # silu is x.sigmoid() * x.
+    s = x.sigmoid()
+    return s * x, s * (1 + x * (1 - s))
+
+
 
 class Swash(torch.nn.Module):
     def __init__(self):
@@ -839,9 +848,13 @@ class ActivationAndLinear(torch.nn.Module):
 
         self.activation = activation
 
-        assert activation in ["Swash"]
-        self.forward_func = torch_compile(swash)
-        self.backward_func = torch_compile(swash_and_deriv)
+        assert activation in ["Swash", "SiLU"]
+        if activation == "Swash":
+            self.forward_func = torch_compile(swash)
+            self.backward_func = torch_compile(swash_and_deriv)
+        else:
+            self.forward_func = torch_compile(silu)
+            self.backward_func = torch_compile(silu_and_deriv)
 
 
     def forward(self, x: Tensor):
