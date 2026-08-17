@@ -190,7 +190,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="6,8,20,8",
+        default="6,8,24,8",
         help="Number of zapformer encoder layers per stack, comma separated.",
     )
 
@@ -218,7 +218,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--feedforward-multiple",
         type=str,
-        default="4,4,4,4",
+        default="4,4,3,4",
         help="Factor by which the feedforward hidden dim is greater than the encoder-dim, per stack: a single int or comma-separated list.",
     )
 
