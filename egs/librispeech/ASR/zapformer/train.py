@@ -190,7 +190,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--num-encoder-layers",
         type=str,
-        default="6,8,14,8",
+        default="6,8,20,8",
         help="Number of zapformer encoder layers per stack, comma separated.",
     )
 
@@ -260,7 +260,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--conv-params",
         type=str,
-        default="31,31,15,31",
+        default="31,31,0,31",
         help="Parameters per channel of convolution kernels",
     )
 
