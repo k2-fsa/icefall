@@ -637,9 +637,11 @@ class ZapformerEncoderLayer(nn.Module):
         feedforward_dim = embed_dim * feedforward_multiple
         self.feed_forward1 = FeedforwardModule(embed_dim, feedforward_dim)
 
-        self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim)
 
-        self.conv_module = ConvolutionModule(embed_dim, conv_params, causal=causal)
+        if conv_params > 0:
+            self.feed_forward2 = FeedforwardModule(embed_dim, feedforward_dim)
+
+            self.conv_module = ConvolutionModule(embed_dim, conv_params, causal=causal)
 
         self.norm = CausalSequenceNorm() if causal else SequenceNorm()
 
@@ -683,9 +685,11 @@ class ZapformerEncoderLayer(nn.Module):
                                    key_padding_mask=src_key_padding_mask,
                                    aux_loss_scale=0.1 * aux_loss_scale)
 
-        src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
 
-        src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
+        if hasattr(self, 'conv_module'):
+            src = src + self.conv_module(src, chunk_size=chunk_size, src_key_padding_mask=src_key_padding_mask, aux_loss_scale=0.1 * aux_loss_scale)
+
+            src = src + self.feed_forward2(src, aux_loss_scale=0.1 * aux_loss_scale, src_key_padding_mask=src_key_padding_mask)
 
         residual_scale = 0.25
         offset = (src - src_orig) * residual_scale
@@ -765,16 +769,18 @@ class ZapformerEncoderLayer(nn.Module):
         )
         src = src + self_attn_out
 
-        src_conv, cached_conv, cached_conv_wm_sum, cached_conv_wm_num_frames = self.conv_module.streaming_forward(
-            src,
-            cached_conv=cached_conv,
-            cached_wm_sum=cached_conv_wm_sum,
-            cached_wm_num_frames=cached_conv_wm_num_frames,
-            src_key_padding_mask=chunk_mask,
-        )
-        src = src + src_conv
 
-        src = src + self.feed_forward2(src, src_key_padding_mask=chunk_mask)
+        if hasattr(self, 'conv_module'):
+            src_conv, cached_conv, cached_conv_wm_sum, cached_conv_wm_num_frames = self.conv_module.streaming_forward(
+                src,
+                cached_conv=cached_conv,
+                cached_wm_sum=cached_conv_wm_sum,
+                cached_wm_num_frames=cached_conv_wm_num_frames,
+                src_key_padding_mask=chunk_mask,
+            )
+            src = src + src_conv
+
+            src = src + self.feed_forward2(src, src_key_padding_mask=chunk_mask)
 
         residual_scale = 0.25
         offset = (src - src_orig) * residual_scale
