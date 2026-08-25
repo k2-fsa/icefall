@@ -167,6 +167,14 @@ class Zapformer(EncoderInterface):
                 num_encoder_layers[i],
                 dim=downsampling_factor[i]*input_dim,
             )
+            if downsampling_factor[i] > 1:
+                with torch.no_grad():
+                    # give a symmetry to the initial values of the projections, so that
+                    # they initially treat both halves of their input the same.
+                    a, b = encoder.proj.weight.chunk(2, dim=1)
+                    avg = (a + b) * (0.5 ** 0.5)
+                    a[:] = avg
+                    b[:] = avg
 
             encoders.append(encoder)
 
