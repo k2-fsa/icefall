@@ -284,10 +284,12 @@ class Zapformer(EncoderInterface):
 
         x = self.out_norm(x)
 
-        if self.training:
-            # all of our losses and aux losses are proportional to the number of frames of data, so
-            # we multiply by that factor.
-            x = with_loss(x, aux_loss_scale * x.shape[0] * x.shape[1] * self.compute_projection_overlap())
+        # Disable this as a loss, just keep the code for diagnostics, which are less meaningful
+        # now that we do not have the orthogonal constraint.
+        #if self.training:
+        #    # all of our losses and aux losses are proportional to the number of frames of data, so
+        #    # we multiply by that factor.
+        #    x = with_loss(x, aux_loss_scale * x.shape[0] * x.shape[1] * self.compute_projection_overlap())
 
         return x, x_lens
 
