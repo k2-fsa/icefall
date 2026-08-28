@@ -1471,8 +1471,8 @@ def run(rank, world_size, args):
 
     def progress_to_lr_factor(progress):
         min_factor = 0.025
-        initial_scale = 0.7  # lr schedule starts from 0.7.  This may seem pointless but it has to do with
-        # the number of accumulation steps which is computed from the lr factor.  accum_steps ould start off at 2.
+        initial_scale = 0.6  # lr schedule starts from 0.6.  This may seem pointless but it has to do with
+        # the number of accumulation steps which is computed from the lr factor.  accum_steps would start off at 2.
         factor = initial_scale * (1 - progress)
         return min_factor + (1.0 - min_factor) * factor
 
