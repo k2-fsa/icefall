@@ -357,7 +357,6 @@ def decay(moving_grad, eps, step):
 
 #@torch.compile(dynamic=False, fullgraph=True)
 def muon_internal(
-    stacked_grads: Tensor,          # (12, 768, 3072) - stacked gradients
     momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
     beta1: float,
     lr: float,
@@ -456,8 +455,7 @@ def muon_core_step(group, state, grad):
     if lr <= 0:
         return None
     else:
-        step = muon_internal(grad, momentum_buffer,
-                             beta1, lr, eps, 5, step)
+        step = muon_internal(momentum_buffer, beta1, lr, eps, 5, step)
         momentum_buffer.mul_(beta1)
 
     return step.reshape(orig_shape)
