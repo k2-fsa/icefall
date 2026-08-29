@@ -370,9 +370,7 @@ def muon_internal(
     All in one compiled graph to eliminate Python overhead between ops.
     Some of the constants are 0-D CPU tensors to avoid recompilation when values change.
     """
-    momentum_buffer.lerp_(stacked_grads, 1 - beta1)
-    # nesterov would be: torch.lerp(stacked_grads, momentum_buffer, beta1)
-    g = momentum_buffer
+    g = momentum_buffer.to(COMPUTE_DTYPE)
 
     (batch_size, rows, cols) = g.shape
     if rows > cols:
@@ -448,22 +446,19 @@ def muon_core_step(group, state, grad):
 
     if "momentum_buffer" not in state:
         assert step < 2
-        state["momentum_buffer"] = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=COMPUTE_DTYPE)
+        state["momentum_buffer"] = torch.zeros(batch_size, rows, cols, device=grad.device, dtype=torch.float)
 
 
     momentum_buffer = state["momentum_buffer"]
 
-    if momentum_buffer.dtype == torch.float:  # Error due to loading state dict; TODO put this in load_state_dict()
-        momentum_buffer = momentum_buffer.to(COMPUTE_DTYPE)
-        state["momentum_buffer"] = momentum_buffer
+    momentum_buffer.add_(grad, alpha=(1-beta1))
 
-    def t(x):
-        return torch.tensor(x, device=grad.device, dtype=COMPUTE_DTYPE)
-
-
-    grad = grad.to(COMPUTE_DTYPE) if grad.dtype != COMPUTE_DTYPE else grad.clone()
-    step = muon_internal(grad.to(COMPUTE_DTYPE), momentum_buffer,
-                         beta1, lr, eps, 5, step)
+    if lr <= 0:
+        return None
+    else:
+        step = muon_internal(grad, momentum_buffer,
+                             beta1, lr, eps, 5, step)
+        momentum_buffer.mul_(beta1)
 
     return step.reshape(orig_shape)
 
@@ -487,6 +482,8 @@ def scaling_step(group, param, state, grad):
         # biases and similar-shaped tensors
         delta = adam_step(group, state, grad)
 
+    # caution: for accumulation-only steps (lr <= 0), delta will be None.
+
     dims = list(range(1, param.ndim))
 
     try:
@@ -500,16 +497,13 @@ def scaling_step(group, param, state, grad):
         state["scale_grad_buffer"] = scale_grad_buf
 
     scale_grad = (grad * param.detach()).sum(dim=dims, keepdim=True)
-    scale_grad_buf.mul_(momentum).add_(scale_grad)  # simple momentum
+    scale_grad_buf.add_(scale_grad)  # we accumulate with simple momentum, multiplying later on.
 
-    nesterov = False
-    if nesterov:
-        # simple interpretation of nesterov: do an extra step of
-        # moving-average on scale_grad_buf, with scale_grad, like double-counting
-        # it.
-        negative_update = (scale_grad_buf * momentum + scale_grad).sign()
-    else:
-        negative_update = scale_grad_buf.sign()
+    if lr <= 0:
+        return None
+
+    negative_update = scale_grad_buf.sign()
+    scale_grad_buf.mul_(momentum)
 
     old_scale = scale.clone()
 
@@ -551,18 +545,19 @@ def adam_step(group, state, grad):
         state["exp_avg"] = exp_avg
         state["exp_avg_sq"] = exp_avg_sq
 
-    exp_avg.mul_(beta1).add_(grad, alpha=(1 - beta1))
-    exp_avg_sq.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
-    denom = exp_avg_sq.sqrt() + eps
 
-    nesterov = False
-    if nesterov:
-        # this is similar to double-counting grad
-        moving_grad = exp_avg * beta1 + grad * (1-beta1)
-    else:
-        moving_grad = exp_avg
+    exp_avg.add_(grad, alpha=(1-beta1))
+    exp_avg_sq.addcmul_(grad, grad, value=(1-beta2))
+    if lr <= 0:
+        # just an accumulation step, not an update step
+        return None
 
-    return -lr * (moving_grad / denom)
+    ans = -lr * (exp_avg / (exp_avg_sq.sqrt() + eps))
+
+    exp_avg.mul_(beta1)
+    beta2 = min(group["adam_beta2"], (step + 1) / (step + 2))
+    exp_avg_sq.mul_(beta2)
+    return ans
 
 
 class BatchedRubik(BatchedOptimizer):
@@ -639,6 +634,8 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
         batch = True
 
         for group in self.param_groups:
+            lr = group["lr"]
+
             with self.batched_params(group["params"]) as batches:
                 for p, state in batches:
                     grad = p.grad
@@ -658,11 +655,19 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
                         # "scalar_scale" the assumed parameter scale used for
                         # scalars, in this case it just acts as a multiplier on
                         # the learning rate.
-                        p += group["scalar_scale"] * adam_step(group, state, grad)
+                        step = adam_step(group, state, grad)
+                        if lr > 0:
+                            # update step, not accumulation step
+                            p += group["scalar_scale"] * step
                     else:
-                        p += scaling_step(group, p.detach(), state, grad)
+                        step = scaling_step(group, p.detach(), state, grad)
+                        if lr > 0:
+                            # update step, not accumulation step
+                            p += step
 
-                    state["step"] = cur_step + 1
+                    if lr >= 0:
+                        # Do not increase step count on accumulation-only steps (lr <= 0)
+                        state["step"] = cur_step + 1
 
         return loss
 

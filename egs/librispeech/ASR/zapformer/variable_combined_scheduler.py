@@ -38,6 +38,8 @@ class VariableCombinedLRScheduler(object):
             raise TypeError("{} is not an Optimizer".format(type(optimizer).__name__))
         self.optimizer = optimizer
         self.verbose = verbose
+        self.accum = 0
+        self.num_accum_steps = 1
 
         for group in optimizer.param_groups:
             group.setdefault("base_lr", group["lr"])
@@ -86,17 +88,12 @@ class VariableCombinedLRScheduler(object):
         # e.g. return [some_formula(self.batch, self.epoch, base_lr) for base_lr in self.base_lrs ]
         raise NotImplementedError
 
-    def set_batch(self, batch: int) -> int:
+    def set_batch(self, batch: int):
         """ Sets the batch index within the epoch, with zero-based counting (not that this matters much)
-            Returns the number of accumulation steps
         ."""
         # set the within-epoch batch index.
         self.batch = batch
         self._set_lrs()
-        try:
-            return self.num_accum_steps
-        except AttributeError:
-            return 1
 
     def set_epoch(self, epoch: int):
         """ Sets the epoch with one-based counting, so the first epoch is 1; the epoch should not exceed the num_epochs used
@@ -128,11 +125,18 @@ class VariableCombinedLRScheduler(object):
         values = self.get_lr()
         assert len(values) == len(self.optimizer.param_groups)
 
+        if self.accum == 0:
+            lr_sign = 1
+            self.accum = self.num_accum_steps - 1
+        else:
+            lr_sign = -1  # accumulation-only step.
+            self.accum = self.accum - 1
+
         for i, data in enumerate(zip(self.optimizer.param_groups, values)):
             param_group, lr = data
-            param_group["lr"] = lr
+            param_group["lr"] = lr * lr_sign
             self.print_lr(self.verbose, i, lr)
-        self._last_lr = [group["lr"] for group in self.optimizer.param_groups]
+        self._last_lr = [abs(group["lr"]) for group in self.optimizer.param_groups]
 
     def print_lr(self, is_verbose, group, lr):
         """Display the current learning rate."""

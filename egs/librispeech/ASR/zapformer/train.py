@@ -1189,8 +1189,6 @@ def train_one_epoch(
             rank=0,
         )
 
-    accum = 0
-
     for batch_idx, batch in enumerate(train_dl):
         if batch_idx % 10 == 0:
             set_batch_count(model, get_adjusted_batch_count(params))
@@ -1217,15 +1215,13 @@ def train_one_epoch(
             # NOTE: We use reduction==sum and loss is computed over utterances
             # in the batch and there is no normalization to it so far.
             scaler.scale(loss).backward()
-            num_accum_steps = scheduler.set_batch(batch_idx)  # sets batch-count within the epoch, and sets the LRs; and gives the num accum steps
-            accum += 1
+            scheduler.set_batch(batch_idx)
+
             param_plotter.step(params.batch_idx_train)
-            if accum >= num_accum_steps:
-                accum = 0
+            if True:
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
-
 
                 if params.use_autocast:
                     cur_grad_scale = get_scaler_scale()
@@ -1242,9 +1238,9 @@ def train_one_epoch(
                         save_bad_model()
                         raise_grad_scale_is_too_small_error(cur_grad_scale)
 
-                    if (batch_idx % 25 < num_accum_steps and cur_grad_scale < 2.0 or
-                        batch_idx % 100 < num_accum_steps and cur_grad_scale < 8.0 or
-                        batch_idx % 400 < num_accum_steps and cur_grad_scale < 32.0):
+                    if (batch_idx % 25 == 0 and cur_grad_scale < 2.0 or
+                        batch_idx % 100 == 0 and cur_grad_scale < 8.0 or
+                        batch_idx % 400 == 0 and cur_grad_scale < 32.0):
                         scaler.update(cur_grad_scale * 2.0)
 
 
@@ -1299,7 +1295,7 @@ def train_one_epoch(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, accum: {num_accum_steps}, "
+                f"lr: {cur_lr:.2e}, accum: {scheduler.num_accum_steps}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
             )
 
@@ -1310,7 +1306,11 @@ def train_one_epoch(
                 )
 
                 tb_writer.add_scalar(
-                    "train/accum_steps", num_accum_steps, params.batch_idx_train
+                    "train/real_learning_rate", cur_lr / (scheduler.num_accum_steps ** 0.5), params.batch_idx_train
+                )
+
+                tb_writer.add_scalar(
+                    "train/accum_steps", scheduler.num_accum_steps, params.batch_idx_train
                 )
 
                 loss_info.write_summary(
