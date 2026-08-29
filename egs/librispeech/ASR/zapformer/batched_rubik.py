@@ -534,28 +534,30 @@ def adam_step(group, state, grad):
     beta2 = min(group["adam_beta2"], step / (step + 1))
 
     try:
+        accum_grad = state["accum_grad"]  # only need to store grad between steps in full precision
         exp_avg = state["exp_avg"]
         exp_avg_sq = state["exp_avg_sq"]
     except KeyError as e:
         assert step < 2
+        accum_grad = torch.zeros_like(grad)
         exp_avg = torch.zeros_like(grad)
         exp_avg_sq = torch.zeros_like(grad)
+        state["accum_grad"] = accum_grad
         state["exp_avg"] = exp_avg
         state["exp_avg_sq"] = exp_avg_sq
 
+    # accum_grad is how we implement accumulation over multiple steps in the optimizer.
+    # this wasn't necessary
+    accum_grad.add_(grad)
 
-    exp_avg.add_(grad, alpha=(1-beta1))
-    exp_avg_sq.addcmul_(grad, grad, value=(1-beta2))
     if lr <= 0:
         # just an accumulation step, not an update step
         return None
 
-    ans = -lr * (exp_avg / (exp_avg_sq.sqrt() + eps))
+    exp_avg.lerp_(accum_grad, (1-beta1))
+    exp_avg_sq.mul_(beta2).addcmul_(accum_grad, accum_grad, value=(1-beta2))
+    return -lr * (exp_avg / (exp_avg_sq.sqrt() + eps))
 
-    exp_avg.mul_(beta1)
-    beta2 = min(group["adam_beta2"], (step + 1) / (step + 2))
-    exp_avg_sq.mul_(beta2)
-    return ans
 
 
 class BatchedRubik(BatchedOptimizer):
