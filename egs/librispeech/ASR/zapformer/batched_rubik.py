@@ -556,6 +556,7 @@ def adam_step(group, state, grad):
 
     exp_avg.lerp_(accum_grad, (1-beta1))
     exp_avg_sq.mul_(beta2).addcmul_(accum_grad, accum_grad, value=(1-beta2))
+    accum_grad.zero_()
     return -lr * (exp_avg / (exp_avg_sq.sqrt() + eps))
 
 
