@@ -596,7 +596,7 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
         beta1=0.99,
         eps=1.0e-08,
         scale_limits=(0.03, 0.15),
-        scalar_scale=0.05,
+        scalar_scale=0.025,
         adam_beta1=0.98,
         adam_beta2=0.98,
         scale_momentum=0.95,
