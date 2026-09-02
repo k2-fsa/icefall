@@ -28,10 +28,14 @@ class VariableCombinedLRScheduler(object):
             the optimizer is/are the base LRs and we set the LR as a fraction of those.
    batches_per_epoch: the estimated number of batches per epoch; use your best guess.
           num_epochs: the total number of epochs you will train for
+    max_accum_steps: the maximum number of accumulation steps; it will adjust the LR factor upward
+          as long as it does not exceed 1, by increasing the number of accumulation steps up to this
+          limit, adjusting the LR by a factor of (num_accum_steps**0.5).
     """
     def __init__(self,
                  optimizer: Optimizer,
                  batches_per_epoch: List[int],
+                 max_accum_steps: int = 16,
                  verbose: bool = False):
         # Attach optimizer
         if not isinstance(optimizer, Optimizer):
@@ -40,6 +44,7 @@ class VariableCombinedLRScheduler(object):
         self.verbose = verbose
         self.accum = 0
         self.num_accum_steps = 1
+        self.max_accum_steps = max_accum_steps
 
         for group in optimizer.param_groups:
             group.setdefault("base_lr", group["lr"])
@@ -193,8 +198,7 @@ class LambdaLRScheduler(VariableCombinedLRScheduler):
         factor = self.func(progress)
 
         max_factor = 1
-        max_accum_steps = 16
-        self.num_accum_steps = min(max_accum_steps, max(1, int((max_factor / factor) ** 2)))
+        self.num_accum_steps = min(self.max_accum_steps, max(1, int((max_factor / factor) ** 2)))
         factor = factor * (self.num_accum_steps ** 0.5)
 
         return [x * factor for x in self.base_lrs]

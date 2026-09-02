@@ -1475,7 +1475,9 @@ def run(rank, world_size, args):
         # the number of accumulation steps which is computed from the lr factor.  accum_steps would start off at 2.
         return max(initial_scale * (1 - progress), min_factor)
 
-    scheduler = LambdaLRScheduler(optimizer, func=progress_to_lr_factor,
+    scheduler = LambdaLRScheduler(optimizer,
+                                  func=progress_to_lr_factor,
+                                  max_accum_steps=32,
                                   batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:
