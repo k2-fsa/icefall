@@ -1477,7 +1477,7 @@ def run(rank, world_size, args):
 
     scheduler = LambdaLRScheduler(optimizer,
                                   func=progress_to_lr_factor,
-                                  max_accum_steps=128,
+                                  max_accum_steps=params.average_period,  # 200 by default.
                                   batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:
