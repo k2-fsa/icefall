@@ -1471,8 +1471,9 @@ def run(rank, world_size, args):
 
     def progress_to_lr_factor(progress):
         min_factor = 0.05
-        initial_scale = 0.65  # lr schedule starts from 0.65.  This may seem pointless but it has to do with
+        initial_scale = 0.70  # lr schedule starts from 0.70.  This may seem pointless but it has to do with
         # the number of accumulation steps which is computed from the lr factor.  accum_steps would start off at 2.
+        # later I will make this depend on the total duration in the batch.
         return max(initial_scale * (1 - progress), min_factor)
 
     scheduler = LambdaLRScheduler(optimizer,
