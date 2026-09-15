@@ -123,32 +123,32 @@ class VariableCombinedLRScheduler(object):
             cur_batches = min(cur_max_batches, self.adjust_factor * self.batch)
 
             progress = (past_batches + cur_batches) / tot_batches
+            if self.verbose:
+                logging.info(f"get_progress: epoch={self.epoch}, tot_batches={tot_batches}, batch={self.batch}, past_batches={past_batches}, cur_max_batches={cur_max_batches}, cur_batches={cur_batches}, adjust_factor={self.adjust_factor}, progress={progress}")
             assert progress <= 1.0
+
             return progress
+
+
 
     def _set_lrs(self):
         values = self.get_lr()
         assert len(values) == len(self.optimizer.param_groups)
 
-        if self.accum == 0:
-            lr_sign = 1
-            self.accum = self.num_accum_steps - 1
-        else:
-            lr_sign = -1  # accumulation-only step.
-            self.accum = self.accum - 1
+        lr_sign = (1 if self.accum == 0 else -1)
+        self.accum = (self.accum + 1) % self.num_accum_steps
 
         for i, data in enumerate(zip(self.optimizer.param_groups, values)):
             param_group, lr = data
             param_group["lr"] = lr * lr_sign
-            self.print_lr(self.verbose, i, lr)
+            self.print_lr(self.verbose, i, lr * lr_sign)
         self._last_lr = [abs(group["lr"]) for group in self.optimizer.param_groups]
 
     def print_lr(self, is_verbose, group, lr):
         """Display the current learning rate."""
         if is_verbose:
             logging.warning(
-                f"Epoch={self.epoch}, batch={self.batch}, num_epochs={self.num_epochs}, batches_per_epoch={self.batches_per_epoch}: adjusting learning rate"
-                f" of group {group} to {lr:.4e}."
+                f"Epoch={self.epoch}, batch={self.batch}, LR for group is {lr:.4e}, accum={self.accum}, num_accum_steps={self.num_accum_steps}"
             )
 
 

@@ -452,7 +452,7 @@ def muon_core_step(group, state, grad):
 
     momentum_buffer.add_(grad, alpha=(1-beta1))
 
-    if lr <= 0:
+    if lr < 0:
         return None
     else:
         step = muon_internal(momentum_buffer, beta1, lr, eps, 5, step)
@@ -497,7 +497,7 @@ def scaling_step(group, param, state, grad):
     scale_grad = (grad * param.detach()).sum(dim=dims, keepdim=True)
     scale_grad_buf.add_(scale_grad)  # we accumulate with simple momentum, multiplying later on.
 
-    if lr <= 0:
+    if lr < 0:
         return None
 
     negative_update = scale_grad_buf.sign()
@@ -511,12 +511,15 @@ def scaling_step(group, param, state, grad):
     scale_ratio = scale / old_scale
 
     rows, cols = matrix_shape(param.shape[1:])
-    param_for_decay = limit_singular_values(param, 2.0 * scale * max(rows, cols) ** 0.5,
-                                            row_col_limits=True)
+    if max(rows, cols) > 1:
+        # if it is really at least matrix-shaped..
+        param_for_decay = limit_singular_values(param, 2.0 * scale * max(rows, cols) ** 0.5,
+                                                row_col_limits=True)
 
-    if random.random() < 0.002:
-        ratio = param_for_decay.norm(dim=(-2, -1)) / (param.norm(dim=(-2, -1)) + 1.0e-20)
-        logging.info(f"limit_singular_values, ratio={ratio}")
+        if random.random() < 0.002:
+            dims = tuple(range(1, param_for_decay.ndim))
+            ratio = (param_for_decay ** 2).mean(dim=dims).sqrt() / ((param ** 2).mean(dim=dims).sqrt() + 1.0e-20)
+            logging.info(f"limit_singular_values, ratio={ratio}, shape={param.shape}")
 
 
     return (scale_ratio - 1) * param - (0.5 * lr ** 2) * param_for_decay  +  scale * delta
@@ -550,7 +553,7 @@ def adam_step(group, state, grad):
     # this wasn't necessary
     accum_grad.add_(grad)
 
-    if lr <= 0:
+    if lr < 0:
         # just an accumulation step, not an update step
         return None
 
@@ -657,12 +660,12 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
                         # scalars, in this case it just acts as a multiplier on
                         # the learning rate.
                         step = adam_step(group, state, grad)
-                        if lr > 0:
+                        if lr >= 0:
                             # update step, not accumulation step
                             p += group["scalar_scale"] * step
                     else:
                         step = scaling_step(group, p.detach(), state, grad)
-                        if lr > 0:
+                        if lr >= 0:
                             # update step, not accumulation step
                             p += step
 
