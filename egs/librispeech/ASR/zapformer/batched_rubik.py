@@ -511,7 +511,8 @@ def scaling_step(group, param, state, grad):
     scale_ratio = scale / old_scale
 
     rows, cols = matrix_shape(param.shape[1:])
-    if min(rows, cols) > 1:
+    #if min(rows, cols) > 1:
+    if False:
         # if it is really at least matrix-shaped..
         param_for_decay = limit_singular_values(param, 2.0 * scale * max(rows, cols) ** 0.5,
                                                 row_col_limits=True)
