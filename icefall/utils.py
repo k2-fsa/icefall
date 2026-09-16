@@ -1586,6 +1586,7 @@ def get_parameter_groups_with_lrs(
     model: nn.Module,
     lr: float,
     include_names: bool = False,
+    bias_factor: float = 1.0,  # factor on learning rate of parameters with bias-like shapes.
     freeze_modules: List[str] = [],
 ) -> List[dict]:
     """
@@ -1627,6 +1628,10 @@ def get_parameter_groups_with_lrs(
     # otherwise a list of parameters for that learning rate.
     lr_to_params = defaultdict(list)
 
+    def is_bias(parameter):
+        return (parameter.numel() > 1 and parameter.numel() == max(parameter.shape))
+
+
     for name, parameter in model.named_parameters():
         split_name = name.split(".")
         # caution: as a special case, if the name is '', split_name will be [ '' ].
@@ -1646,6 +1651,8 @@ def get_parameter_groups_with_lrs(
         for part in split_name[1:]:
             prefix = ".".join([prefix, part])
             cur_lr *= flat_lr_scale[prefix]
+        if is_bias(parameter):
+            cur_lr *= bias_factor
         lr_to_params[cur_lr].append((name, parameter) if include_names else parameter)
 
     if include_names:
