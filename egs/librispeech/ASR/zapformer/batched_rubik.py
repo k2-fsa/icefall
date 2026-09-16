@@ -511,7 +511,7 @@ def scaling_step(group, param, state, grad):
     scale_ratio = scale / old_scale
 
     rows, cols = matrix_shape(param.shape[1:])
-    if max(rows, cols) > 1:
+    if min(rows, cols) > 1:
         # if it is really at least matrix-shaped..
         param_for_decay = limit_singular_values(param, 2.0 * scale * max(rows, cols) ** 0.5,
                                                 row_col_limits=True)
@@ -520,6 +520,8 @@ def scaling_step(group, param, state, grad):
             dims = tuple(range(1, param_for_decay.ndim))
             ratio = (param_for_decay ** 2).mean(dim=dims).sqrt() / ((param ** 2).mean(dim=dims).sqrt() + 1.0e-20)
             logging.info(f"limit_singular_values, ratio={ratio}, shape={param.shape}")
+    else:
+        param_for_decay = param
 
 
     return (scale_ratio - 1) * param - (0.5 * lr ** 2) * param_for_decay  +  scale * delta
