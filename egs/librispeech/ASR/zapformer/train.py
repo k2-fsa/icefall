@@ -1444,7 +1444,7 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = BatchedRubik(
-        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=False),
+        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=False, bias_factor=0.5),
         lr=params.base_lr,
         beta1=0.9,
     )
