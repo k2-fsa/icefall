@@ -25,7 +25,7 @@ import torch
 from model import Transducer
 
 from icefall import NgramLm, NgramLmStateCost
-from icefall import BiasedNgramLm, BiasedNgramLmStateBonus
+from biased_lm import BiasedNgramLm, BiasedNgramLmStateBonus
 from icefall.decode import Nbest, one_best_decoding
 from icefall.lm_wrapper import LmScorer
 from icefall.rnn_lm.model import RnnLmModel

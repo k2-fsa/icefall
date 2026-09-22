@@ -76,8 +76,6 @@ from context_encoder import ContextEncoder
 from context_encoder_lstm import ContextEncoderLSTM
 from context_encoder_pretrained import ContextEncoderPretrained
 from context_encoder_reused import ContextEncoderReused
-from word_encoder_bert import BertEncoder
-from word_encoder_fasttext import FastTextEncoder
 from biasing_module import BiasingModule
 from context_collector import ContextCollector
 
@@ -1167,7 +1165,8 @@ def run(rank, world_size, args):
     logging.info("About to load context generator")
     params.context_dir = Path(params.context_dir)
     if params.is_pretrained_context_encoder:
-        # word_encoder = BertEncoder(device=device)
+        from word_encoder_fasttext import FastTextEncoder
+
         word_encoder = FastTextEncoder(
             embeddings_path="pruned_transducer_stateless7_context/exp/exp_fasttext/fasttext_all_words.embeddings.txt", 
             model_path="pruned_transducer_stateless7_context/exp/exp_fasttext/cc.en.300.bin",

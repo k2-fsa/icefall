@@ -156,13 +156,13 @@ from beam_search import (
     modified_beam_search_ngram_rescoring,
 )
 from train import add_model_arguments, get_params, get_transducer_model
-from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_collector import ContextCollector
-from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder import ContextEncoder
-from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_lstm import ContextEncoderLSTM
-from egs.librispeech.ASR.pruned_transducer_stateless7_context.context_encoder_pretrained import ContextEncoderPretrained
-from egs.librispeech.ASR.pruned_transducer_stateless7_context.word_encoder_bert import BertEncoder
+from context_collector import ContextCollector
+from context_encoder import ContextEncoder
+from context_encoder_lstm import ContextEncoderLSTM
+from context_encoder_pretrained import ContextEncoderPretrained
 
-from icefall import LmScorer, NgramLm, BiasedNgramLm
+from biased_lm import BiasedNgramLm
+from icefall import LmScorer, NgramLm
 from icefall.checkpoint import (
     average_checkpoints,
     average_checkpoints_with_averaged_model,
@@ -1034,6 +1034,8 @@ def main():
     params.context_dir = Path(params.context_dir)
     if params.is_pretrained_context_encoder:
         # Use pretrained encoder, e.g., BERT
+        from word_encoder_bert import BertEncoder
+
         bert_encoder = BertEncoder(device=device)
         context_collector = ContextCollector(
             path_is21_deep_bias=params.context_dir,
