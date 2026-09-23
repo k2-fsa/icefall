@@ -382,6 +382,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--init-asr-ckpt",
+        type=str,
+        default=None,
+        help="""Path to a pretrained pruned_transducer_stateless7 checkpoint,
+        e.g., icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrained.pt.
+        Its weights initialize the (frozen) ASR model when training starts
+        from scratch, i.e., --start-epoch 1 and --start-batch 0.
+        The biasing modules are always initialized randomly.""",
+    )
+
+    parser.add_argument(
         "--context-dir",
         type=str,
         default="data/fbai-speech/is21_deep_bias/",
@@ -420,27 +431,6 @@ def get_parser():
         "--is-reused-context-encoder",
         type=str2bool,
         default=False,
-        help="",
-    )
-
-    parser.add_argument(
-        "--relevance-learning",
-        type=str2bool,
-        default=False,
-        help="The model will learn about the positive samples in an upsampled way",
-    )
-
-    parser.add_argument(
-        "--irrelevance-learning",
-        type=str2bool,
-        default=False,
-        help="The model will learn massively about negative examples, where it needs to always choose <no-bias>",
-    )
-
-    parser.add_argument(
-        "--upsample-N",
-        type=int,
-        default=None,
         help="",
     )
 
@@ -688,34 +678,8 @@ def load_checkpoint_if_available(
         "best_valid_loss",
     ]
 
-    saved_params_hard_wired = {}
-
-    # saved_params_hard_wired = {
-    #     "best_train_epoch": 28,
-    #     "best_valid_epoch": 30,
-    #     "batch_idx_train": 105240,
-    #     "best_train_loss": 0.15620702543731815,
-    #     "best_valid_loss": 0.1486564241859933,
-    # }
-
-    # saved_params_hard_wired = {
-    #     "best_train_epoch": 10,
-    #     "best_valid_epoch": 10,
-    #     "batch_idx_train": 140313,
-    #     "best_train_loss": 0.0841903351392453,
-    #     "best_valid_loss": 0.07505495531675765,
-    # }
-
     for k in keys:
-        if k in saved_params:
-            params[k] = saved_params[k]
-        elif params.start_epoch == 2 and k in saved_params_hard_wired:
-            params[k] = saved_params_hard_wired[k]
-        logging.info(f"{k}: {params[k]}")
-
-    # # only used for stage 2
-    # params["batch_idx_train"] = 160000
-    # logging.info(f"Use batch_idx_train: {params['batch_idx_train']}")
+        params[k] = saved_params[k]
 
     if params.start_batch > 0:
         if "cur_epoch" in saved_params:
@@ -725,6 +689,18 @@ def load_checkpoint_if_available(
             params["cur_batch_idx"] = saved_params["cur_batch_idx"]
 
     return saved_params
+
+
+def load_pretrained_asr(filename: str, model: nn.Module) -> None:
+    """Load the weights of a pretrained (non-contextual) transducer into
+    `model`. Only the biasing modules are allowed to be missing."""
+    logging.info(f"Loading pretrained ASR model from {filename}")
+    checkpoint = torch.load(filename, map_location="cpu", weights_only=False)
+    missing, unexpected = model.load_state_dict(checkpoint["model"], strict=False)
+    biasing_modules = ("context_encoder.", "encoder_biasing_adapter.", "decoder_biasing_adapter.")
+    unexpected_missing = [k for k in missing if not k.startswith(biasing_modules)]
+    assert not unexpected and not unexpected_missing, (unexpected, unexpected_missing)
+    logging.info(f"Initialized ASR model; {len(missing)} biasing tensors are randomly initialized")
 
 
 def save_checkpoint(
@@ -846,8 +822,6 @@ def compute_loss(
 
     with torch.cuda.amp.autocast(enabled=params.use_fp16):
         with torch.set_grad_enabled(is_training):            
-            fix_random_seed(0)
-            seed = 0; torch.manual_seed(seed); torch.cuda.manual_seed(seed); torch.cuda.manual_seed_all(seed) 
 
             simple_loss, pruned_loss = model(
                 x=feature,
@@ -1199,6 +1173,9 @@ def run(rank, world_size, args):
 
     model.params = params
 
+    if params.init_asr_ckpt is not None and params.start_epoch == 1 and params.start_batch == 0:
+        load_pretrained_asr(params.init_asr_ckpt, model)
+
     # Freeze the parameters of the ASR model
     for param in itertools.chain(
         model.encoder.parameters(),
@@ -1255,25 +1232,23 @@ def run(rank, world_size, args):
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
 
-    if params.start_epoch > 2:  # params.start_epoch == 2 is reserved for loading the pretrained ASR model without biasing
-        logging.info("Loading optimizer and scheduler states")
-        if checkpoints and "optimizer" in checkpoints:
-            logging.info("Loading optimizer state dict")
-            optimizer.load_state_dict(checkpoints["optimizer"])
+    if checkpoints and "optimizer" in checkpoints:
+        logging.info("Loading optimizer state dict")
+        optimizer.load_state_dict(checkpoints["optimizer"])
 
-        if (
-            checkpoints
-            and "scheduler" in checkpoints
-            and checkpoints["scheduler"] is not None
-        ):
-            logging.info("Loading scheduler state dict")
-            scheduler.load_state_dict(checkpoints["scheduler"])
+    if (
+        checkpoints
+        and "scheduler" in checkpoints
+        and checkpoints["scheduler"] is not None
+    ):
+        logging.info("Loading scheduler state dict")
+        scheduler.load_state_dict(checkpoints["scheduler"])
 
-        if params.print_diagnostics:
-            opts = diagnostics.TensorDiagnosticOptions(
-                2**22
-            )  # allow 4 megabytes per sub-module
-            diagnostic = diagnostics.attach_diagnostics(model, opts)
+    if params.print_diagnostics:
+        opts = diagnostics.TensorDiagnosticOptions(
+            512
+        )  # allow 4 megabytes per sub-module
+        diagnostic = diagnostics.attach_diagnostics(model, opts)
 
     if params.inf_check:
         register_inf_check_hooks(model)
@@ -1288,7 +1263,6 @@ def run(rank, world_size, args):
         f"({num_param_requires_grad/num_param*100:.2f}%)"
     )
 
-    fix_random_seed(0)
     librispeech = LibriSpeechAsrDataModule(args)
 
     if params.full_libri:
@@ -1346,7 +1320,6 @@ def run(rank, world_size, args):
     else:
         sampler_state_dict = None
 
-    fix_random_seed(0)
     train_dl = librispeech.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )

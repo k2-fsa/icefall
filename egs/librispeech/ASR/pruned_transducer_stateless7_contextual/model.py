@@ -146,11 +146,7 @@ class Transducer(nn.Module):
         # assert x.size(0) == contexts_h.size(0) == contexts_mask.size(0)
         # assert contexts_h.ndim == 3
         # assert contexts_h.ndim == 2
-        if self.params.irrelevance_learning:
-            need_weights = True
-        else:
-            need_weights = False
-        encoder_biasing_out, attn_enc = self.encoder_biasing_adapter.forward(encoder_out, contexts_h, contexts_mask, need_weights=need_weights)
+        encoder_biasing_out, attn_enc = self.encoder_biasing_adapter.forward(encoder_out, contexts_h, contexts_mask)
         encoder_out = encoder_out + encoder_biasing_out
 
         # Now for the decoder, i.e., the prediction network
@@ -174,7 +170,7 @@ class Transducer(nn.Module):
         else:
             contexts_dec_h, contexts_dec_mask = contexts_h, contexts_mask
 
-        decoder_biasing_out, attn_dec = self.decoder_biasing_adapter.forward(decoder_out, contexts_dec_h, contexts_dec_mask, need_weights=need_weights)
+        decoder_biasing_out, attn_dec = self.decoder_biasing_adapter.forward(decoder_out, contexts_dec_h, contexts_dec_mask)
         decoder_out = decoder_out + decoder_biasing_out
 
         # Note: y does not start with SOS

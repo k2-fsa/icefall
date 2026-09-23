@@ -585,6 +585,18 @@ def decode_one_batch(
     else:
         encoder_out, encoder_out_lens = model.encoder(x=feature, x_lens=feature_lens)
 
+    if params.decoding_method not in (
+        "modified_beam_search",
+        "modified_beam_search_LODR",
+    ):
+        # Decoder-side neural biasing and WFST biasing are only implemented
+        # in modified_beam_search(_LODR); refuse instead of silently ignoring.
+        assert model.no_decoder_biasing and model.no_wfst_lm_biasing, (
+            f"{params.decoding_method} supports encoder biasing only. Use "
+            "--no-decoder-biasing true --no-wfst-lm-biasing true, "
+            "or modified_beam_search."
+        )
+
     model.scratch_space = dict()
     model.scratch_space["sp"] = sp
     model.scratch_space["biased_lm_scale"] = params.biased_lm_scale

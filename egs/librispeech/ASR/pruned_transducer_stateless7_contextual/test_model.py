@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2022  Xiaomi Corp.        (authors: Fangjun Kuang)
+# Copyright    2026  (authors: Ruizhe Huang, Mahsa Yarmohammadi)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -17,51 +17,194 @@
 
 
 """
+A light-weight CPU test of the contextual biasing model. It needs no data:
+a tiny BPE model and fake biasing word lists are created in a temp dir.
+
 To run this file, do:
 
     cd icefall/egs/librispeech/ASR
-    python ./pruned_transducer_stateless7/test_model.py
+    python ./pruned_transducer_stateless7_contextual/test_model.py
 """
 
+import random
+import tempfile
+from pathlib import Path
+
+import sentencepiece as spm
 import torch
+from context_collector import ContextCollector
+from decode import decode_one_batch
+from decode import get_params as get_decode_params
+from decode import get_parser as get_decode_parser
+from train import (
+    compute_loss,
+    get_params,
+    get_parser,
+    get_transducer_model,
+    load_pretrained_asr,
+)
 
-from scaling_converter import convert_scaled_to_non_scaled
-from train import get_params, get_transducer_model
+# A tiny Zipformer so that the test runs in seconds on CPU
+TINY_MODEL_ARGS = [
+    "--num-encoder-layers", "1,1,1,1,1",
+    "--feedforward-dims", "64,64,64,64,64",
+    "--nhead", "2,2,2,2,2",
+    "--encoder-dims", "32,32,32,32,32",
+    "--attention-dims", "16,16,16,16,16",
+    "--encoder-unmasked-dims", "16,16,16,16,16",
+    "--decoder-dim", "32",
+    "--joiner-dim", "32",
+]  # fmt: skip
 
 
-def test_model():
+def make_fixtures(d: Path):
+    random.seed(0)
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+    def word():
+        return "".join(random.choices(letters, k=random.randint(3, 8)))
+
+    common = sorted({word() for _ in range(100)})
+    rare = sorted({word() for _ in range(500)} - set(common))
+    (d / "ctx/words").mkdir(parents=True)
+    (d / "ctx/words/common_words_5k.txt").write_text("\n".join(common) + "\n")
+    (d / "ctx/words/all_rare_words.txt").write_text("\n".join(rare) + "\n")
+
+    text = [" ".join(random.choices(common + rare, k=10)) for _ in range(500)]
+    (d / "text.txt").write_text("\n".join(text) + "\n")
+    spm.SentencePieceTrainer.train(
+        input=str(d / "text.txt"),
+        model_prefix=str(d / "bpe"),
+        vocab_size=100,
+        model_type="unigram",
+        character_coverage=1.0,
+        unk_id=2,
+        bos_id=-1,
+        eos_id=-1,
+        user_defined_symbols=["<blk>", "<sos/eos>"],
+        minloglevel=2,
+    )
+    return common, rare
+
+
+def setup(d: Path):
+    common, rare = make_fixtures(d)
+    argv = (
+        TINY_MODEL_ARGS
+        + ["--bpe-model", str(d / "bpe.model"), "--context-dir", str(d / "ctx")]
+        + ["--n-distractors", "10"]
+    )
     params = get_params()
-    params.vocab_size = 500
-    params.blank_id = 0
-    params.context_size = 2
-    params.num_encoder_layers = "2,4,3,2,4"
-    params.feedforward_dims = "1024,1024,2048,2048,1024"
-    params.nhead = "8,8,8,8,8"
-    params.encoder_dims = "384,384,384,384,384"
-    params.attention_dims = "192,192,192,192,192"
-    params.encoder_unmasked_dims = "256,256,256,256,256"
-    params.zipformer_downsampling_factors = "1,2,4,8,2"
-    params.cnn_module_kernels = "31,31,31,31,31"
-    params.decoder_dim = 512
-    params.joiner_dim = 512
+    params.update(get_decode_params())
+    params.update(vars(get_decode_parser().parse_known_args(argv)[0]))
+    params.update(vars(get_parser().parse_args(argv)))
+    params.max_duration = 100
+    params.biased_lm_scale = 0.5
+
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
+    params.blank_id = sp.piece_to_id("<blk>")
+    params.vocab_size = sp.get_piece_size()
+    params.backoff_id = params.vocab_size
+
+    context_collector = ContextCollector(
+        path_is21_deep_bias=Path(params.context_dir),
+        sp=sp,
+        n_distractors=params.n_distractors,
+        backoff_id=params.backoff_id,
+    )
     model = get_transducer_model(params)
+    model.params = params
 
-    num_param = sum([p.numel() for p in model.parameters()])
-    print(f"Number of model parameters: {num_param}")
+    texts = [
+        " ".join([common[0], rare[3], common[5], rare[7]]),
+        " ".join([common[1], rare[9]]),
+    ]
+    num_frames = torch.tensor([100, 80])
+    batch = {
+        "inputs": torch.randn(2, 100, 80),
+        "supervisions": {"text": texts, "num_frames": num_frames},
+    }
+    return params, sp, context_collector, model, batch
 
-    # Test jit script
-    convert_scaled_to_non_scaled(model, inplace=True)
-    # We won't use the forward() method of the model in C++, so just ignore
-    # it here.
-    # Otherwise, one of its arguments is a ragged tensor and is not
-    # torch scriptabe.
-    model.__class__.forward = torch.jit.ignore(model.__class__.forward)
-    print("Using torch.jit.script")
-    model = torch.jit.script(model)
+
+def test_train_step(params, sp, context_collector, model, batch):
+    for p in model.parameters():
+        p.requires_grad = False
+    for m in (
+        model.context_encoder,
+        model.encoder_biasing_adapter,
+        model.decoder_biasing_adapter,
+    ):
+        for p in m.parameters():
+            p.requires_grad = True
+
+    model.train()
+    loss, info = compute_loss(
+        params, model, context_collector, sp, batch, is_training=True
+    )
+    loss.backward()
+    assert torch.isfinite(loss), info
+
+    biasing = ("context_encoder", "encoder_biasing_adapter", "decoder_biasing_adapter")
+    with_grad = {n.split(".")[0] for n, p in model.named_parameters() if p.grad is not None}
+    assert with_grad == set(biasing), with_grad
+    print(f"train step OK: {info}")
+
+
+def test_init_asr_ckpt(params, model, d: Path):
+    """--init-asr-ckpt: load a checkpoint that has no biasing modules."""
+    biasing = ("context_encoder.", "encoder_biasing_adapter.", "decoder_biasing_adapter.")
+    asr_state = {k: v for k, v in model.state_dict().items() if not k.startswith(biasing)}
+    torch.save({"model": asr_state}, d / "asr.pt")
+
+    new_model = get_transducer_model(params)
+    load_pretrained_asr(str(d / "asr.pt"), new_model)
+    for k, v in asr_state.items():
+        assert torch.equal(new_model.state_dict()[k], v), k
+    print("init-asr-ckpt OK")
+
+
+def test_decode(params, sp, context_collector, model, batch):
+    model.eval()
+    # (method, encoder biasing, decoder biasing, WFST biasing)
+    configs = [
+        ("greedy_search", True, False, False),
+        ("greedy_search", False, False, False),
+        ("modified_beam_search", True, True, False),
+        ("modified_beam_search", True, True, True),
+        ("modified_beam_search", False, False, False),
+    ]
+    for method, enc, dec, wfst in configs:
+        params.decoding_method = method
+        params.beam_size = 2
+        model.no_encoder_biasing = params.no_encoder_biasing = not enc
+        model.no_decoder_biasing = params.no_decoder_biasing = not dec
+        model.no_wfst_lm_biasing = params.no_wfst_lm_biasing = not wfst
+        with torch.no_grad():
+            hyps = decode_one_batch(params, model, context_collector, sp, batch)
+        (key,) = hyps.keys()
+        assert len(hyps[key]) == 2, hyps
+        print(f"decode OK: {method}, encoder={enc}, decoder={dec}, wfst={wfst}")
+
+    # greedy_search does not implement decoder-side biasing
+    params.decoding_method = "greedy_search"
+    model.no_decoder_biasing = params.no_decoder_biasing = False
+    try:
+        decode_one_batch(params, model, context_collector, sp, batch)
+    except AssertionError:
+        print("decode OK: greedy_search rejects decoder biasing")
+    else:
+        raise AssertionError("greedy_search should reject decoder biasing")
 
 
 def main():
-    test_model()
+    torch.manual_seed(20260922)
+    with tempfile.TemporaryDirectory() as d:
+        params, sp, context_collector, model, batch = setup(Path(d))
+        test_init_asr_ckpt(params, model, Path(d))
+        test_train_step(params, sp, context_collector, model, batch)
+        test_decode(params, sp, context_collector, model, batch)
 
 
 if __name__ == "__main__":
