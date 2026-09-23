@@ -1294,8 +1294,7 @@ def run(rank, world_size, args):
     if params.full_libri:
         train_cuts = librispeech.train_all_shuf_cuts()
     else:
-        # train_cuts = librispeech.train_clean_100_cuts()
-        train_cuts = librispeech.train_clean_100_cuts_sample()
+        train_cuts = librispeech.train_clean_100_cuts()
     
     if rank == 0:
         train_cuts.describe()

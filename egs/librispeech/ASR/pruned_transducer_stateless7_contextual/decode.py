@@ -469,6 +469,13 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--test-sets",
+        type=str,
+        default="test-clean,test-other",
+        help="Comma-separated LibriSpeech test sets to decode.",
+    )
+
+    parser.add_argument(
         "--is-predefined",
         type=str2bool,
         default=False,
@@ -1199,45 +1206,13 @@ def main():
     args.return_cuts = True
     librispeech = LibriSpeechAsrDataModule(args)
 
-    dev_clean_cuts = librispeech.dev_clean_cuts()
-    dev_other_cuts = librispeech.dev_other_cuts()
-    test_clean_cuts = librispeech.test_clean_cuts()
-    test_other_cuts = librispeech.test_other_cuts()
-
-    # from lhotse import CutSet
-    # test_clean_cuts = [c for c in test_clean_cuts][:500]
-    # test_other_cuts = [c for c in test_other_cuts][:500]
-    # # test_other_cuts1 = [c for c in test_other_cuts if c.id == "1998-29455-0019-602"]
-    # # test_other_cuts = test_other_cuts1 + [c for c in test_other_cuts][1700:1710]
-    # test_clean_cuts = CutSet.from_cuts(test_clean_cuts)
-    # test_other_cuts = CutSet.from_cuts(test_other_cuts)
-
-    # from lhotse import CutSet
-    # test_clean_cuts = [c for c in test_clean_cuts if c.id == "1089-134686-0016-2185"] + [c for c in test_clean_cuts][:9]
-    # # test_clean_cuts = [c for c in test_clean_cuts if c.id == "1089-134686-0016-2185"]
-    # test_clean_cuts = CutSet.from_cuts(test_clean_cuts)
-    # test_clean_cuts.describe()
-
-    # TODO:
-    # 7729-102255-0015-210
-    # 1995-1836-0000-8621995-1836-0000
-
-    # import random
-    # random.seed(10)
-
-    dev_clean_dl = librispeech.test_dataloaders(dev_clean_cuts)
-    dev_other_dl = librispeech.test_dataloaders(dev_other_cuts)
-    test_clean_dl = librispeech.test_dataloaders(test_clean_cuts)
-    test_other_dl = librispeech.test_dataloaders(test_other_cuts)
-
-    # test_sets = ["dev-clean", "dev-other", "test-clean", "test-other"]
-    # test_dl = [dev_clean_dl, dev_other_dl, test_clean_dl, test_other_dl]
-    test_sets = ["test-clean", "test-other"]
-    test_dls = [test_clean_dl, test_other_dl]
-    # test_sets = ["test-clean"]
-    # test_dl = [test_clean_dl]
-    # test_sets = ["test-other"]
-    # test_dl = [test_other_dl]
+    test_sets = params.test_sets.split(",")
+    test_dls = [
+        librispeech.test_dataloaders(
+            getattr(librispeech, f"{name.replace('-', '_')}_cuts")()
+        )
+        for name in test_sets
+    ]
 
     for test_set, test_dl in zip(test_sets, test_dls):
         results_dict = decode_dataset(
