@@ -26,9 +26,13 @@ To run this file, do:
     python ./pruned_transducer_stateless7_contextual/test_model.py
 """
 
+import contextlib
+import io
+import json
 import random
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import sentencepiece as spm
 import torch
@@ -36,6 +40,7 @@ from context_collector import ContextCollector
 from decode import decode_one_batch
 from decode import get_params as get_decode_params
 from decode import get_parser as get_decode_parser
+from score import main as score_main
 from train import (
     compute_loss,
     get_params,
@@ -125,7 +130,7 @@ def setup(d: Path):
         "inputs": torch.randn(2, 100, 80),
         "supervisions": {"text": texts, "num_frames": num_frames},
     }
-    return params, sp, context_collector, model, batch
+    return params, sp, context_collector, model, batch, common, rare
 
 
 def test_train_step(params, sp, context_collector, model, batch):
@@ -165,6 +170,42 @@ def test_init_asr_ckpt(params, model, d: Path):
     print("init-asr-ckpt OK")
 
 
+def test_predefined_lists_and_scoring(sp, common, rare, d: Path):
+    """Predefined biasing lists (--is-predefined) and U-WER/B-WER scoring,
+    using a tiny file in the format of fbai-speech/is21_deep_bias/ref."""
+    utts = {
+        "1-1-0001": ([common[0], rare[3], common[5]], [rare[3]], rare[3:8]),
+        "1-1-0002": ([rare[9], common[1]], [rare[9]], rare[8:12]),
+    }
+    (d / "ctx/ref").mkdir()
+    for name in ("test-clean", "test-other"):
+        with open(d / f"ctx/ref/{name}.biasing_100.tsv", "w") as f:
+            for uid, (text, biased, context) in utts.items():
+                fields = [" ".join(text), json.dumps(biased), json.dumps(context)]
+                print(uid, *[x.lower() for x in fields], sep="\t", file=f)
+
+    collector = ContextCollector(
+        path_is21_deep_bias=d / "ctx", sp=sp, is_predefined=True, n_distractors=100
+    )
+    cuts = [SimpleNamespace(supervisions=[SimpleNamespace(id=u)]) for u in utts]
+    batch = {"supervisions": {"cut": cuts}}
+    _, _, num_words_per_utt = collector.get_context_word_list(batch)
+    assert num_words_per_utt == [len(c) for _, _, c in utts.values()], num_words_per_utt
+
+    # The 2nd hypothesis misses its only biased word: B-WER = 50%, U-WER = 0%
+    hyps = {
+        "1-1-0001": " ".join(utts["1-1-0001"][0]).lower(),
+        "1-1-0002": common[1].lower(),
+    }
+    args = SimpleNamespace(refs=d / "ctx/ref/test-clean.biasing_100.tsv", hyps=hyps, lenient=True)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        score_main(args)
+    summary = out.getvalue().strip().splitlines()[-1]
+    assert summary == "20.00(0.00/50.00)", summary
+    print(f"predefined lists + scoring OK: WER(U-WER/B-WER) = {summary}")
+
+
 def test_decode(params, sp, context_collector, model, batch):
     model.eval()
     # (method, encoder biasing, decoder biasing, WFST biasing)
@@ -201,7 +242,8 @@ def test_decode(params, sp, context_collector, model, batch):
 def main():
     torch.manual_seed(20260922)
     with tempfile.TemporaryDirectory() as d:
-        params, sp, context_collector, model, batch = setup(Path(d))
+        params, sp, context_collector, model, batch, common, rare = setup(Path(d))
+        test_predefined_lists_and_scoring(sp, common, rare, Path(d))
         test_init_asr_ckpt(params, model, Path(d))
         test_train_step(params, sp, context_collector, model, batch)
         test_decode(params, sp, context_collector, model, batch)
