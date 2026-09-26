@@ -7,7 +7,10 @@
 """Compute persistent 80-bin fbank features for Japanese Common Voice cuts."""
 
 import argparse
+import gzip
+import json
 import logging
+import os
 from pathlib import Path
 
 import torch
@@ -19,6 +22,27 @@ from lhotse import (
     set_audio_duration_mismatch_tolerance,
     set_caching_enabled,
 )
+
+
+def write_cuts_utf8(cuts: CutSet, output_cuts: Path) -> None:
+    """Write a completed feature manifest atomically with Japanese text intact.
+
+    Lhotse 1.28.0's JSONL writer can select an ASCII encoding for gzip files
+    even when Python's preferred encoding is UTF-8.  Explicitly opening the
+    stream also lets the final manifest remain an unambiguous success marker:
+    an interrupted write never looks like a completed partition.
+    """
+    temporary = output_cuts.with_name(f".{output_cuts.name}.tmp")
+    temporary.unlink(missing_ok=True)
+    try:
+        with gzip.open(temporary, "wt", encoding="utf-8") as stream:
+            for cut in cuts:
+                stream.write(json.dumps(cut.to_dict(), ensure_ascii=False))
+                stream.write("\n")
+        os.replace(temporary, output_cuts)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def get_args() -> argparse.Namespace:
@@ -40,7 +64,8 @@ def compute_features(args: argparse.Namespace) -> None:
     for partition in ("train", "dev", "test"):
         raw_cuts = fbank_dir / f"cv-ja_cuts_{partition}_raw.jsonl.gz"
         output_cuts = fbank_dir / f"cv-ja_cuts_{partition}.jsonl.gz"
-        if output_cuts.is_file():
+        completion_marker = output_cuts.with_name(f".{output_cuts.name}.done")
+        if output_cuts.is_file() and completion_marker.is_file():
             logging.info("%s already exists; skipping", output_cuts)
             continue
         if not raw_cuts.is_file():
@@ -58,7 +83,8 @@ def compute_features(args: argparse.Namespace) -> None:
             # corresponding feature store instead of trusting partial chunks.
             overwrite=True,
         )
-        cuts.to_file(output_cuts)
+        write_cuts_utf8(cuts, output_cuts)
+        completion_marker.write_text("completed\n", encoding="utf-8")
         logging.info("Wrote fbank cuts to %s", output_cuts)
 
 
