@@ -37,3 +37,9 @@ class CommonVoiceKwsDataModule(module.CommonVoiceAsrDataModule):
         """The Common Voice development split is this recipe's validation set."""
 
         return self.dev_cuts()
+
+
+# The maintained WenetSpeech KWS trainer imports this exact name at module
+# import time.  Keep the adapter compatible before train.py replaces the
+# reference with the explicit CommonVoiceKwsDataModule name.
+WenetSpeechAsrDataModule = CommonVoiceKwsDataModule
