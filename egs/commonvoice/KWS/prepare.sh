@@ -44,7 +44,7 @@ if [[ ${stage} -le 0 && ${stop_stage} -ge 0 ]]; then
   ln -sfn "${commonvoice_root}" "${source_parent}/ja"
 
   if [[ ! -f "${data_dir}/manifests/.cv-ja.done" ]]; then
-    lhotse prepare commonvoice --language ja -j "${nj}" \
+    python "${script_dir}/local/lhotse_cli.py" prepare commonvoice --language ja -j "${nj}" \
       "${source_parent}" "${data_dir}/manifests"
     touch "${data_dir}/manifests/.cv-ja.done"
   fi
