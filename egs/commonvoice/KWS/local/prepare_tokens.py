@@ -12,7 +12,7 @@ from pathlib import Path
 
 from lhotse import CutSet
 
-from japanese_phones import text_to_phones
+from japanese_phones import JAPANESE_PHONE_INVENTORY, text_to_phones
 
 
 def get_args() -> argparse.Namespace:
@@ -24,6 +24,9 @@ def get_args() -> argparse.Namespace:
 
 def write_tokens(cuts: CutSet, lang_dir: Path) -> Counter:
     counts: Counter = Counter()
+    # Retain zero-count standard phones so dev/test or a user keyword can be
+    # represented even when its phone is absent from this training split.
+    counts.update({phone: 0 for phone in JAPANESE_PHONE_INVENTORY})
     for cut in cuts:
         counts.update(text_to_phones(cut.supervisions[0].text))
 

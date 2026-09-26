@@ -20,6 +20,16 @@ from japanese_text import normalize_japanese_text
 
 NON_LEXICAL_PHONES = frozenset({"sil", "pau"})
 
+# OpenJTalk's lexical phone inventory for Japanese, including loanword and
+# small-kana combinations that may be absent from a particular training split
+# (for example, ``ty`` in テャ).  A fixed inventory is essential for arbitrary
+# keyword decoding: an unseen phone must not silently become <unk> on dev,
+# test, or a user-supplied keyword.
+JAPANESE_PHONE_INVENTORY = frozenset(
+    "N a b by ch cl d dy e f g gw gy h hy i j k kw ky m my n ny o p py r ry "
+    "s sh t ts ty u v w y z".split()
+)
+
 
 def text_to_phones(text: str) -> List[str]:
     """Convert normalized Japanese text to lexical OpenJTalk phones.

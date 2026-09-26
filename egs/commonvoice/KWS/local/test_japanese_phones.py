@@ -8,10 +8,13 @@ import sys
 import types
 import unittest
 
-from japanese_phones import text_to_phones
+from japanese_phones import JAPANESE_PHONE_INVENTORY, text_to_phones
 
 
 class TestJapanesePhones(unittest.TestCase):
+    def test_fixed_inventory_covers_small_kana_phone(self):
+        self.assertIn("ty", JAPANESE_PHONE_INVENTORY)
+
     def test_boundary_phones_are_not_model_targets(self):
         original = sys.modules.get("pyopenjtalk")
         fake = types.SimpleNamespace(
