@@ -11,6 +11,7 @@ num_epochs=1
 max_duration=300
 num_workers=4
 use_fp16=true
+scan_for_oom_batches=false
 save_every_n=4000
 average_period=200
 
@@ -55,6 +56,7 @@ python "${script_dir}/zipformer/train.py" \
   --num-workers "${num_workers}" \
   --max-duration "${max_duration}" \
   --use-fp16 "${use_fp16}" \
+  --scan-for-oom-batches "${scan_for_oom_batches}" \
   --save-every-n "${save_every_n}" \
   --average-period "${average_period}" \
   --causal true \

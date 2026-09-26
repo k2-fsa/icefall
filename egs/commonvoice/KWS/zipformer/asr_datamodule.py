@@ -7,23 +7,33 @@
 """Common Voice manifests for the Japanese KWS Zipformer trainer."""
 
 import argparse
-import importlib.util
+import logging
 from pathlib import Path
+import sys
 
 
-COMMONVOICE_ASR_DATA_MODULE = (
-    Path(__file__).resolve().parents[2]
-    / "ASR"
-    / "pruned_transducer_stateless7_streaming"
-    / "asr_datamodule.py"
+# Import the maintained Common Voice data module by its package name.  A
+# file-path import gives its classes a synthetic module name, which Python
+# 3.14's default ``forkserver`` multiprocessing context cannot import again
+# when starting DataLoader workers.
+ICEFALL_ROOT = Path(__file__).resolve().parents[4]
+if str(ICEFALL_ROOT) not in sys.path:
+    sys.path.insert(0, str(ICEFALL_ROOT))
+
+from egs.commonvoice.ASR.pruned_transducer_stateless7_streaming import (  # noqa: E402
+    asr_datamodule as module,
 )
-spec = importlib.util.spec_from_file_location(
-    "commonvoice_asr_datamodule", COMMONVOICE_ASR_DATA_MODULE
-)
-if spec is None or spec.loader is None:
-    raise RuntimeError(f"Cannot load {COMMONVOICE_ASR_DATA_MODULE}")
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
+
+
+# Common Voice occasionally contains multi-paragraph transcripts paired with
+# only a few seconds of audio.  These are alignment errors rather than fast
+# speech and make RNN-T memory scale with thousands of target symbols.
+MAX_TRANSCRIPT_CHARS_PER_SECOND = 20.0
+
+
+def has_plausible_transcript_rate(cut) -> bool:
+    text = cut.supervisions[0].text
+    return len(text) / cut.duration <= MAX_TRANSCRIPT_CHARS_PER_SECOND
 
 
 class CommonVoiceKwsDataModule(module.CommonVoiceAsrDataModule):
@@ -33,10 +43,21 @@ class CommonVoiceKwsDataModule(module.CommonVoiceAsrDataModule):
     def add_arguments(cls, parser: argparse.ArgumentParser) -> None:
         super().add_arguments(parser)
 
+    def train_cuts(self):
+        logging.info(
+            "Exclude train cuts above %.1f transcript characters/second",
+            MAX_TRANSCRIPT_CHARS_PER_SECOND,
+        )
+        return super().train_cuts().filter(has_plausible_transcript_rate)
+
     def valid_cuts(self):
         """The Common Voice development split is this recipe's validation set."""
 
-        return self.dev_cuts()
+        logging.info(
+            "Exclude dev cuts above %.1f transcript characters/second",
+            MAX_TRANSCRIPT_CHARS_PER_SECOND,
+        )
+        return self.dev_cuts().filter(has_plausible_transcript_rate)
 
 
 # The maintained WenetSpeech KWS trainer imports this exact name at module

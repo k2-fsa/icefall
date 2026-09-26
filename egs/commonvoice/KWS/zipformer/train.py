@@ -23,7 +23,14 @@ if str(ICEFALL_ROOT) not in sys.path:
 
 import k2
 
-from asr_datamodule import CommonVoiceKwsDataModule
+# Use the fully qualified recipe module here.  The upstream WenetSpeech
+# trainer is loaded below and intentionally adds its own directory to
+# ``sys.path``; importing this adapter as plain ``asr_datamodule`` would make
+# Python 3.14's forkserver workers resolve the wrong module when they rerun
+# this entrypoint.
+from egs.commonvoice.KWS.zipformer.asr_datamodule import (  # noqa: E402
+    CommonVoiceKwsDataModule,
+)
 
 
 KWS_LOCAL = Path(__file__).resolve().parents[1] / "local"
