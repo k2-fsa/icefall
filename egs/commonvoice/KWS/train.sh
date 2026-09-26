@@ -11,6 +11,8 @@ num_epochs=1
 max_duration=300
 num_workers=4
 use_fp16=true
+save_every_n=4000
+average_period=200
 
 . "${script_dir}/../../../icefall/shared/parse_options.sh" || exit 1
 
@@ -53,6 +55,8 @@ python "${script_dir}/zipformer/train.py" \
   --num-workers "${num_workers}" \
   --max-duration "${max_duration}" \
   --use-fp16 "${use_fp16}" \
+  --save-every-n "${save_every_n}" \
+  --average-period "${average_period}" \
   --causal true \
   --chunk-size 16 \
   --left-context-frames 64 \
