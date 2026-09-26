@@ -17,6 +17,10 @@ import logging
 from pathlib import Path
 import sys
 
+ICEFALL_ROOT = Path(__file__).resolve().parents[4]
+if str(ICEFALL_ROOT) not in sys.path:
+    sys.path.insert(0, str(ICEFALL_ROOT))
+
 import k2
 
 from asr_datamodule import CommonVoiceKwsDataModule
