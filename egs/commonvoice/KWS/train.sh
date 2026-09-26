@@ -35,6 +35,11 @@ mkdir -p "${exp_dir}"
 started_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 started_seconds="$(date +%s)"
 
+if command -v nvidia-smi >/dev/null 2>&1; then
+  nvidia-smi --query-gpu=name,memory.total,driver_version \
+    --format=csv,noheader > "${exp_dir}/gpu.csv"
+fi
+
 python "${script_dir}/zipformer/train.py" \
   --world-size "${world_size}" \
   --num-epochs "${num_epochs}" \
