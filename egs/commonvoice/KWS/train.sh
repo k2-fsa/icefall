@@ -12,7 +12,7 @@ max_duration=300
 num_workers=4
 use_fp16=true
 
-. "${script_dir}/../../shared/parse_options.sh" || exit 1
+. "${script_dir}/../../../icefall/shared/parse_options.sh" || exit 1
 
 if [[ -z "${data_dir}" || -z "${exp_dir}" ]]; then
   echo "--data-dir and --exp-dir are required" >&2

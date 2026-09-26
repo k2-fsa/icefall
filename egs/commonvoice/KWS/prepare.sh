@@ -11,7 +11,7 @@ stop_stage=100
 nj=8
 batch_duration=200
 
-. "${script_dir}/../../shared/parse_options.sh" || exit 1
+. "${script_dir}/../../../icefall/shared/parse_options.sh" || exit 1
 
 log() {
   local fname=${BASH_SOURCE[1]##*/}
