@@ -40,6 +40,23 @@ One epoch is a wiring and throughput measurement only. It is not a quality
 claim. The follow-up KWS evaluation must report recall, false alarms per hour,
 and trigger latency on a fixed held-out audio set.
 
+## Phone error rate
+
+After training, measure phone recognition on the held-out Common Voice test
+split before tuning the keyword graph:
+
+```bash
+./evaluate.sh \
+  --data-dir /workspace/work/japanese-open-kws/cv25-ja/data \
+  --exp-dir /workspace/artifacts/japanese-open-kws/cv25-ja \
+  --checkpoint best-valid-loss.pt
+```
+
+The decoder writes both the official-test PER and a second PER after removing
+the same implausible transcript/audio-rate outliers used by training and
+validation. PER is an acoustic/token-sequence sanity metric; it does not replace
+keyword recall, false alarms per hour, or trigger-latency evaluation.
+
 ## Phone frontend
 
 Text is first normalized using the Japanese Common Voice normalizer from the
