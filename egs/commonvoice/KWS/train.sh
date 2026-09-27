@@ -8,6 +8,7 @@ data_dir=
 exp_dir=
 world_size=1
 num_epochs=1
+start_epoch=1
 max_duration=300
 num_workers=4
 use_fp16=true
@@ -19,6 +20,15 @@ average_period=200
 
 if [[ -z "${data_dir}" || -z "${exp_dir}" ]]; then
   echo "--data-dir and --exp-dir are required" >&2
+  exit 2
+fi
+if ((start_epoch < 1 || num_epochs < start_epoch)); then
+  echo "Require 1 <= --start-epoch <= --num-epochs" >&2
+  exit 2
+fi
+
+if ((start_epoch > 1)) && [[ ! -f "${exp_dir}/epoch-$((start_epoch - 1)).pt" ]]; then
+  echo "Cannot resume: missing ${exp_dir}/epoch-$((start_epoch - 1)).pt" >&2
   exit 2
 fi
 
@@ -46,7 +56,7 @@ fi
 python "${script_dir}/zipformer/train.py" \
   --world-size "${world_size}" \
   --num-epochs "${num_epochs}" \
-  --start-epoch 1 \
+  --start-epoch "${start_epoch}" \
   --exp-dir "${exp_dir}" \
   --lang-dir "${data_dir}/lang_phone" \
   --language ja \
@@ -71,8 +81,11 @@ python "${script_dir}/zipformer/train.py" \
 
 finished_at="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 elapsed_seconds="$(( $(date +%s) - started_seconds ))"
-printf '{"started_at":"%s","finished_at":"%s","wall_seconds":%s,"num_epochs":%s,"world_size":%s}\n' \
-  "${started_at}" "${finished_at}" "${elapsed_seconds}" "${num_epochs}" "${world_size}" \
-  > "${exp_dir}/runtime.json"
+runtime_record="$(printf '{"started_at":"%s","finished_at":"%s","wall_seconds":%s,"start_epoch":%s,"num_epochs":%s,"epochs_this_run":%s,"world_size":%s}' \
+  "${started_at}" "${finished_at}" "${elapsed_seconds}" "${start_epoch}" \
+  "${num_epochs}" "$((num_epochs - start_epoch + 1))" "${world_size}")"
+printf '%s\n' "${runtime_record}" > "${exp_dir}/runtime.json"
+printf '%s\n' "${runtime_record}" \
+  > "${exp_dir}/runtime-${start_epoch}-${num_epochs}.json"
 
 echo "Training complete. Epoch timing: ${exp_dir}/runtime.json"

@@ -25,6 +25,11 @@ import k2
 import torch
 from lhotse.cut import Cut
 
+from icefall.checkpoint import (  # noqa: E402
+    average_checkpoints,
+    average_checkpoints_with_averaged_model,
+)
+
 from egs.commonvoice.KWS.zipformer.asr_datamodule import (  # noqa: E402
     CommonVoiceKwsDataModule,
     has_plausible_transcript_rate,
@@ -69,8 +74,18 @@ def get_parser():
     parser.add_argument(
         "--checkpoint",
         type=str,
-        default="best-valid-loss.pt",
-        help="Checkpoint filename beneath --exp-dir.",
+        default="",
+        help=(
+            "Optional single raw checkpoint beneath --exp-dir. When empty, "
+            "--epoch/--avg/--use-averaged-model select the model."
+        ),
+    )
+    parser.add_argument(
+        "--split",
+        type=str,
+        choices=("dev", "test"),
+        default="test",
+        help="Common Voice split to decode.",
     )
     parser.add_argument(
         "--output-dir",
@@ -79,6 +94,62 @@ def get_parser():
         help="PER output directory; defaults to <exp-dir>/per.",
     )
     return parser
+
+
+def load_model_for_decoding(params, model, device):
+    """Load a raw checkpoint or Icefall's standard epoch-averaged model."""
+
+    if params.checkpoint:
+        checkpoint = params.exp_dir / params.checkpoint
+        if not checkpoint.is_file():
+            raise FileNotFoundError(checkpoint)
+        logging.info("Loading the raw checkpoint %s", checkpoint)
+        decoder.load_checkpoint(checkpoint, model)
+        return
+
+    if params.avg <= 0:
+        raise ValueError(f"--avg must be positive, got {params.avg}")
+
+    if params.use_averaged_model:
+        start = params.epoch - params.avg
+        if start < 1:
+            raise ValueError(
+                f"epoch {params.epoch} with avg {params.avg} needs epoch-{start}.pt"
+            )
+        filename_start = params.exp_dir / f"epoch-{start}.pt"
+        filename_end = params.exp_dir / f"epoch-{params.epoch}.pt"
+        for filename in (filename_start, filename_end):
+            if not filename.is_file():
+                raise FileNotFoundError(filename)
+        logging.info(
+            "Calculating the averaged model over epochs %s (excluded) to %s",
+            start,
+            params.epoch,
+        )
+        state_dict = average_checkpoints_with_averaged_model(
+            filename_start=filename_start,
+            filename_end=filename_end,
+            device=device,
+        )
+    elif params.avg == 1:
+        checkpoint = params.exp_dir / f"epoch-{params.epoch}.pt"
+        if not checkpoint.is_file():
+            raise FileNotFoundError(checkpoint)
+        decoder.load_checkpoint(checkpoint, model)
+        return
+    else:
+        start = params.epoch - params.avg + 1
+        filenames = [
+            params.exp_dir / f"epoch-{epoch}.pt"
+            for epoch in range(start, params.epoch + 1)
+        ]
+        for filename in filenames:
+            if not filename.is_file():
+                raise FileNotFoundError(filename)
+        logging.info("Averaging raw checkpoints %s", filenames)
+        state_dict = average_checkpoints(filenames, device=device)
+
+    model.load_state_dict(state_dict)
 
 
 def remove_short_utterance(cut: Cut) -> bool:
@@ -130,8 +201,9 @@ def decode_dataset(dl, params, model, lexicon):
             logging.info("batch %s, decoded %s cuts", batch_idx, num_cuts)
 
     logging.info(
-        "Decoded %s official test cuts; %s remain after transcript-rate filter",
+        "Decoded %s official %s cuts; %s remain after transcript-rate filter",
         num_cuts,
+        params.split,
         num_filtered,
     )
     return all_results, filtered_results
@@ -178,7 +250,13 @@ def main():
 
     params.res_dir = params.output_dir or params.exp_dir / "per"
     params.res_dir.mkdir(parents=True, exist_ok=True)
-    params.suffix = f"{Path(params.checkpoint).stem}-{params.decoding_method}"
+    if params.checkpoint:
+        model_suffix = Path(params.checkpoint).stem
+    else:
+        model_suffix = f"epoch-{params.epoch}-avg-{params.avg}"
+        if params.use_averaged_model:
+            model_suffix += "-use-averaged-model"
+    params.suffix = f"{model_suffix}-{params.decoding_method}"
     if params.decoding_method == "modified_beam_search":
         params.suffix += f"-beam-{params.beam_size}"
     params.suffix += f"-blank-penalty-{params.blank_penalty}"
@@ -192,22 +270,24 @@ def main():
     logging.info("Device: %s", device)
     logging.info(params)
     model = decoder.get_model(params)
-    checkpoint = params.exp_dir / params.checkpoint
-    if not checkpoint.is_file():
-        raise FileNotFoundError(checkpoint)
-    decoder.load_checkpoint(checkpoint, model)
     model.to(device)
+    load_model_for_decoding(params, model, device)
     model.eval()
     logging.info("Number of model parameters: %s", sum(p.numel() for p in model.parameters()))
 
     args.return_cuts = True
     data_module = CommonVoiceKwsDataModule(args)
-    test_cuts = data_module.test_cuts().filter(remove_short_utterance)
-    test_dl = data_module.test_dataloaders(test_cuts)
+    if params.split == "dev":
+        cuts = data_module.dev_cuts()
+    else:
+        cuts = data_module.test_cuts()
+    cuts = cuts.filter(remove_short_utterance)
+    dl = data_module.test_dataloaders(cuts)
 
-    official, filtered = decode_dataset(test_dl, params, model, lexicon)
-    save_per_results(params, "TEST", official)
-    save_per_results(params, "TEST_FILTERED", filtered)
+    official, filtered = decode_dataset(dl, params, model, lexicon)
+    split_name = params.split.upper()
+    save_per_results(params, split_name, official)
+    save_per_results(params, f"{split_name}_FILTERED", filtered)
     logging.info("Done!")
 
 
