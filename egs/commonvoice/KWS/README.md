@@ -14,6 +14,8 @@ streaming configuration, and KWS evaluation protocol are different.
 `prepare.sh` accepts a directory that is directly the Japanese Common Voice
 directory, i.e. it contains `clips/`, `train.tsv`, `dev.tsv`, and `test.tsv`.
 Raw audio is read in place and is never copied into the checkout.
+Each `data-dir` is tied to one resolved Common Voice root; use a new data
+directory when changing the source path.
 
 ```bash
 ./prepare.sh \
@@ -187,7 +189,7 @@ boundary `sil` and `pau` symbols are removed while lexical closure `cl` is
 retained. `tokens.txt` is learned from the normalized training transcripts only
 and includes `<blk>` and `<unk>`.
 
-The launcher image must provide the `pyopenjtalk-plus` drop-in. Run
-`runpod/doctor.sh` in the operations repository before preparation so that an
-image build or a Pod `Running` state is never mistaken for a usable CUDA/k2
-runtime.
+The runtime must provide `pyopenjtalk-plus` (imported as `pyopenjtalk`) and
+Lhotse's `lhotse` console command. Before preparation, verify both with
+`python3 -c 'import pyopenjtalk, lhotse'` and `lhotse --help`. GPU training also
+requires a working CUDA PyTorch and k2 installation.

@@ -8,12 +8,11 @@
 
 import argparse
 import logging
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from lhotse import CutSet
 from lhotse.recipes.utils import read_manifests_if_cached
-
 
 ASR_LOCAL = Path(__file__).resolve().parents[2] / "ASR" / "local"
 if str(ASR_LOCAL) not in sys.path:
@@ -63,7 +62,9 @@ def prepare_cuts(manifest_dir: Path, output_dir: Path) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     args = get_args()
     prepare_cuts(args.manifest_dir, args.output_dir)
 

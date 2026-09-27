@@ -21,10 +21,9 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from japanese_text import normalize_japanese_text
 from lhotse import CutSet
 from lhotse.recipes.utils import read_manifests_if_cached
-
-from japanese_text import normalize_japanese_text
 
 
 def get_args():
@@ -62,7 +61,7 @@ def normalize_text(utt: str, language: str) -> str:
         # None en/zh-yue tokens are manually removed here
 
         # fmt: off
-        tokens_to_remove = ["，", "。", "？", "！", "?", "!", "‘", "、", ",", "\.", ":", ";", "「", "」", "“", "”", "~", "—", "ㄧ", "《", "》", "…", "⋯", "·", "﹒", "．", "：", "︰", "﹖", "（", "）", "－", "～", "；", "￼", "⠀", "﹔", "／", "Ａ", "Ｂ", "–", "‧"]
+        tokens_to_remove = ["，", "。", "？", "！", "?", "!", "‘", "、", ",", r"\.", ":", ";", "「", "」", "“", "”", "~", "—", "ㄧ", "《", "》", "…", "⋯", "·", "﹒", "．", "：", "︰", "﹖", "（", "）", "－", "～", "；", "￼", "⠀", "﹔", "／", "Ａ", "Ｂ", "–", "‧"]
 
         # fmt: on
         utt = utt.upper().replace("\\", "")
@@ -143,7 +142,7 @@ def preprocess_commonvoice(
         if partition == "validated":
             logging.warning(
                 """
-                The 'validated' partition contains the data of both 'train', 'dev' 
+                The 'validated' partition contains the data of both 'train', 'dev'
                 and 'test' partitions. We filter out the 'dev' and 'test' partition
                 here.
                 """

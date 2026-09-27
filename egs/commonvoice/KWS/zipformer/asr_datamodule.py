@@ -8,9 +8,8 @@
 
 import argparse
 import logging
-from pathlib import Path
 import sys
-
+from pathlib import Path
 
 # Import the maintained Common Voice data module by its package name.  A
 # file-path import gives its classes a synthetic module name, which Python
@@ -23,7 +22,6 @@ if str(ICEFALL_ROOT) not in sys.path:
 from egs.commonvoice.ASR.pruned_transducer_stateless7_streaming import (  # noqa: E402
     asr_datamodule as module,
 )
-
 
 # Common Voice occasionally contains multi-paragraph transcripts paired with
 # only a few seconds of audio.  These are alignment errors rather than fast

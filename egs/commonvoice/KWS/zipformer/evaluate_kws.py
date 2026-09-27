@@ -178,7 +178,7 @@ def decode_audio(audio, extractor, params, model, graph, keyword_decoder, args, 
     encoder_out, encoder_out_lens = model.encoder(
         x.permute(1, 0, 2), x_lens, padding_mask
     )
-    hits, _ = keyword_decoder.keywords_search(
+    hits = keyword_decoder.keywords_search(
         model=model,
         encoder_out=encoder_out.permute(1, 0, 2),
         encoder_out_lens=encoder_out_lens,
@@ -186,7 +186,6 @@ def decode_audio(audio, extractor, params, model, graph, keyword_decoder, args, 
         beam=args.beam_size,
         num_tailing_blanks=args.num_tailing_blanks,
         blank_penalty=args.blank_penalty,
-        return_diagnostics=True,
     )
     return [
         {

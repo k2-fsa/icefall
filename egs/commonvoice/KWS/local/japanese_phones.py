@@ -6,17 +6,15 @@
 
 """Japanese text-to-phone conversion shared by KWS preparation and training."""
 
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import List
-
 
 ASR_LOCAL = Path(__file__).resolve().parents[2] / "ASR" / "local"
 if str(ASR_LOCAL) not in sys.path:
     sys.path.insert(0, str(ASR_LOCAL))
 
 from japanese_text import normalize_japanese_text
-
 
 NON_LEXICAL_PHONES = frozenset({"sil", "pau"})
 
@@ -46,7 +44,7 @@ def text_to_phones(text: str) -> List[str]:
         import pyopenjtalk
     except ImportError as exc:
         raise RuntimeError(
-            "Japanese KWS requires pyopenjtalk. Install pyopenjtalk-plus in the runtime image."
+            "Japanese KWS requires pyopenjtalk. Install pyopenjtalk-plus in the runtime."
         ) from exc
 
     phones = pyopenjtalk.g2p(normalized, kana=False).split()

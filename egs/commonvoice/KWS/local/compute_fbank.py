@@ -55,7 +55,9 @@ def get_args() -> argparse.Namespace:
 
 def compute_features(args: argparse.Namespace) -> None:
     fbank_dir = args.data_dir / "fbank"
-    device = torch.device("cuda", 0) if torch.cuda.is_available() else torch.device("cpu")
+    device = (
+        torch.device("cuda", 0) if torch.cuda.is_available() else torch.device("cpu")
+    )
     extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
     set_audio_duration_mismatch_tolerance(0.05)
     set_caching_enabled(False)
@@ -89,7 +91,9 @@ def compute_features(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     compute_features(get_args())
 
 

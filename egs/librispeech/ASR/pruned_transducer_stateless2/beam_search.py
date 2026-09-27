@@ -967,11 +967,7 @@ def keywords_search(
     beam: int = 4,
     num_tailing_blanks: int = 0,
     blank_penalty: float = 0,
-    return_diagnostics: bool = False,
-) -> Union[
-    List[List[KeywordResult]],
-    Tuple[List[List[KeywordResult]], List[Dict[str, float]]],
-]:
+) -> List[List[KeywordResult]]:
     """Beam search in batch mode with --max-sym-per-frame=1 being hardcoded.
 
     Args:
@@ -992,10 +988,6 @@ def keywords_search(
         can just set it to 0.
       blank_penalty:
         The score used to penalize blank probability.
-      return_diagnostics:
-        If true, also return the highest mean acoustic probability observed for
-        every keyword that completed on the leading beam. A missing keyword did
-        not complete on that beam.
     Returns:
       Return a list of list of KeywordResult.
     """
@@ -1037,7 +1029,6 @@ def keywords_search(
     offset = 0
     finalized_B = []
     sorted_ans = [[] for _ in range(N)]
-    sorted_diagnostics = [{} for _ in range(N)]
     for t, batch_size in enumerate(batch_size_list):
         start = offset
         end = offset + batch_size
@@ -1156,9 +1147,6 @@ def keywords_search(
             if matched:
                 matched_ac_probs = top_hyp.ac_probs[-matched_state.level :]
                 ac_prob = sum(matched_ac_probs) / matched_state.level
-                sorted_diagnostics[i][matched_state.phrase] = max(
-                    sorted_diagnostics[i].get(matched_state.phrase, 0.0), ac_prob
-                )
             if (
                 matched
                 and top_hyp.num_tailing_blanks > num_tailing_blanks
@@ -1191,9 +1179,6 @@ def keywords_search(
         if matched:
             matched_ac_probs = top_hyp.ac_probs[-matched_state.level :]
             ac_prob = sum(matched_ac_probs) / matched_state.level
-            sorted_diagnostics[i][matched_state.phrase] = max(
-                sorted_diagnostics[i].get(matched_state.phrase, 0.0), ac_prob
-            )
         if matched and ac_prob >= matched_state.ac_threshold:
             keyword = KeywordResult(
                 hyps=top_hyp.ys[-matched_state.level :],
@@ -1205,13 +1190,9 @@ def keywords_search(
             sorted_ans[i].append(keyword)
 
     ans = []
-    diagnostics = []
     unsorted_indices = packed_encoder_out.unsorted_indices.tolist()
     for i in range(N):
         ans.append(sorted_ans[unsorted_indices[i]])
-        diagnostics.append(sorted_diagnostics[unsorted_indices[i]])
-    if return_diagnostics:
-        return ans, diagnostics
     return ans
 
 
@@ -1805,8 +1786,6 @@ def modified_beam_search_lm_rescore_LODR(
     lm_scores = -1 * lm_scores.sum(dim=1)
 
     # now LODR scores
-    import math
-
     LODR_scores = []
     for seq in candidate_seqs:
         tokens = " ".join(sp.id_to_piece(seq))

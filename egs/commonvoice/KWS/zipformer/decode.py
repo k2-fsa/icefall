@@ -13,9 +13,9 @@ assumptions with the phone-only Common Voice recipe contract.
 
 import importlib.util
 import logging
+import sys
 from collections import defaultdict
 from pathlib import Path
-import sys
 
 ICEFALL_ROOT = Path(__file__).resolve().parents[4]
 if str(ICEFALL_ROOT) not in sys.path:
@@ -25,14 +25,13 @@ import k2
 import torch
 from lhotse.cut import Cut
 
-from icefall.checkpoint import (  # noqa: E402
-    average_checkpoints,
-    average_checkpoints_with_averaged_model,
-)
-
 from egs.commonvoice.KWS.zipformer.asr_datamodule import (  # noqa: E402
     CommonVoiceKwsDataModule,
     has_plausible_transcript_rate,
+)
+from icefall.checkpoint import (  # noqa: E402
+    average_checkpoints,
+    average_checkpoints_with_averaged_model,
 )
 
 KWS_LOCAL = Path(__file__).resolve().parents[1] / "local"
@@ -244,8 +243,7 @@ def main():
     params.update(vars(args))
     if params.decoding_method not in ("greedy_search", "modified_beam_search"):
         raise ValueError(
-            "The phone PER adapter supports greedy_search and "
-            "modified_beam_search"
+            "The phone PER adapter supports greedy_search and " "modified_beam_search"
         )
 
     params.res_dir = params.output_dir or params.exp_dir / "per"
@@ -262,7 +260,9 @@ def main():
     params.suffix += f"-blank-penalty-{params.blank_penalty}"
     decoder.setup_logger(params.res_dir / f"log-decode-{params.suffix}")
 
-    device = torch.device("cuda", 0) if torch.cuda.is_available() else torch.device("cpu")
+    device = (
+        torch.device("cuda", 0) if torch.cuda.is_available() else torch.device("cpu")
+    )
     lexicon = PhoneLexicon(params.lang_dir)
     params.blank_id = lexicon.token_table["<blk>"]
     params.vocab_size = max(lexicon.tokens) + 1
@@ -273,7 +273,9 @@ def main():
     model.to(device)
     load_model_for_decoding(params, model, device)
     model.eval()
-    logging.info("Number of model parameters: %s", sum(p.numel() for p in model.parameters()))
+    logging.info(
+        "Number of model parameters: %s", sum(p.numel() for p in model.parameters())
+    )
 
     args.return_cuts = True
     data_module = CommonVoiceKwsDataModule(args)

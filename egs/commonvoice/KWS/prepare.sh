@@ -36,15 +36,46 @@ for split in train dev test; do
 done
 
 mkdir -p "${data_dir}"
+commonvoice_root="$(cd "${commonvoice_root}" && pwd -P)"
+source_parent="${data_dir}/.commonvoice-source"
+source_link="${source_parent}/ja"
+source_record="${data_dir}/.commonvoice-source-root"
+
+if [[ -f "${source_record}" ]]; then
+  recorded_root="$(<"${source_record}")"
+  if [[ "${recorded_root}" != "${commonvoice_root}" ]]; then
+    echo "${data_dir} was prepared from ${recorded_root}; use a new --data-dir for ${commonvoice_root}" >&2
+    exit 2
+  fi
+elif [[ -L "${source_link}" ]]; then
+  if [[ ! -d "${source_link}" ]]; then
+    echo "Cannot verify the existing Common Voice source link: ${source_link}" >&2
+    exit 2
+  fi
+  recorded_root="$(cd "${source_link}" && pwd -P)"
+  if [[ "${recorded_root}" != "${commonvoice_root}" ]]; then
+    echo "${data_dir} was prepared from ${recorded_root}; use a new --data-dir for ${commonvoice_root}" >&2
+    exit 2
+  fi
+  printf '%s\n' "${commonvoice_root}" > "${source_record}"
+elif [[ -e "${data_dir}/manifests/.cv-ja.done" || -d "${data_dir}/fbank" ]]; then
+  echo "Cannot verify the source of existing data in ${data_dir}; use a new --data-dir" >&2
+  exit 2
+else
+  printf '%s\n' "${commonvoice_root}" > "${source_record}"
+fi
 
 if [[ ${stage} -le 0 && ${stop_stage} -ge 0 ]]; then
+  if ! command -v lhotse >/dev/null 2>&1; then
+    echo "Missing lhotse CLI; install Lhotse with its console script before preparation" >&2
+    exit 2
+  fi
   log "Stage 0: Prepare Japanese Common Voice manifests and normalized cuts"
-  source_parent="${data_dir}/.commonvoice-source"
   mkdir -p "${source_parent}" "${data_dir}/manifests"
-  ln -sfn "${commonvoice_root}" "${source_parent}/ja"
+  ln -sfn "${commonvoice_root}" "${source_link}"
 
   if [[ ! -f "${data_dir}/manifests/.cv-ja.done" ]]; then
-    python "${script_dir}/local/lhotse_cli.py" prepare commonvoice --language ja -j "${nj}" \
+    lhotse prepare commonvoice --language ja -j "${nj}" \
       "${source_parent}" "${data_dir}/manifests"
     touch "${data_dir}/manifests/.cv-ja.done"
   fi

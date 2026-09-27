@@ -10,9 +10,8 @@ import argparse
 from collections import Counter
 from pathlib import Path
 
-from lhotse import CutSet
-
 from japanese_phones import JAPANESE_PHONE_INVENTORY, text_to_phones
+from lhotse import CutSet
 
 
 def get_args() -> argparse.Namespace:
