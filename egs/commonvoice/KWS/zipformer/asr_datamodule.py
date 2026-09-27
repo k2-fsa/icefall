@@ -30,6 +30,8 @@ MAX_TRANSCRIPT_CHARS_PER_SECOND = 20.0
 
 
 def has_plausible_transcript_rate(cut) -> bool:
+    if cut.duration <= 0:
+        return False
     text = cut.supervisions[0].text
     return len(text) / cut.duration <= MAX_TRANSCRIPT_CHARS_PER_SECOND
 

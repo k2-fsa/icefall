@@ -8,7 +8,9 @@
 
 import argparse
 import logging
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 from lhotse import CutSet
@@ -57,7 +59,16 @@ def prepare_cuts(manifest_dir: Path, output_dir: Path) -> None:
             supervisions=manifest["supervisions"],
         ).resample(16000)
         cuts = cuts.filter(lambda cut: bool(cut.supervisions[0].text))
-        cuts.to_file(output)
+        fd, temporary_name = tempfile.mkstemp(
+            prefix=f".{output.stem}.", suffix=".jsonl.gz", dir=output_dir
+        )
+        os.close(fd)
+        temporary = Path(temporary_name)
+        try:
+            cuts.to_file(temporary)
+            temporary.replace(output)
+        finally:
+            temporary.unlink(missing_ok=True)
         logging.info("Wrote normalized %s cuts to %s", partition, output)
 
 

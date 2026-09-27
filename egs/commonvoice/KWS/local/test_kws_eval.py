@@ -5,14 +5,19 @@
 # you may not use this file except in compliance with the License.
 
 import csv
+import io
 import json
+import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import soundfile as sf
 from prepare_kws_eval import prepare_split
+from score_kws_eval import main as score_main
 from score_kws_eval import score
 
 
@@ -80,6 +85,54 @@ class TestKwsEval(unittest.TestCase):
         del predictions["positive"]["hits"][0]["mean_ac_prob"]
         with self.assertRaisesRegex(ValueError, "requires scored hits"):
             score(manifest, predictions, ["こんにちは"], min_ac_prob=0.7)
+
+    def test_scorer_normalizes_keyword_file_like_manifest_preparation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            keywords = root / "keywords.txt"
+            manifest = root / "manifest.jsonl"
+            predictions = root / "predictions.jsonl"
+            output = root / "metrics.json"
+            keywords.write_text("東京！\n", encoding="utf-8")
+            manifest.write_text(
+                "\n".join(
+                    [
+                        json.dumps({"id": "positive", "labels": ["東京"], "seconds": 1}),
+                        json.dumps({"id": "negative", "labels": [], "seconds": 3600}),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            predictions.write_text(
+                "\n".join(
+                    [
+                        json.dumps({"id": "positive", "hits": [{"phrase": "東京"}]}),
+                        json.dumps({"id": "negative", "hits": []}),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "score_kws_eval.py",
+                    "--manifest",
+                    str(manifest),
+                    "--predictions",
+                    str(predictions),
+                    "--keywords-file",
+                    str(keywords),
+                    "--output-json",
+                    str(output),
+                ],
+            ), redirect_stdout(io.StringIO()):
+                score_main()
+            result = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(result["true_positive"], 1)
+            self.assertEqual(list(result["per_keyword"]), ["東京"])
 
 
 if __name__ == "__main__":

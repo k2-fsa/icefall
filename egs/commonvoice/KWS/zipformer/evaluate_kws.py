@@ -35,6 +35,7 @@ if str(WENETSPEECH_ZIPFORMER) not in sys.path:
     sys.path.insert(0, str(WENETSPEECH_ZIPFORMER))
 
 from japanese_phones import text_to_phones  # noqa: E402
+from prepare_kws_eval import read_keywords as read_keyword_file  # noqa: E402
 
 from egs.commonvoice.KWS.zipformer import decode as phone_decode  # noqa: E402
 from icefall import ContextGraph  # noqa: E402
@@ -134,13 +135,7 @@ def load_model(args, keyword_decoder, device):
 
 
 def read_keywords(path, token_table):
-    keywords = [
-        line.strip()
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
-    if not keywords or len(keywords) != len(set(keywords)):
-        raise ValueError("Keyword list must be nonempty and unique")
+    keywords = read_keyword_file(path)
     token_ids = []
     for keyword in keywords:
         phones = text_to_phones(keyword)

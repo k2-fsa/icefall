@@ -140,6 +140,10 @@ with the model. Publish the fixed keyword list, code, source TSV hashes,
 denominators, selected settings, and aggregate results. See `RESULTS.md` for
 the measured operating point.
 
+`--resume` checks the manifest, keywords, model, and decoder settings, but not
+the audio file contents. Resume only with unchanged Common Voice clips. If the
+audio corpus has changed, use a new output path and rerun the evaluation.
+
 ### Streaming ONNX and sherpa-onnx
 
 The maintained WenetSpeech KWS exporter can export this model architecture.

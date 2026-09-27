@@ -11,6 +11,8 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from prepare_kws_eval import read_keywords
+
 
 def read_jsonl(path: Path):
     rows = {}
@@ -126,11 +128,7 @@ def main():
     args = parser.parse_args()
     if not 0 <= args.min_ac_prob <= 1:
         parser.error("--min-ac-prob must be between 0 and 1")
-    keywords = [
-        line.strip()
-        for line in args.keywords_file.read_text(encoding="utf-8").splitlines()
-        if line.strip() and not line.lstrip().startswith("#")
-    ]
+    keywords = read_keywords(args.keywords_file)
     result = score(
         read_jsonl(args.manifest),
         read_jsonl(args.predictions),
