@@ -40,6 +40,8 @@ from context_collector import ContextCollector
 from decode import decode_one_batch
 from decode import get_params as get_decode_params
 from decode import get_parser as get_decode_parser
+from icefall.checkpoint import average_checkpoints_with_averaged_model
+from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from score import main as score_main
 from train import (
     compute_loss,
@@ -206,6 +208,23 @@ def test_predefined_lists_and_scoring(sp, common, rare, d: Path):
     print(f"predefined lists + scoring OK: WER(U-WER/B-WER) = {summary}")
 
 
+def test_average_checkpoints(params, model, d: Path):
+    """Checkpoints hold params (e.g., exp_dir as a PosixPath), which
+    torch>=2.6 refuses to load with weights_only=True; decode.py averages
+    them with --use-averaged-model true."""
+    params.exp_dir = d
+    for epoch in (1, 2):
+        params.batch_idx_train = 200 * epoch
+        save_checkpoint_impl(
+            filename=d / f"epoch-{epoch}.pt", model=model, model_avg=model, params=params
+        )
+    avg = average_checkpoints_with_averaged_model(
+        filename_start=str(d / "epoch-1.pt"), filename_end=str(d / "epoch-2.pt"), device="cpu"
+    )
+    assert avg.keys() == model.state_dict().keys()
+    print("checkpoint averaging OK")
+
+
 def test_decode(params, sp, context_collector, model, batch):
     model.eval()
     # (method, encoder biasing, decoder biasing, WFST biasing)
@@ -246,6 +265,7 @@ def main():
         test_predefined_lists_and_scoring(sp, common, rare, Path(d))
         test_init_asr_ckpt(params, model, Path(d))
         test_train_step(params, sp, context_collector, model, batch)
+        test_average_checkpoints(params, model, Path(d))
         test_decode(params, sp, context_collector, model, batch)
 
 
