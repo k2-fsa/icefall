@@ -111,6 +111,14 @@ def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
 
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
+        "--context-dim",
+        type=int,
+        default=128,
+        help="Dimension of the context encoder output and of the attention "
+        "in the biasing modules.",
+    )
+
+    parser.add_argument(
         "--num-encoder-layers",
         type=str,
         default="2,4,3,2,4",
@@ -393,6 +401,16 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--asr-eval-mode",
+        type=str2bool,
+        default=False,
+        help="""Keep the frozen ASR model (encoder, decoder, joiner) in eval
+        mode during training, i.e., without dropout and Zipformer layer
+        skipping, so that the biasing modules are trained on the same
+        encoder/decoder outputs they see at inference time.""",
+    )
+
+    parser.add_argument(
         "--context-dir",
         type=str,
         default="data/fbai-speech/is21_deep_bias/",
@@ -551,10 +569,7 @@ def get_joiner_model(params: AttributeDict) -> nn.Module:
     return joiner
 
 def get_contextual_model(params: AttributeDict, decoder=None) -> nn.Module:
-    context_dim = 128  # TODO: Hard-wired model size, which equals to the one in Amazon's paper
-
-    # context_dim = 128  # 1.5%
-    # context_dim = 256  # 5.22% => seems better?
+    context_dim = params.context_dim
 
     if params.is_pretrained_context_encoder:
         context_encoder = ContextEncoderPretrained(
@@ -1172,6 +1187,7 @@ def run(rank, world_size, args):
     # print(model)
 
     model.params = params
+    model.asr_eval_mode = params.asr_eval_mode
 
     if params.init_asr_ckpt is not None and params.start_epoch == 1 and params.start_batch == 0:
         load_pretrained_asr(params.init_asr_ckpt, model)

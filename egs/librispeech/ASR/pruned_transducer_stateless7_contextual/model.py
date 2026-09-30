@@ -85,6 +85,16 @@ class Transducer(nn.Module):
         self.no_wfst_lm_biasing = None
         self.params = None
 
+        # If True, the (frozen) ASR model stays in eval mode during training
+        self.asr_eval_mode = False
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        if mode and self.asr_eval_mode:
+            for m in (self.encoder, self.decoder, self.joiner):
+                m.eval()
+        return self
+
     def forward(
         self,
         x: torch.Tensor,

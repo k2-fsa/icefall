@@ -225,6 +225,30 @@ def test_average_checkpoints(params, model, d: Path):
     print("checkpoint averaging OK")
 
 
+def test_asr_eval_mode_and_context_dim(params):
+    """--asr-eval-mode keeps the frozen ASR in eval mode through model.train();
+    --context-dim sets the size of the biasing modules."""
+    model = get_transducer_model(params)
+    model.asr_eval_mode = True
+    model.train()
+    assert not model.encoder.training and not model.decoder.training
+    assert not model.joiner.training
+    assert model.context_encoder.training and model.encoder_biasing_adapter.training
+    model.asr_eval_mode = False
+    model.train()
+    assert model.encoder.training
+
+    sizes = {}
+    for dim in (params.context_dim, 2 * params.context_dim):
+        params.context_dim, saved = dim, params.context_dim
+        m = get_transducer_model(params)
+        params.context_dim = saved
+        assert m.encoder_biasing_adapter.proj_in1.out_features == dim
+        sizes[dim] = sum(p.numel() for p in m.encoder_biasing_adapter.parameters())
+    assert sizes[2 * params.context_dim] > sizes[params.context_dim], sizes
+    print("asr-eval-mode and context-dim OK")
+
+
 def test_decode(params, sp, context_collector, model, batch):
     model.eval()
     # (method, encoder biasing, decoder biasing, WFST biasing)
@@ -264,6 +288,7 @@ def main():
         params, sp, context_collector, model, batch, common, rare = setup(Path(d))
         test_predefined_lists_and_scoring(sp, common, rare, Path(d))
         test_init_asr_ckpt(params, model, Path(d))
+        test_asr_eval_mode_and_context_dim(params)
         test_train_step(params, sp, context_collector, model, batch)
         test_average_checkpoints(params, model, Path(d))
         test_decode(params, sp, context_collector, model, batch)
