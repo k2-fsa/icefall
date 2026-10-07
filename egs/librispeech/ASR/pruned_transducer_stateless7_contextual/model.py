@@ -1,4 +1,5 @@
 # Copyright    2021  Xiaomi Corp.        (authors: Fangjun Kuang, Wei Kang)
+# Copyright    2024  (authors: Ruizhe Huang)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -15,20 +16,22 @@
 # limitations under the License.
 
 
-import random
+from typing import Tuple
 
 import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
-from scaling import penalize_abs_values_gt
 
 from icefall.utils import add_sos
-from typing import Union, List
+
 
 class Transducer(nn.Module):
     """It implements https://arxiv.org/pdf/1211.3711.pdf
     "Sequence Transduction with Recurrent Neural Networks"
+    with neural contextual biasing: the encoder and decoder outputs attend to
+    embeddings of a list of biasing words, and the attention outputs are
+    added to them.
     """
 
     def __init__(
@@ -40,8 +43,8 @@ class Transducer(nn.Module):
         decoder_dim: int,
         joiner_dim: int,
         vocab_size: int,
-        context_encoder: nn.Module, 
-        encoder_biasing_adapter: nn.Module, 
+        context_encoder: nn.Module,
+        encoder_biasing_adapter: nn.Module,
         decoder_biasing_adapter: nn.Module,
     ):
         """
@@ -59,6 +62,13 @@ class Transducer(nn.Module):
             It has two inputs with shapes: (N, T, encoder_dim) and (N, U, decoder_dim).
             Its output shape is (N, T, U, vocab_size). Note that its output contains
             unnormalized probs, i.e., not processed by log-softmax.
+          encoder_dim, decoder_dim, joiner_dim, vocab_size:
+            Dimensions of the encoder/decoder/joiner outputs and the vocabulary.
+          context_encoder:
+            A ContextEncoder that embeds the biasing words.
+          encoder_biasing_adapter, decoder_biasing_adapter:
+            BiasingModules whose outputs are added to the encoder and decoder
+            outputs, respectively.
         """
         super().__init__()
         assert isinstance(encoder, EncoderInterface), type(encoder)
@@ -78,7 +88,8 @@ class Transducer(nn.Module):
         )
         self.simple_lm_proj = nn.Linear(decoder_dim, vocab_size)
 
-        # For temporary convenience
+        # Set by decode.py: which kinds of biasing are disabled, and
+        # per-batch data (context embeddings, biased LMs) for beam_search.py
         self.scratch_space = None
         self.no_encoder_biasing = None
         self.no_decoder_biasing = None
@@ -104,7 +115,7 @@ class Transducer(nn.Module):
         prune_range: int = 5,
         am_scale: float = 0.0,
         lm_scale: float = 0.0,
-    ) -> torch.Tensor:
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
           x:
@@ -115,13 +126,9 @@ class Transducer(nn.Module):
           y:
             A ragged tensor with 2 axes [utt][label]. It contains labels of each
             utterance.
-          word_list: 
-            A list of words, where each word is a list of token ids.
-            The list of tokens for each word has been padded.
-          word_lengths:
-            The number of tokens per word
-          num_words_per_utt:
-            The number of words in the context for each utterance
+          contexts:
+            The biasing words of each utterance; see
+            ContextEncoder.embed_contexts().
           prune_range:
             The prune range for rnnt loss, it means how many symbols(context)
             we are considering for each frame to compute the loss.
@@ -132,7 +139,7 @@ class Transducer(nn.Module):
             The scale to smooth the loss with lm (output of predictor network)
             part
         Returns:
-          Return the transducer loss.
+          Return a tuple (simple_loss, pruned_loss).
 
         Note:
            Regarding am_scale & lm_scale, it will make the loss-function one of
@@ -146,17 +153,14 @@ class Transducer(nn.Module):
 
         assert x.size(0) == x_lens.size(0) == y.dim0
 
-        # breakpoint()
         encoder_out, x_lens = self.encoder(x, x_lens)
         assert torch.all(x_lens > 0)
 
-        contexts_h, contexts_mask = self.context_encoder.embed_contexts(
-            contexts
+        contexts_h, contexts_mask = self.context_encoder.embed_contexts(contexts)
+        assert contexts_h.size(0) == x.size(0), (contexts_h.shape, x.shape)
+        encoder_biasing_out, _ = self.encoder_biasing_adapter(
+            encoder_out, contexts_h, contexts_mask
         )
-        # assert x.size(0) == contexts_h.size(0) == contexts_mask.size(0)
-        # assert contexts_h.ndim == 3
-        # assert contexts_h.ndim == 2
-        encoder_biasing_out, attn_enc = self.encoder_biasing_adapter.forward(encoder_out, contexts_h, contexts_mask)
         encoder_out = encoder_out + encoder_biasing_out
 
         # Now for the decoder, i.e., the prediction network
@@ -172,15 +176,9 @@ class Transducer(nn.Module):
         # decoder_out: [B, S + 1, decoder_dim]
         decoder_out = self.decoder(sos_y_padded)
 
-        if self.context_encoder.bi_encoders:
-            contexts_dec_h, contexts_dec_mask = self.context_encoder.embed_contexts(
-                contexts,
-                is_encoder_side=False,
-            )
-        else:
-            contexts_dec_h, contexts_dec_mask = contexts_h, contexts_mask
-
-        decoder_biasing_out, attn_dec = self.decoder_biasing_adapter.forward(decoder_out, contexts_dec_h, contexts_dec_mask)
+        decoder_biasing_out, _ = self.decoder_biasing_adapter(
+            decoder_out, contexts_h, contexts_mask
+        )
         decoder_out = decoder_out + decoder_biasing_out
 
         # Note: y does not start with SOS
@@ -194,11 +192,6 @@ class Transducer(nn.Module):
 
         lm = self.simple_lm_proj(decoder_out)
         am = self.simple_am_proj(encoder_out)
-
-        # if self.training and random.random() < 0.25:
-        #    lm = penalize_abs_values_gt(lm, 100.0, 1.0e-04)
-        # if self.training and random.random() < 0.25:
-        #    am = penalize_abs_values_gt(am, 30.0, 1.0e-04)
 
         with torch.cuda.amp.autocast(enabled=False):
             simple_loss, (px_grad, py_grad) = k2.rnnt_loss_smoothed(

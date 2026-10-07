@@ -573,11 +573,8 @@ def get_contextual_model(params: AttributeDict, decoder=None) -> nn.Module:
 
     if params.is_pretrained_context_encoder:
         context_encoder = ContextEncoderPretrained(
-            # context_encoder_dim=int(params.encoder_dims.split(",")[-1]),
-            # output_dim=params.joiner_dim,
             context_encoder_dim=params.context_embedding_size,
             output_dim=context_dim,
-            drop_out=0.1,
         )
     elif params.is_reused_context_encoder:
         assert decoder is not None
@@ -587,18 +584,14 @@ def get_contextual_model(params: AttributeDict, decoder=None) -> nn.Module:
             output_dim=context_dim,
             num_lstm_layers=1,
             num_lstm_directions=2,
-            drop_out=0.1,
         )
-    else:        
+    else:
         context_encoder = ContextEncoderLSTM(
             vocab_size=params.vocab_size,
-            # context_encoder_dim=int(params.encoder_dims.split(",")[-1]),
-            # output_dim=params.joiner_dim,
             context_encoder_dim=context_dim,
             output_dim=context_dim,
             num_layers=2,
             num_directions=2,
-            drop_out=0.0,
         )
 
     encoder_biasing_adapter = BiasingModule(
