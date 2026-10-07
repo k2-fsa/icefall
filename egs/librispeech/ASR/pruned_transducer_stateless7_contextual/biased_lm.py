@@ -24,7 +24,7 @@ class BiasedNgramLm:
     def __init__(
         self,
         backoff_id: int,
-        fst = None,
+        fst=None,
         fst_filename: str = None,
         is_binary: bool = False,
     ):

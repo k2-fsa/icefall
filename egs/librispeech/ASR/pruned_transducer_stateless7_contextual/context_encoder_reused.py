@@ -55,9 +55,7 @@ class ContextEncoderReused(ContextEncoder):
         is_encoder_side: Optional[bool] = None,
     ) -> torch.Tensor:
         sos_id = self.decoder.blank_id
-        sos_list = torch.full(
-            (word_list.size(0), 1), sos_id, device=word_list.device
-        )
+        sos_list = torch.full((word_list.size(0), 1), sos_id, device=word_list.device)
         sos_word_list = torch.cat((sos_list, word_list), dim=1)
         word_lengths = [x + 1 for x in word_lengths]
 

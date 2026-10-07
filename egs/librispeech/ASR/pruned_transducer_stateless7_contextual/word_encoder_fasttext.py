@@ -71,7 +71,9 @@ class FastTextEncoder:
         embeddings_list = []
         for i, w in enumerate(word_list):
             if not silent and i % 50000 == 0:
-                logging.info(f"Encoding the word list with fastText: {i}/{len(word_list)}")
+                logging.info(
+                    f"Encoding the word list with fastText: {i}/{len(word_list)}"
+                )
             if w in self.word_to_vector:
                 embeddings_list.append(self.word_to_vector[w])
             else:

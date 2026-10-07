@@ -155,18 +155,18 @@ from beam_search import (
     modified_beam_search_LODR,
     modified_beam_search_ngram_rescoring,
 )
+from biased_lm import BiasedNgramLm
+from context_collector import ContextCollector
+from context_encoder import ContextEncoder
+from context_encoder_lstm import ContextEncoderLSTM
+from context_encoder_pretrained import ContextEncoderPretrained
 from train import (
     add_model_arguments,
     get_params,
     get_transducer_model,
     get_word_encoder,
 )
-from context_collector import ContextCollector
-from context_encoder import ContextEncoder
-from context_encoder_lstm import ContextEncoderLSTM
-from context_encoder_pretrained import ContextEncoderPretrained
 
-from biased_lm import BiasedNgramLm
 from icefall import LmScorer, NgramLm
 from icefall.checkpoint import (
     average_checkpoints,
@@ -593,24 +593,28 @@ def decode_one_batch(
     model.scratch_space["biased_lm_scale"] = params.biased_lm_scale
 
     if not params.no_wfst_lm_biasing:
-        fsa_list, fsa_sizes, num_words_per_utt2 = \
-            context_collector.get_context_word_wfst(batch)
+        (
+            fsa_list,
+            fsa_sizes,
+            num_words_per_utt2,
+        ) = context_collector.get_context_word_wfst(batch)
         biased_lm_list = [
-            BiasedNgramLm(
-                fst=fsa, 
-                backoff_id=context_collector.backoff_id
-            ) for fsa in fsa_list
+            BiasedNgramLm(fst=fsa, backoff_id=context_collector.backoff_id)
+            for fsa in fsa_list
         ]
         model.scratch_space["biased_lm_list"] = biased_lm_list
 
     if not model.no_encoder_biasing:
-        word_list, word_lengths, num_words_per_utt = \
-            context_collector.get_context_word_list(batch)
+        (
+            word_list,
+            word_lengths,
+            num_words_per_utt,
+        ) = context_collector.get_context_word_list(batch)
         word_list = word_list.to(device)
         contexts = {
             "mode": "get_context_word_list",
-            "word_list": word_list, 
-            "word_lengths": word_lengths, 
+            "word_list": word_list,
+            "word_lengths": word_lengths,
             "num_words_per_utt": num_words_per_utt,
         }
         contexts_h, contexts_mask = model.context_encoder.embed_contexts(
@@ -619,7 +623,9 @@ def decode_one_batch(
         model.scratch_space["contexts_h"] = contexts_h
         model.scratch_space["contexts_mask"] = contexts_mask
 
-        encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(encoder_out, contexts_h, contexts_mask)
+        encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(
+            encoder_out, contexts_h, contexts_mask
+        )
         encoder_out = encoder_out + encoder_biasing_out
 
     hyps = []
@@ -696,7 +702,7 @@ def decode_one_batch(
         # )
         # for hyp in sp.decode(hyp_tokens):
         #     hyps.append(hyp.split())
-        
+
         results = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
@@ -904,6 +910,7 @@ def save_results(
         note = ""
     logging.info(s)
 
+
 def rare_word_score(
     params: AttributeDict,
     test_set_name: str,
@@ -911,17 +918,21 @@ def rare_word_score(
     cuts,
 ):
     from collections import namedtuple
-    from score import main as score_main
+
     from lhotse import CutSet
+    from score import main as score_main
 
     logging.info(f"test_set_name: {test_set_name}")
     cuts = cuts[0]
     cuts = [c for c in cuts]
     cuts = CutSet.from_cuts(cuts)
 
-    args = namedtuple('A', ['refs', 'hyps', 'lenient'])
+    args = namedtuple("A", ["refs", "hyps", "lenient"])
     if params.n_distractors > 0:
-        args.refs = params.context_dir / f"ref/{test_set_name}.biasing_{params.n_distractors}.tsv"
+        args.refs = (
+            params.context_dir
+            / f"ref/{test_set_name}.biasing_{params.n_distractors}.tsv"
+        )
     else:
         args.refs = params.context_dir / f"ref/{test_set_name}.biasing_100.tsv"
     args.lenient = True
@@ -936,9 +947,10 @@ def rare_word_score(
             hyp = " ".join(hyp)
             hyp = hyp.lower()
             args.hyps[u_id] = hyp
-        
+
         score_main(args)
         print()
+
 
 @torch.no_grad()
 def main():
@@ -1009,11 +1021,12 @@ def main():
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
-    
+
     # import time
     # timestr = time.strftime("%Y%m%d-%H%M%S")
     from datetime import datetime
-    timestr = datetime.utcnow().strftime('%Y%m%d-%H%M%S-%f')[:-3]
+
+    timestr = datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")[:-3]
     params.suffix += f"-{timestr}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")

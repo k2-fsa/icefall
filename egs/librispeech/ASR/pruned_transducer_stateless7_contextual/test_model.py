@@ -40,8 +40,6 @@ from context_collector import ContextCollector
 from decode import decode_one_batch
 from decode import get_params as get_decode_params
 from decode import get_parser as get_decode_parser
-from icefall.checkpoint import average_checkpoints_with_averaged_model
-from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
 from score import main as score_main
 from train import (
     compute_loss,
@@ -52,7 +50,9 @@ from train import (
     load_pretrained_asr,
 )
 
-# A tiny Zipformer so that the test runs in seconds on CPU
+from icefall.checkpoint import average_checkpoints_with_averaged_model
+from icefall.checkpoint import save_checkpoint as save_checkpoint_impl
+
 TINY_MODEL_ARGS = [
     "--num-encoder-layers", "1,1,1,1,1",
     "--feedforward-dims", "64,64,64,64,64",
@@ -155,15 +155,23 @@ def test_train_step(params, sp, context_collector, model, batch):
     assert torch.isfinite(loss), info
 
     biasing = ("context_encoder", "encoder_biasing_adapter", "decoder_biasing_adapter")
-    with_grad = {n.split(".")[0] for n, p in model.named_parameters() if p.grad is not None}
+    with_grad = {
+        n.split(".")[0] for n, p in model.named_parameters() if p.grad is not None
+    }
     assert with_grad == set(biasing), with_grad
     print(f"train step OK: {info}")
 
 
 def test_init_asr_ckpt(params, model, d: Path):
     """--init-asr-ckpt: load a checkpoint that has no biasing modules."""
-    biasing = ("context_encoder.", "encoder_biasing_adapter.", "decoder_biasing_adapter.")
-    asr_state = {k: v for k, v in model.state_dict().items() if not k.startswith(biasing)}
+    biasing = (
+        "context_encoder.",
+        "encoder_biasing_adapter.",
+        "decoder_biasing_adapter.",
+    )
+    asr_state = {
+        k: v for k, v in model.state_dict().items() if not k.startswith(biasing)
+    }
     torch.save({"model": asr_state}, d / "asr.pt")
 
     new_model = get_transducer_model(params)
@@ -200,7 +208,9 @@ def test_predefined_lists_and_scoring(sp, common, rare, d: Path):
         "1-1-0001": " ".join(utts["1-1-0001"][0]).lower(),
         "1-1-0002": common[1].lower(),
     }
-    args = SimpleNamespace(refs=d / "ctx/ref/test-clean.biasing_100.tsv", hyps=hyps, lenient=True)
+    args = SimpleNamespace(
+        refs=d / "ctx/ref/test-clean.biasing_100.tsv", hyps=hyps, lenient=True
+    )
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         score_main(args)
@@ -217,10 +227,15 @@ def test_average_checkpoints(params, model, d: Path):
     for epoch in (1, 2):
         params.batch_idx_train = 200 * epoch
         save_checkpoint_impl(
-            filename=d / f"epoch-{epoch}.pt", model=model, model_avg=model, params=params
+            filename=d / f"epoch-{epoch}.pt",
+            model=model,
+            model_avg=model,
+            params=params,
         )
     avg = average_checkpoints_with_averaged_model(
-        filename_start=str(d / "epoch-1.pt"), filename_end=str(d / "epoch-2.pt"), device="cpu"
+        filename_start=str(d / "epoch-1.pt"),
+        filename_end=str(d / "epoch-2.pt"),
+        device="cpu",
     )
     assert avg.keys() == model.state_dict().keys()
     print("checkpoint averaging OK")

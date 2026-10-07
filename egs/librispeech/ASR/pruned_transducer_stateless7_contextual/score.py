@@ -5,14 +5,12 @@
 
 # Taken from: https://github.com/facebookresearch/fbai-speech/blob/main/is21_deep_bias/score.py
 
+import argparse
+import json
+import logging
 from collections import deque
 from enum import Enum
-
-import argparse
-import logging
-import json
 from pathlib import Path, PosixPath
-
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -259,7 +257,7 @@ def main(args):
     #     for line in fin:
     #         w, c = line.strip().split()
     #         train_rare_count[w] = int(c)
-    
+
     test_rare_count = dict()
 
     # Calculate WER, U-WER, and B-WER
@@ -313,7 +311,7 @@ def main(args):
     print(f"{wer.get_wer():.2f}({u_wer.get_wer():.2f}/{b_wer.get_wer():.2f})")
 
 
-if __name__ ==  "__main__":
+if __name__ == "__main__":
     desc = "Compute WER, U-WER, and B-WER. Results are output to stdout."
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument(

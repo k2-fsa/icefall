@@ -83,9 +83,7 @@ def generate_context_graph_nfa(
                 next_state += 1
 
             # The last token of the word
-            arcs.append(
-                [cur_state, boundary_state, tokens[-1], 0, my_bonus_per_token]
-            )
+            arcs.append([cur_state, boundary_state, tokens[-1], 0, my_bonus_per_token])
 
         for token_id in range(sp.vocab_size()):
             if sp.id_to_piece(token_id).startswith("▁"):
