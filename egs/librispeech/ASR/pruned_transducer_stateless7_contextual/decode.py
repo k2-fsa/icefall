@@ -155,7 +155,12 @@ from beam_search import (
     modified_beam_search_LODR,
     modified_beam_search_ngram_rescoring,
 )
-from train import add_model_arguments, get_params, get_transducer_model
+from train import (
+    add_model_arguments,
+    get_params,
+    get_transducer_model,
+    get_word_encoder,
+)
 from context_collector import ContextCollector
 from context_encoder import ContextEncoder
 from context_encoder_lstm import ContextEncoderLSTM
@@ -483,23 +488,9 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--is-pretrained-context-encoder",
-        type=str2bool,
-        default=False,
-        help="",
-    )
-
-    parser.add_argument(
         "--biased-lm-scale",
         type=float,
         default=0.0,
-        help="",
-    )
-
-    parser.add_argument(
-        "--is-reused-context-encoder",
-        type=str2bool,
-        default=False,
         help="",
     )
 
@@ -1051,33 +1042,19 @@ def main():
 
     logging.info("About to load context collector")
     params.context_dir = Path(params.context_dir)
+    word_encoder = None
     if params.is_pretrained_context_encoder:
-        # Use pretrained encoder, e.g., BERT
-        from word_encoder_bert import BertEncoder
-
-        bert_encoder = BertEncoder(device=device)
-        context_collector = ContextCollector(
-            path_is21_deep_bias=params.context_dir,
-            sp=None,
-            bert_encoder=bert_encoder,
-            is_predefined=params.is_predefined,
-            n_distractors=params.n_distractors,
-            keep_ratio=params.keep_ratio,
-            is_full_context=params.is_full_context,
-            backoff_id=params.backoff_id,
-        )
-        # bert_encoder.free_up()
-    else:
-        context_collector = ContextCollector(
-            path_is21_deep_bias=params.context_dir,
-            sp=sp,
-            bert_encoder=None,
-            is_predefined=params.is_predefined,
-            n_distractors=params.n_distractors,
-            keep_ratio=params.keep_ratio,
-            is_full_context=params.is_full_context,
-            backoff_id=params.backoff_id,
-        )
+        word_encoder = get_word_encoder(params, device)
+    context_collector = ContextCollector(
+        path_is21_deep_bias=params.context_dir,
+        sp=None if word_encoder is not None else sp,
+        bert_encoder=word_encoder,
+        is_predefined=params.is_predefined,
+        n_distractors=params.n_distractors,
+        keep_ratio=params.keep_ratio,
+        is_full_context=params.is_full_context,
+        backoff_id=params.backoff_id,
+    )
 
     logging.info("About to create model")
     model = get_transducer_model(params)

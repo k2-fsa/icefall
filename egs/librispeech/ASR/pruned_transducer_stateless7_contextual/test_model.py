@@ -48,6 +48,7 @@ from train import (
     get_params,
     get_parser,
     get_transducer_model,
+    get_word_encoder,
     load_pretrained_asr,
 )
 
@@ -249,6 +250,50 @@ def test_asr_eval_mode_and_context_dim(params):
     print("asr-eval-mode and context-dim OK")
 
 
+def test_pretrained_word_encoder(params, common, rare, batch, d: Path):
+    """--is-pretrained-context-encoder with fastText-style embeddings:
+    the same word encoder must be used for training and decoding."""
+    with open(d / "embeddings.txt", "w") as f:
+        for w in common + rare:
+            print(w.lower(), *[f"{x:.3f}" for x in torch.randn(300).tolist()], file=f)
+
+    params = type(params)(dict(params))
+    params.is_pretrained_context_encoder = True
+    params.pretrained_word_encoder = "fasttext"
+    params.fasttext_embeddings = str(d / "embeddings.txt")
+    params.fasttext_model = str(d / "not-needed.bin")  # all words are in the file
+    word_encoder = get_word_encoder(params, torch.device("cpu"))
+    assert params.context_embedding_size == 300
+
+    collector = ContextCollector(
+        path_is21_deep_bias=Path(params.context_dir),
+        sp=None,
+        bert_encoder=word_encoder,
+        n_distractors=params.n_distractors,
+        backoff_id=params.backoff_id,
+    )
+    model = get_transducer_model(params)
+    model.params = params
+    sp = spm.SentencePieceProcessor()
+    sp.load(params.bpe_model)
+
+    model.train()
+    loss, _ = compute_loss(params, model, collector, sp, batch, is_training=True)
+    loss.backward()
+    assert torch.isfinite(loss)
+
+    model.eval()
+    params.decoding_method = "modified_beam_search"
+    params.beam_size = 2
+    model.no_encoder_biasing = params.no_encoder_biasing = False
+    model.no_decoder_biasing = params.no_decoder_biasing = False
+    model.no_wfst_lm_biasing = params.no_wfst_lm_biasing = True
+    with torch.no_grad():
+        hyps = decode_one_batch(params, model, collector, sp, batch)
+    assert len(next(iter(hyps.values()))) == 2
+    print("pretrained word encoder (fastText) train + decode OK")
+
+
 def test_decode(params, sp, context_collector, model, batch):
     model.eval()
     # (method, encoder biasing, decoder biasing, WFST biasing)
@@ -291,6 +336,7 @@ def main():
         test_asr_eval_mode_and_context_dim(params)
         test_train_step(params, sp, context_collector, model, batch)
         test_average_checkpoints(params, model, Path(d))
+        test_pretrained_word_encoder(params, common, rare, batch, Path(d))
         test_decode(params, sp, context_collector, model, batch)
 
 
