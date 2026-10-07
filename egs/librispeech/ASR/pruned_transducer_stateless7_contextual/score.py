@@ -10,11 +10,10 @@ import json
 import logging
 from collections import deque
 from enum import Enum
-from pathlib import Path, PosixPath
+from pathlib import PosixPath
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler())
 
 
 class Code(Enum):
@@ -252,13 +251,6 @@ def main(args):
                 f"{uttid} missing in hyps! Set `--lenient` flag to ignore this error."
             )
 
-    # train_rare_count = dict()
-    # with open("", "r") as fin:
-    #     for line in fin:
-    #         w, c = line.strip().split()
-    #         train_rare_count[w] = int(c)
-
-    test_rare_count = dict()
 
     # Calculate WER, U-WER, and B-WER
     wer = WordError()
