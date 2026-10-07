@@ -153,13 +153,9 @@ from beam_search import (
     modified_beam_search,
     modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
-    modified_beam_search_ngram_rescoring,
 )
 from biased_lm import BiasedNgramLm
 from context_collector import ContextCollector
-from context_encoder import ContextEncoder
-from context_encoder_lstm import ContextEncoderLSTM
-from context_encoder_pretrained import ContextEncoderPretrained
 from train import (
     add_model_arguments,
     get_params,
@@ -425,52 +421,49 @@ def get_parser():
         "--context-dir",
         type=str,
         default="data/fbai-speech/is21_deep_bias/",
-        help="",
+        help="Path to fbai-speech/is21_deep_bias (words/ and ref/ biasing lists).",
     )
 
     parser.add_argument(
         "--n-distractors",
         type=int,
         default=100,
-        help="",
+        help="With --is-predefined true: size N of the predefined biasing lists ref/test-*.biasing_N.tsv (100, 500, 1000 or 2000). Otherwise: number of random distractors added to the rare words of each utterance.",
     )
 
     parser.add_argument(
         "--keep-ratio",
         type=float,
         default=1.0,
-        help="",
+        help="Without --is-predefined: each rare word of an utterance is kept in its biasing list with this probability.",
     )
 
     parser.add_argument(
         "--no-encoder-biasing",
         type=str2bool,
         default=False,
-        help=""".
-        """,
+        help="Disable the neural biasing of the encoder output.",
     )
 
     parser.add_argument(
         "--no-decoder-biasing",
         type=str2bool,
         default=False,
-        help=""".
-        """,
+        help="Disable the neural biasing of the decoder output (only implemented in modified_beam_search and modified_beam_search_LODR).",
     )
 
     parser.add_argument(
         "--no-wfst-lm-biasing",
         type=str2bool,
         default=True,
-        help=""".
-        """,
+        help="Disable shallow fusion with a WFST built from the biasing list (only implemented in modified_beam_search and modified_beam_search_LODR); see --biased-lm-scale.",
     )
 
     parser.add_argument(
         "--is-full-context",
         type=str2bool,
         default=False,
-        help="",
+        help="Without --is-predefined: use all words of an utterance, not only the rare ones.",
     )
 
     parser.add_argument(
@@ -484,14 +477,14 @@ def get_parser():
         "--is-predefined",
         type=str2bool,
         default=False,
-        help="",
+        help="Use the predefined biasing lists of test-clean/test-other from --context-dir (as in the paper). Otherwise biasing lists are built from the reference transcripts as in training.",
     )
 
     parser.add_argument(
         "--biased-lm-scale",
         type=float,
         default=0.0,
-        help="",
+        help="Scale of the bonus from the biasing WFST; with the default 0, WFST biasing has no effect even with --no-wfst-lm-biasing false.",
     )
 
     add_model_arguments(parser)
@@ -694,24 +687,12 @@ def decode_one_batch(
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     elif params.decoding_method == "modified_beam_search":
-        # hyp_tokens = modified_beam_search(
-        #     model=model,
-        #     encoder_out=encoder_out,
-        #     encoder_out_lens=encoder_out_lens,
-        #     beam=params.beam_size,
-        # )
-        # for hyp in sp.decode(hyp_tokens):
-        #     hyps.append(hyp.split())
-
-        results = modified_beam_search(
+        hyp_tokens = modified_beam_search(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
-            return_timestamps=True,
         )
-        hyp_tokens = results.hyps
-        timestamps = results.timestamps
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
     elif params.decoding_method == "modified_beam_search_lm_shallow_fusion":
@@ -829,18 +810,10 @@ def decode_dataset(
     else:
         log_interval = 20
 
-    device = next(model.parameters()).device
-
     results = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-        # if "1998-29455-0019-602" in cut_ids:
-        #     logging.info(cut_ids)
-        #     logging.info(cut_ids.index("1998-29455-0019-602"))
-        #     # import pdb; pdb.set_trace()
-        # else:
-        #     continue
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -1015,19 +988,16 @@ def main():
     if not params.no_wfst_lm_biasing:
         params.suffix += f"-wfst-biasing-{params.biased_lm_scale}"
     if not params.no_encoder_biasing:
-        params.suffix += f"-encoder-biasing"
+        params.suffix += "-encoder-biasing"
     if not params.no_decoder_biasing:
-        params.suffix += f"-decoder-biasing"
+        params.suffix += "-decoder-biasing"
+    if params.is_predefined:
+        params.suffix += f"-biasing-list-{params.n_distractors}"
+    else:
+        params.suffix += f"-distractors-{params.n_distractors}"
 
     if params.use_averaged_model:
         params.suffix += "-use-averaged-model"
-
-    # import time
-    # timestr = time.strftime("%Y%m%d-%H%M%S")
-    from datetime import datetime
-
-    timestr = datetime.utcnow().strftime("%Y%m%d-%H%M%S-%f")[:-3]
-    params.suffix += f"-{timestr}"
 
     setup_logger(f"{params.res_dir}/log-decode-{params.suffix}")
     logging.info("Decoding started")
