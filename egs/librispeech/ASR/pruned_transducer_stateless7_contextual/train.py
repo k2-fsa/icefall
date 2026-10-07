@@ -18,29 +18,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
+Train the neural biasing modules on top of a frozen, pretrained
+pruned_transducer_stateless7 model. See ./README.md for data preparation.
+
 Usage:
 
 export CUDA_VISIBLE_DEVICES="0,1,2,3"
 
-./pruned_transducer_stateless7/train.py \
-  --world-size 4 \
-  --num-epochs 30 \
-  --start-epoch 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
-  --full-libri 1 \
-  --max-duration 300
-
-# For mix precision training:
-
-./pruned_transducer_stateless7/train.py \
+./pruned_transducer_stateless7_contextual/train.py \
   --world-size 4 \
   --num-epochs 30 \
   --start-epoch 1 \
   --use-fp16 1 \
-  --exp-dir pruned_transducer_stateless7/exp \
   --full-libri 1 \
-  --max-duration 550
-
+  --max-duration 1600 \
+  --exp-dir pruned_transducer_stateless7_contextual/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --init-asr-ckpt icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp/pretrained.pt \
+  --context-dir data/fbai-speech/is21_deep_bias \
+  --n-distractors 100
 """
 
 
@@ -290,7 +286,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="pruned_transducer_stateless7_contextual/exp",
         help="""The experiment dir.
         It specifies the directory where all training related
         files, e.g., checkpoints, log, etc, are saved

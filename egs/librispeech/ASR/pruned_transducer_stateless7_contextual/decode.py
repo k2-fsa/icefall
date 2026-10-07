@@ -18,115 +18,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
+Decode test-clean/test-other with the predefined biasing lists of
+https://github.com/facebookresearch/fbai-speech/tree/main/is21_deep_bias
+and report WER, U-WER (unbiased words) and B-WER (biased words).
+See ./README.md for more details.
+
 Usage:
-(1) greedy search
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method greedy_search
 
-(2) beam search (not recommended)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method beam_search \
-    --beam-size 4
+./pruned_transducer_stateless7_contextual/decode.py \
+  --epoch 30 \
+  --avg 9 \
+  --exp-dir pruned_transducer_stateless7_contextual/exp \
+  --bpe-model data/lang_bpe_500/bpe.model \
+  --context-dir data/fbai-speech/is21_deep_bias \
+  --is-predefined true \
+  --n-distractors 100 \
+  --decoding-method modified_beam_search \
+  --beam-size 4 \
+  --max-duration 600
 
-(3) modified beam search
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search \
-    --beam-size 4
-
-(4) fast beam search (one best)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(5) fast beam search (nbest)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(6) fast beam search (nbest oracle WER)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_oracle \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64 \
-    --num-paths 200 \
-    --nbest-scale 0.5
-
-(7) fast beam search (with LG)
-./pruned_transducer_stateless7/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless7/exp \
-    --max-duration 600 \
-    --decoding-method fast_beam_search_nbest_LG \
-    --beam 20.0 \
-    --max-contexts 8 \
-    --max-states 64
-
-(8) modified beam search with RNNLM shallow fusion
-./pruned_transducer_stateless5/decode.py \
-    --epoch 35 \
-    --avg 15 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --max-duration 600 \
-    --decoding-method modified_beam_search_lm_shallow_fusion \
-    --beam-size 4 \
-    --lm-type rnn \
-    --lm-scale 0.3 \
-    --lm-exp-dir /path/to/LM \
-    --rnn-lm-epoch 99 \
-    --rnn-lm-avg 1 \
-    --rnn-lm-num-layers 3 \
-    --rnn-lm-tie-weights 1
-
-(9) modified beam search with LM shallow fusion + LODR
-./pruned_transducer_stateless5/decode.py \
-    --epoch 28 \
-    --avg 15 \
-    --max-duration 600 \
-    --exp-dir ./pruned_transducer_stateless5/exp \
-    --decoding-method modified_beam_search_LODR \
-    --beam-size 4 \
-    --lm-type rnn \
-    --lm-scale 0.4 \
-    --lm-exp-dir /path/to/LM \
-    --rnn-lm-epoch 99 \
-    --rnn-lm-avg 1 \
-    --rnn-lm-num-layers 3 \
-    --rnn-lm-tie-weights 1
-    --tokens-ngram 2 \
-    --ngram-lm-scale -0.16 \
-
+Neural biasing of the encoder and of the decoder output can be disabled
+with --no-encoder-biasing true and --no-decoder-biasing true. Decoder
+biasing and WFST biasing (--no-wfst-lm-biasing false --biased-lm-scale X)
+are only implemented in modified_beam_search and modified_beam_search_LODR.
 """
 
 
@@ -229,7 +143,7 @@ def get_parser():
     parser.add_argument(
         "--exp-dir",
         type=str,
-        default="pruned_transducer_stateless7/exp",
+        default="pruned_transducer_stateless7_contextual/exp",
         help="The experiment dir",
     )
 
@@ -250,7 +164,7 @@ def get_parser():
     parser.add_argument(
         "--decoding-method",
         type=str,
-        default="greedy_search",
+        default="modified_beam_search",
         help="""Possible values are:
           - greedy_search
           - beam_search
