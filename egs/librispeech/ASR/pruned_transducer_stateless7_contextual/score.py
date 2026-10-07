@@ -251,7 +251,6 @@ def main(args):
                 f"{uttid} missing in hyps! Set `--lenient` flag to ignore this error."
             )
 
-
     # Calculate WER, U-WER, and B-WER
     wer = WordError()
     u_wer = WordError()

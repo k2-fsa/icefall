@@ -276,7 +276,9 @@ class ContextCollector(torch.utils.data.Dataset):
                 )
         return rare_words_list
 
-    def _get_word_lists(self, batch: dict) -> List[List[str]]:
+    def get_word_lists(self, batch: dict) -> List[List[str]]:
+        """The biasing words of each utterance of the batch. Without
+        is_predefined, distractors are sampled randomly on each call."""
         if self.is_predefined:
             return self._get_predefined_word_lists(batch)
         return self._get_random_word_lists(batch)
@@ -285,10 +287,11 @@ class ContextCollector(torch.utils.data.Dataset):
         return table[word] if word in table else self.temp_dict[word]
 
     def get_context_word_list(
-        self, batch: dict
+        self, batch: dict, word_lists: Optional[List[List[str]]] = None
     ) -> Tuple[torch.Tensor, Optional[List[int]], List[int]]:
         """
-        Get the biasing words of each utterance of the batch.
+        Get the biasing words of each utterance of the batch, or of
+        word_lists (from get_word_lists()) if given.
 
         Returns:
           A tuple (word_list, word_lengths, num_words_per_utt):
@@ -301,7 +304,9 @@ class ContextCollector(torch.utils.data.Dataset):
             - num_words_per_utt: the number of biasing words of each
               utterance. The words of the batch are concatenated in word_list.
         """
-        rare_words_list = [sorted(w) for w in self._get_word_lists(batch)]
+        if word_lists is None:
+            word_lists = self.get_word_lists(batch)
+        rare_words_list = [sorted(w) for w in word_lists]
         num_words_per_utt = [len(w) for w in rare_words_list]
 
         if self.all_words2embeddings is not None:
@@ -325,14 +330,19 @@ class ContextCollector(torch.utils.data.Dataset):
         )
         return word_list, word_lengths, num_words_per_utt
 
-    def get_context_word_wfst(self, batch: dict):
+    def get_context_word_wfst(
+        self, batch: dict, word_lists: Optional[List[List[str]]] = None
+    ):
         """
-        Get the WFST representation of the biasing list of each utterance.
+        Get the WFST representation of the biasing list of each utterance,
+        or of word_lists (from get_word_lists()) if given.
 
         Returns:
           A tuple (fsa_list, fsa_sizes, num_words_per_utt).
         """
-        rare_words_list = self._get_word_lists(batch)
+        rare_words_list = (
+            word_lists if word_lists is not None else self.get_word_lists(batch)
+        )
 
         rare_words_pieces_list = [
             [self._lookup(self.all_words2pieces, w) for w in words]

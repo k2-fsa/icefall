@@ -317,6 +317,7 @@ def test_decode(params, sp, context_collector, model, batch):
         ("greedy_search", False, False, False),
         ("modified_beam_search", True, True, False),
         ("modified_beam_search", True, True, True),
+        ("modified_beam_search", False, True, False),
         ("modified_beam_search", False, False, False),
     ]
     for method, enc, dec, wfst in configs:

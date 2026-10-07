@@ -22,14 +22,12 @@ from typing import Dict, List, Optional, Tuple, Union
 import k2
 import sentencepiece as spm
 import torch
-from biased_lm import BiasedNgramLm, BiasedNgramLmStateBonus
+from biased_lm import BiasedNgramLmStateBonus
 from model import Transducer
 
 from icefall import NgramLm, NgramLmStateCost
 from icefall.decode import Nbest, one_best_decoding
 from icefall.lm_wrapper import LmScorer
-from icefall.rnn_lm.model import RnnLmModel
-from icefall.transformer_lm.model import TransformerLM
 from icefall.utils import (
     DecodingResults,
     add_eos,
@@ -37,6 +35,41 @@ from icefall.utils import (
     get_texts,
     get_texts_with_timestamp,
 )
+
+
+def _scratch(model: Transducer, key: str, default=None):
+    """Per-batch data that decode.py stores in model.scratch_space, e.g.,
+    the biasing list embeddings or the biasing WFSTs."""
+    scratch_space = getattr(model, "scratch_space", None)
+    if scratch_space is None:
+        return default
+    return scratch_space.get(key, default)
+
+
+def _add_decoder_biasing(
+    model: Transducer,
+    decoder_out: torch.Tensor,
+    A: List[List["Hypothesis"]],
+    sorted_indices: List[int],
+) -> torch.Tensor:
+    """Add the output of the decoder-side biasing module to decoder_out, of
+    shape (num_hyps, decoder_dim), if decode.py enabled decoder biasing.
+    A[i] are the hypotheses of utterance sorted_indices[i] of the batch."""
+    if getattr(model, "no_decoder_biasing", None) is not False:
+        return decoder_out
+    contexts_h = _scratch(model, "contexts_h")
+    contexts_mask = _scratch(model, "contexts_mask")
+    assert contexts_h is not None, "decoder biasing needs the context embeddings"
+
+    contexts_idx = [sorted_indices[i] for i, hyps in enumerate(A) for _ in hyps]
+    assert len(contexts_idx) == decoder_out.size(0), (
+        len(contexts_idx),
+        decoder_out.size(0),
+    )
+    decoder_biasing_out, _ = model.decoder_biasing_adapter(
+        decoder_out, contexts_h[contexts_idx], contexts_mask[contexts_idx]
+    )
+    return decoder_out + decoder_biasing_out
 
 
 def fast_beam_search_one_best(
@@ -926,15 +959,7 @@ def modified_beam_search(
     assert encoder_out.ndim == 3, encoder_out.shape
     assert encoder_out.size(0) >= 1, encoder_out.size(0)
 
-    biased_lm_scale = (
-        model.scratch_space["biased_lm_scale"]
-        if hasattr(model, "scratch_space")
-        and model.scratch_space is not None
-        and "biased_lm_scale" in model.scratch_space
-        else 0
-    )
-
-    attn_list = []
+    biased_lm_scale = _scratch(model, "biased_lm_scale", 0)
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
@@ -957,10 +982,8 @@ def modified_beam_search(
 
     B = [HypothesisList() for _ in range(N)]
     for i in range(N):
-        if hasattr(model, "scratch_space") and "biased_lm_list" in model.scratch_space:
-            biased_lm = model.scratch_space["biased_lm_list"][sorted_indices[i]]
-        else:
-            biased_lm = None
+        biased_lm_list = _scratch(model, "biased_lm_list")
+        biased_lm = biased_lm_list[sorted_indices[i]] if biased_lm_list else None
 
         B[i].add(
             Hypothesis(
@@ -972,11 +995,6 @@ def modified_beam_search(
         )
 
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
-
-    # import pdb; pdb.set_trace()
-    if hasattr(model, "scratch_space"):
-        contexts_h = model.scratch_space.get("contexts_h", None)
-        contexts_mask = model.scratch_space.get("contexts_mask", None)
 
     offset = 0
     finalized_B = []
@@ -1008,25 +1026,7 @@ def modified_beam_search(
 
         decoder_out = model.decoder(decoder_input, need_pad=False)
 
-        if hasattr(model, "no_decoder_biasing") and not model.no_decoder_biasing:
-            contexts_idx = [
-                sorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps
-            ]
-            assert len(contexts_idx) == decoder_out.size(0), (
-                len(contexts_idx),
-                decoder_out.size(0),
-            )
-            contexts_h_, contexts_mask_ = (
-                contexts_h[contexts_idx],
-                contexts_mask[contexts_idx],
-            )
-
-            decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(
-                decoder_out, contexts_h_, contexts_mask_
-            )  # need_weights=True
-            # attn_list.append(attn)
-
-            decoder_out = decoder_out + decoder_biasing_out
+        decoder_out = _add_decoder_biasing(model, decoder_out, A, sorted_indices)
         decoder_out = decoder_out.unsqueeze(1)
 
         decoder_out = model.joiner.decoder_proj(decoder_out)
@@ -2376,13 +2376,7 @@ def modified_beam_search_LODR(
     assert LM is not None
     lm_scale = LM.lm_scale
 
-    biased_lm_scale = (
-        model.scratch_space["biased_lm_scale"]
-        if hasattr(model, "scratch_space")
-        and model.scratch_space is not None
-        and "biased_lm_scale" in model.scratch_space
-        else 0
-    )
+    biased_lm_scale = _scratch(model, "biased_lm_scale", 0)
 
     packed_encoder_out = torch.nn.utils.rnn.pack_padded_sequence(
         input=encoder_out,
@@ -2411,10 +2405,8 @@ def modified_beam_search_LODR(
 
     B = [HypothesisList() for _ in range(N)]
     for i in range(N):
-        if hasattr(model, "scratch_space") and "biased_lm_list" in model.scratch_space:
-            biased_lm = model.scratch_space["biased_lm_list"][sorted_indices[i]]
-        else:
-            biased_lm = None
+        biased_lm_list = _scratch(model, "biased_lm_list")
+        biased_lm = biased_lm_list[sorted_indices[i]] if biased_lm_list else None
 
         B[i].add(
             Hypothesis(
@@ -2430,10 +2422,6 @@ def modified_beam_search_LODR(
         )
 
     encoder_out = model.joiner.encoder_proj(packed_encoder_out.data)
-
-    if hasattr(model, "scratch_space"):
-        contexts_h = model.scratch_space.get("contexts_h", None)
-        contexts_mask = model.scratch_space.get("contexts_mask", None)
 
     offset = 0
     finalized_B = []
@@ -2465,24 +2453,7 @@ def modified_beam_search_LODR(
 
         decoder_out = model.decoder(decoder_input, need_pad=False)
 
-        if hasattr(model, "no_decoder_biasing") and not model.no_decoder_biasing:
-            contexts_idx = [
-                sorted_indices[i_hyps] for i_hyps, hyps in enumerate(A) for hyp in hyps
-            ]
-            assert len(contexts_idx) == decoder_out.size(0), (
-                len(contexts_idx),
-                decoder_out.size(0),
-            )
-            contexts_, contexts_mask_ = (
-                contexts_h[contexts_idx],
-                contexts_mask[contexts_idx],
-            )
-
-            decoder_biasing_out, attn = model.decoder_biasing_adapter.forward(
-                decoder_out, contexts_, contexts_mask_
-            )  # need_weights=True
-
-            decoder_out = decoder_out + decoder_biasing_out
+        decoder_out = _add_decoder_biasing(model, decoder_out, A, sorted_indices)
         decoder_out = decoder_out.unsqueeze(1)
 
         decoder_out = model.joiner.decoder_proj(decoder_out)

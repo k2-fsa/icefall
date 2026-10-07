@@ -585,38 +585,36 @@ def decode_one_batch(
     model.scratch_space["sp"] = sp
     model.scratch_space["biased_lm_scale"] = params.biased_lm_scale
 
-    if not params.no_wfst_lm_biasing:
-        (
-            fsa_list,
-            fsa_sizes,
-            num_words_per_utt2,
-        ) = context_collector.get_context_word_wfst(batch)
-        biased_lm_list = [
+    # The same biasing lists for the WFST and the neural biasing
+    word_lists = context_collector.get_word_lists(batch)
+
+    if not model.no_wfst_lm_biasing:
+        fsa_list, _, _ = context_collector.get_context_word_wfst(batch, word_lists)
+        model.scratch_space["biased_lm_list"] = [
             BiasedNgramLm(fst=fsa, backoff_id=context_collector.backoff_id)
             for fsa in fsa_list
         ]
-        model.scratch_space["biased_lm_list"] = biased_lm_list
 
-    if not model.no_encoder_biasing:
+    if not (model.no_encoder_biasing and model.no_decoder_biasing):
+        # The context embeddings are used by both the encoder and the
+        # decoder (in beam_search.py) biasing modules
         (
             word_list,
             word_lengths,
             num_words_per_utt,
-        ) = context_collector.get_context_word_list(batch)
-        word_list = word_list.to(device)
+        ) = context_collector.get_context_word_list(batch, word_lists)
         contexts = {
             "mode": "get_context_word_list",
-            "word_list": word_list,
+            "word_list": word_list.to(device),
             "word_lengths": word_lengths,
             "num_words_per_utt": num_words_per_utt,
         }
-        contexts_h, contexts_mask = model.context_encoder.embed_contexts(
-            contexts,
-        )
+        contexts_h, contexts_mask = model.context_encoder.embed_contexts(contexts)
         model.scratch_space["contexts_h"] = contexts_h
         model.scratch_space["contexts_mask"] = contexts_mask
 
-        encoder_biasing_out, attn = model.encoder_biasing_adapter.forward(
+    if not model.no_encoder_biasing:
+        encoder_biasing_out, _ = model.encoder_biasing_adapter(
             encoder_out, contexts_h, contexts_mask
         )
         encoder_out = encoder_out + encoder_biasing_out
