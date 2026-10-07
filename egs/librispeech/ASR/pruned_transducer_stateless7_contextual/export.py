@@ -22,64 +22,37 @@
 
 Usage:
 
-(1) Export to torchscript model using torch.jit.script()
-
-./pruned_transducer_stateless7/export.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
+./pruned_transducer_stateless7_contextual/export.py \
+  --exp-dir ./pruned_transducer_stateless7_contextual/exp \
   --bpe-model data/lang_bpe_500/bpe.model \
   --epoch 30 \
-  --avg 9 \
-  --jit 1
+  --avg 9
 
-It will generate a file `cpu_jit.pt` in the given `exp_dir`. You can later
-load it by `torch.jit.load("cpu_jit.pt")`.
-
-Note `cpu` in the name `cpu_jit.pt` means the parameters when loaded into Python
-are on CPU. You can use `to("cuda")` to move them to a CUDA device.
-
-Check
-https://github.com/k2-fsa/sherpa
-for how to use the exported models outside of icefall.
-
-(2) Export `model.state_dict()`
-
-./pruned_transducer_stateless7/export.py \
-  --exp-dir ./pruned_transducer_stateless7/exp \
-  --bpe-model data/lang_bpe_500/bpe.model \
-  --epoch 20 \
-  --avg 10
-
-It will generate a file `pretrained.pt` in the given `exp_dir`. You can later
+It will generate a file `pretrained.pt` in the given `exp_dir`, with the
+averaged weights of the ASR model and the biasing modules. You can later
 load it by `icefall.checkpoint.load_checkpoint()`.
 
-To use the generated file with `pruned_transducer_stateless7/decode.py`,
-you can do:
+Pass the same model options (e.g., --context-dim) as for training.
+
+To use the generated file with decode.py, you can do:
 
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
     cd /path/to/egs/librispeech/ASR
-    ./pruned_transducer_stateless7/decode.py \
-        --exp-dir ./pruned_transducer_stateless7/exp \
+    ./pruned_transducer_stateless7_contextual/decode.py \
+        --exp-dir ./pruned_transducer_stateless7_contextual/exp \
         --epoch 9999 \
         --avg 1 \
+        --use-averaged-model false \
         --max-duration 600 \
-        --decoding-method greedy_search \
+        --decoding-method modified_beam_search \
+        --is-predefined true \
+        --n-distractors 100 \
         --bpe-model data/lang_bpe_500/bpe.model
 
-Check ./pretrained.py for its usage.
-
-Note: If you don't want to train a model from scratch, we have
-provided one for you. You can get it at
-
-https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
-
-with the following commands:
-
-    sudo apt-get install git-lfs
-    git lfs install
-    git clone https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11
-    # You will find the pre-trained model in icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11/exp
+TorchScript export (--jit) is not supported yet: there is no inference
+script that passes biasing lists to an exported model.
 """
 
 import argparse
@@ -88,8 +61,6 @@ from pathlib import Path
 
 import sentencepiece as spm
 import torch
-import torch.nn as nn
-from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
@@ -192,6 +163,12 @@ def main():
     params = get_params()
     params.update(vars(args))
 
+    if params.jit:
+        raise NotImplementedError(
+            "--jit is not supported by this recipe: no inference script passes "
+            "biasing lists to a TorchScript model. Export without --jit."
+        )
+
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
@@ -292,25 +269,11 @@ def main():
     model.to("cpu")
     model.eval()
 
-    if params.jit is True:
-        convert_scaled_to_non_scaled(model, inplace=True)
-        # We won't use the forward() method of the model in C++, so just ignore
-        # it here.
-        # Otherwise, one of its arguments is a ragged tensor and is not
-        # torch scriptabe.
-        model.__class__.forward = torch.jit.ignore(model.__class__.forward)
-        logging.info("Using torch.jit.script")
-        model = torch.jit.script(model)
-        filename = params.exp_dir / "cpu_jit.pt"
-        model.save(str(filename))
-        logging.info(f"Saved to {filename}")
-    else:
-        logging.info("Not using torchscript. Export model.state_dict()")
-        # Save it using a format so that it can be loaded
-        # by :func:`load_checkpoint`
-        filename = params.exp_dir / "pretrained.pt"
-        torch.save({"model": model.state_dict()}, str(filename))
-        logging.info(f"Saved to {filename}")
+    # Save it using a format so that it can be loaded
+    # by :func:`load_checkpoint`
+    filename = params.exp_dir / "pretrained.pt"
+    torch.save({"model": model.state_dict()}, str(filename))
+    logging.info(f"Saved to {filename}")
 
 
 if __name__ == "__main__":
