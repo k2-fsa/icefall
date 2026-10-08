@@ -1,10 +1,36 @@
 # Introduction
 
-This CSTR VCTK Corpus includes speech data uttered by 110 English speakers with various accents. Each speaker reads out about 400 sentences, which were selected from a newspaper, the rainbow passage and an elicitation paragraph used for the speech accent archive. 
-The newspaper texts were taken from Herald Glasgow, with permission from Herald & Times Group. Each speaker has a different set of the newspaper texts selected based a greedy algorithm that increases the contextual and phonetic coverage. 
-The details of the text selection algorithms are described in the following paper: [C. Veaux, J. Yamagishi and S. King, "The voice bank corpus: Design, collection and data analysis of a large regional accent speech database,"](https://doi.org/10.1109/ICSDA.2013.6709856).
+Key features of VITS:
 
-The above information is from the [CSTR VCTK website](https://datashare.ed.ac.uk/handle/10283/3443).
+Combines VAE (Variational Autoencoder), normalizing flow, and GAN (adversarial training with a discriminator).
+Uses Monotonic Alignment Search (MAS) — the model learns the alignment between text and audio automatically (no need for separate forced alignment like in older models).
+Supports multi-speaker training (VCTK has ~109 different English speakers).
+Generates natural-sounding speech with good prosody and voice quality.
+
+The notebook uses the icefall implementation of VITS (generator + discriminator).
+
+![alt text](image.png)
+
+# Data Preparation
+
+Run `prepare.sh` to download and prepare the data. All stages are run by default.
+
+**Option A — Download automatically (default):**
+```bash
+bash prepare.sh
+```
+
+**Option B — Use pre-existing local data (skip download):**
+
+If you already have the VCTK corpus available locally (e.g. from [Kaggle](https://www.kaggle.com/datasets/pratt3000/vctk-corpus)
+or another source), pass `--local-data-dir` to skip Stage 0 download:
+
+```bash
+bash prepare.sh --local-data-dir /path/to/your/VCTK
+```
+
+This will create a symlink at `download/VCTK` pointing to your local copy,
+so all subsequent stages work without any modification.
 
 # VITS
 
@@ -22,7 +48,7 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3"
   --num-epochs 1000 \
   --start-epoch 1 \
   --exp-dir vits/exp \
-  --tokens data/tokens.txt
+  --tokens data/tokens.txt \
   --max-duration 350
 ```
 
