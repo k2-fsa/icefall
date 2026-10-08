@@ -1,0 +1,1 @@
+../../../librispeech/ASR/zipformer/generate_averaged_model.py
