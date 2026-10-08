@@ -42,7 +42,7 @@ use_invalidated=false
 #     - speech
 
 dl_dir=$PWD/download
-release=cv-corpus-12.0-2022-12-07
+release=cv-corpus-12.0-2022-12-07 ## -> consider changing relaese name or download the file manually and move it to download folder.
 lang=fr
 perturb_speed=false
 
