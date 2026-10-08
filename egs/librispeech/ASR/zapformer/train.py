@@ -446,11 +446,11 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--physical-lr", type=float, default=0.032, help="The physical learning rate."
+        "--physical-lr", type=float, default=0.03, help="The physical learning rate."
     )
 
     parser.add_argument(
-        "--logical-lr", type=float, default=0.003, help="The base logical learning rate, the learning rate we would use for one second of data."
+        "--logical-lr", type=float, default=3.2e-04, help="The base logical learning rate, the learning rate we would use for one second of data."
     )
 
     parser.add_argument(
