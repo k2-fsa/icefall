@@ -431,7 +431,7 @@ def muon_internal(
     return (-lr * assumed_scale) * g
 
 
-def muon_core_step(group, state, grad):
+def muon_core_step(group, state, grad, update):
     lr = group["lr"]
     eps = group["eps"]
     step = state["step"]
@@ -452,7 +452,7 @@ def muon_core_step(group, state, grad):
 
     momentum_buffer.add_(grad, alpha=(1-beta1))
 
-    if lr < 0:
+    if not update:
         return None
     else:
         step = muon_internal(momentum_buffer, beta1, lr, eps, 5, step)
@@ -461,7 +461,7 @@ def muon_core_step(group, state, grad):
     return step.reshape(orig_shape)
 
 
-def scaling_step(group, param, state, grad):
+def scaling_step(group, param, state, grad, update):
     # we reach here for biases and weights but not scalars.
     # This does three things things:
     #    (i) multiply the step from "cubic_decay" by an estimate of the parameter scale
@@ -475,12 +475,12 @@ def scaling_step(group, param, state, grad):
     scalar_scale = group["scalar_scale"]
 
     if grad.ndim >= 2 and grad.numel() != grad.shape[0] * max(grad.shape[1:]):
-        delta = muon_core_step(group, state, grad)
+        delta = muon_core_step(group, state, grad, update)
     else:
         # biases and similar-shaped tensors
-        delta = adam_step(group, state, grad)
+        delta = adam_step(group, state, grad, update)
 
-    # caution: for accumulation-only steps (lr <= 0), delta will be None.
+    # caution: for accumulation-only steps (update == False), delta will be None.
 
     dims = list(range(1, param.ndim))
 
@@ -497,7 +497,7 @@ def scaling_step(group, param, state, grad):
     scale_grad = (grad * param.detach()).sum(dim=dims, keepdim=True)
     scale_grad_buf.add_(scale_grad)  # we accumulate with simple momentum, multiplying later on.
 
-    if lr < 0:
+    if not update:
         return None
 
     negative_update = scale_grad_buf.sign()
@@ -528,7 +528,7 @@ def scaling_step(group, param, state, grad):
     return (scale_ratio - 1) * param - (0.5 * lr ** 2) * param_for_decay  +  scale * delta
 
 
-def adam_step(group, state, grad):
+def adam_step(group, state, grad, update: bool):
     # this is the adam update but with a slight modification / simplification on
     # how "bias correction" (startup on small step counts) is dealt with.
     lr = group["lr"]
@@ -556,7 +556,7 @@ def adam_step(group, state, grad):
     # this wasn't necessary
     accum_grad.add_(grad)
 
-    if lr < 0:
+    if not update:
         # just an accumulation step, not an update step
         return None
 
@@ -621,24 +621,38 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
         )
 
         super(BatchedRubik, self).__init__(params, defaults)
+        self.cur_data = 0.0 # amount of data accumulated since last update, or "left over" since last update
+
 
     def __setstate__(self, state):
         super(BatchedRubik, self).__setstate__(state)
 
     @torch.no_grad()
-    def step(self, closure=None):
+    def step(self, closure=None, data=1.0):
         """Performs a single optimization step.
 
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
+            data: the amount of data, measured in an arbitrary way (e.g. seconds, images, pixels); the logical
+                learning rate "logical_lr" in each param_group dictates the LR for each unit of data.  "data"
+                should be a float that indicates the total amount of data, pre-aggregated over all processes.
         """
         loss = None
         if closure is not None:
             with torch.enable_grad():
                 loss = closure()
 
-        batch = True
+
+        data_per_step = min([ group["data_per_step"] for group in self.param_groups ])
+
+        data = min(data, data_per_step)  # avoids excess piling up if data > data_per_step
+        self.cur_data += data
+        if self.cur_data >= data_per_step:
+            self.cur_data -= data_per_step
+            update = True
+        else:
+            update = False  # accumulation-only step.
 
         for group in self.param_groups:
             lr = group["lr"]
@@ -662,18 +676,17 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
                         # "scalar_scale" the assumed parameter scale used for
                         # scalars, in this case it just acts as a multiplier on
                         # the learning rate.
-                        step = adam_step(group, state, grad)
-                        if lr >= 0:
+                        step = adam_step(group, state, grad, update)
+                        if update:
                             # update step, not accumulation step
                             p += group["scalar_scale"] * step
                     else:
-                        step = scaling_step(group, p.detach(), state, grad)
-                        if lr >= 0:
-                            # update step, not accumulation step
+                        step = scaling_step(group, p.detach(), state, grad, update)
+                        if update:
                             p += step
 
-                    if lr >= 0:
-                        # Do not increase step count on accumulation-only steps (lr <= 0)
+                    if update:
+                        # Do not increase step count on accumulation-only steps
                         state["step"] = cur_step + 1
 
         return loss
@@ -719,27 +732,41 @@ def _test_batched_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        lr = 0.018
-        optim = BatchedRubik(m.parameters(), lr=lr, beta1=0.998)
+        target_physical_lr = 0.018
+        base_logical_lr = 0.018  # data will be measured in batches.
+        max_batches = 4
+
+        optim = BatchedRubik(m.parameters(), lr=target_physical_lr, beta1=0.995)
 
         num_epochs = 180
 
-        total_steps = num_epochs
-        def lr_lambda(current_step):
+        def get_logical_lr_factor(epoch):
             # a LR schedule similar to InterpCosineLRScheduler from combined_scheduler.py
-            progress = min(1, current_step / total_steps)
+            progress = min(1, epoch / num_epochs)
             cos = math.cos(progress * math.pi / 2)
             # the relatively small scale on cos means the linear cool-down phase
             # is long/slow, as the loss of this easy task is dominated by
             # parameter noise..  in practical scenarios we use larger scale on
             # the cos term, e.g. as large as 0.66.
-            return 0.05 * cos + 0.95 * (cos ** 2)
+            return (cos ** 2)
 
-        scheduler = LambdaLR(optim, lr_lambda)
+
+        def set_batches_and_lr(target_physical_lr, logical_lr, optim):
+            logical_lr = max(logical_lr, 1.0e-20)
+            data_per_step = min(max_batches, (target_physical_lr / logical_lr) ** 2) # target num batches, as float
+            physical_lr = logical_lr * (data_per_step ** 0.5)  # unless we hit max_batches, will equal target_physical_lr
+            for group in optim.param_groups:
+                group["lr"] = physical_lr
+                group["data_per_step"] = data_per_step
+
 
         start = timeit.default_timer()
         avg_loss = 0.0
         for epoch in range(180):
+
+            logical_lr = base_logical_lr * get_logical_lr_factor(epoch)
+            set_batches_and_lr(target_physical_lr, logical_lr, optim)
+
             # if epoch == 100 and test in [2,3]:
             #    optim.reset_speedup()  # check it doesn't crash.
 
@@ -750,7 +777,7 @@ def _test_batched_rubik(hidden_dim: int):
             #    diagnostic = diagnostics.attach_diagnostics(m, opts)
 
             for n, (x, y) in enumerate(train_pairs):
-                #scheduler.step_batch()
+
                 y_out = m(x)
                 loss = ((y_out - y) ** 2).mean() * 100.0
                 if epoch == 0 and n == 0:
@@ -766,14 +793,12 @@ def _test_batched_rubik(hidden_dim: int):
                     bias_norm2 = '%.2e' % (m[2].bias**2).mean().sqrt().item()
                     bias_norm3 = '%.2e' % (m[4].bias**2).mean().sqrt().item()
 
-                    lr = scheduler.get_last_lr()[0]
                     logging.info(
-                        f"Epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, lr={lr:.4e}, norms={norm1,norm2,norm3}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
+                        f"Epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, logical_lr={logical_lr:.4e}, lr={optim.param_groups[0]['lr']}, data_per_step={optim.param_groups[0]['data_per_step']},  norms={norm1,norm2,norm3}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
                     )
                 loss.log().backward()
                 optim.step()
                 optim.zero_grad()
-            scheduler.step() # step once per epoch
 
         # diagnostic.print_diagnostics()
 

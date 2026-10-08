@@ -127,16 +127,6 @@ except:
     pass
 
 
-def get_adjusted_batch_count(params: AttributeDict) -> float:
-    # returns the number of batches we would have used so far if we had used the reference
-    # duration.  This is for purposes of set_batch_count().
-    return (
-        params.batch_idx_train
-        * (params.max_duration * params.world_size)
-        / params.ref_duration
-    )
-
-
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
     if isinstance(model, DDP):
@@ -456,23 +446,15 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.02, help="The base learning rate."
+        "--physical-lr", type=float, default=0.032, help="The physical learning rate."
     )
 
     parser.add_argument(
-        "--lr-batches",
-        type=float,
-        default=17500,
-        help="""Number of steps that affects how rapidly the learning rate
-        decreases. We suggest not to change this.""",
+        "--logical-lr", type=float, default=0.003, help="The base logical learning rate, the learning rate we would use for one second of data."
     )
 
     parser.add_argument(
-        "--ref-duration",
-        type=float,
-        default=600,
-        help="Reference batch duration for purposes of adjusting batch counts for setting various "
-        "schedules inside the model",
+        "--max-step-duration", type=float, default=72000, help="The maximum duration in seconds that we allow in a single optimzier step (this is 20 hours)."
     )
 
     parser.add_argument(
@@ -1043,12 +1025,11 @@ def compute_loss(
 
         loss = 0.0
 
-        adjusted_batch_count = params.batch_idx_train
         warm_step = params.warm_step
         def warmup_schedule(scale, initial_factor):
-            # geometric warmup schedules.
-            warmup_factor = (1. if adjusted_batch_count >= warm_step else
-                             initial_factor + (adjusted_batch_count / warm_step) * (1 - initial_factor))
+            # geometric warmup schedules: warm up from scale*initial_factor to scale
+            warmup_factor = (1. if batch_idx_train >= warm_step else
+                             initial_factor + (batch_idx_train / warm_step) * (1 - initial_factor))
             return scale * warmup_factor
 
         if params.use_transducer:
@@ -1190,8 +1171,6 @@ def train_one_epoch(
         )
 
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx % 10 == 0:
-            set_batch_count(model, get_adjusted_batch_count(params))
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
@@ -1219,7 +1198,7 @@ def train_one_epoch(
 
             param_plotter.step(params.batch_idx_train)
             if True:
-                scaler.step(optimizer)
+                scaler.step(optimizer, data=params.max_duration * params.world_size)
                 scaler.update()
                 optimizer.zero_grad()
 
@@ -1288,6 +1267,11 @@ def train_one_epoch(
             )
 
         if batch_idx % params.log_interval == 0:
+            cur_lr = max([ group["lr"] for group in optimizer.param_groups ])
+            accum_steps = optimizer.param_groups[0]["data_per_step"] / (params.max_duration * params.world_size)
+            logical_lr = max([ group["logical_lr"] for group in optimizer.param_groups ])
+
+
             cur_lr = max(scheduler.get_last_lr())
             cur_grad_scale = get_scaler_scale()
 
@@ -1295,7 +1279,7 @@ def train_one_epoch(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, accum: {scheduler.num_accum_steps}, "
+                f"lr: {cur_lr:.2e}, logical_lr: {logical_lr}, accum_steps: {accum_steps}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
             )
 
@@ -1306,11 +1290,11 @@ def train_one_epoch(
                 )
 
                 tb_writer.add_scalar(
-                    "train/real_learning_rate", cur_lr / (scheduler.num_accum_steps ** 0.5), params.batch_idx_train
+                    "train/logical_learning_rate", logical_lr, params.batch_idx_train
                 )
 
                 tb_writer.add_scalar(
-                    "train/accum_steps", scheduler.num_accum_steps, params.batch_idx_train
+                    "train/accum_steps", accum_steps, params.batch_idx_train
                 )
 
                 loss_info.write_summary(
@@ -1443,9 +1427,19 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
+
+    # the LRs will be 1.0, we'll fix them later.
+    groups = get_parameter_groups_with_lrs(model, lr=1.0, include_names=False, bias_factor=0.5)
+    for group in groups:
+        lr_factor = group["lr"]  # will be 1.0 for most params, 0.5 for biases, 0.6 for some projections.
+        group["target_physical_lr"] = params.physical_lr * lr_factor
+        group["base_logical_lr"] = params.logical_lr * lr_factor
+        group["max_data_per_step"] = params.max_step_duration
+
+
     optimizer = BatchedRubik(
-        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=False, bias_factor=0.5),
-        lr=params.base_lr,
+        groups,
+        lr=params.physical_lr,
         beta1=0.9,
     )
 
@@ -1470,15 +1464,11 @@ def run(rank, world_size, args):
 
 
     def progress_to_lr_factor(progress):
-        min_factor = 0.05
-        initial_scale = 0.70  # lr schedule starts from 0.70.  This may seem pointless but it has to do with
-        # the number of accumulation steps which is computed from the lr factor.  accum_steps would start off at 2.
-        # later I will make this depend on the total duration in the batch.
-        return max(initial_scale * (1 - progress), min_factor)
+        min_factor = 0.075  # applied as max
+        return max((1 - progress), min_factor)
 
     scheduler = LambdaLRScheduler(optimizer,
                                   func=progress_to_lr_factor,
-                                  max_accum_steps=params.average_period,  # 200 by default.
                                   batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:

@@ -42,18 +42,10 @@ class VariableCombinedLRScheduler(object):
             raise TypeError("{} is not an Optimizer".format(type(optimizer).__name__))
         self.optimizer = optimizer
         self.verbose = verbose
-        self.accum = 0
-        self.num_accum_steps = 1
-        self.max_accum_steps = max_accum_steps
-
-        for group in optimizer.param_groups:
-            group.setdefault("base_lr", group["lr"])
-
-        self.base_lrs = [group["base_lr"] for group in optimizer.param_groups]
 
         self.batches_per_epoch = list(batches_per_epoch)  # copy the list in case it's modified
         self.tot_batches = sum(self.batches_per_epoch)
-        self.adjust_factor = 1.0
+        self.adjust_factor = 1.0 # adjustment factor that relates user-provided batches_per_epoch to actual values.
 
         self.epoch = -1
         self.batch = -1
@@ -87,10 +79,8 @@ class VariableCombinedLRScheduler(object):
         """Return last computed learning rate by current scheduler.  Will be a list of float."""
         return self._last_lr
 
-    def get_lr(self):
-        # Compute list of learning rates from self.epoch and self.batch and
-        # self.base_lrs; this must be overloaded by the user.
-        # e.g. return [some_formula(self.batch, self.epoch, base_lr) for base_lr in self.base_lrs ]
+    def get_lr_factor(self):
+        # Return learning-reate factor which is a function of progress.
         raise NotImplementedError
 
     def set_batch(self, batch: int):
@@ -132,60 +122,26 @@ class VariableCombinedLRScheduler(object):
 
 
     def _set_lrs(self):
-        values = self.get_lr()
-        assert len(values) == len(self.optimizer.param_groups)
+        factor = self.get_lr_factor()
 
-        lr_sign = (1 if self.accum == 0 else -1)
-        self.accum = (self.accum + 1) % self.num_accum_steps
+        for group in self.optimizer.param_groups:
+            target_physical_lr = group["target_physical_lr"]
+            base_logical_lr = group["base_logical_lr"]  # multiply this by factor.
+            max_data_per_step = group["max_data_per_step"] # maximum amount of data (in user defined units e.g. seconds) per step
+            logical_lr = max(1.0e-20, base_logical_lr * factor)
+            data_per_step = min(max_data_per_step, (target_physical_lr / logical_lr) ** 2) # target num batches, as float
+            physical_lr = logical_lr * (data_per_step ** 0.5)  # unless we hit max_batches, will equal target_physical_lr
+            group["logical_lr"] = logical_lr  # just for diagnostics etc .
+            group["lr"] = physical_lr
+            group["data_per_step"] = data_per_step  # this is interpreted by the rubik optimizer, it causes it to skip steps.
+            if self.verbose:
+                logging.warning(
+                    f"Epoch={self.epoch}, batch={self.batch}, (logical,physical) LR for group is {logical_lr}, {physical_lr}, data_per_step={data_per_step}"
+                )
 
-        for i, data in enumerate(zip(self.optimizer.param_groups, values)):
-            param_group, lr = data
-            param_group["lr"] = lr * lr_sign
-            self.print_lr(self.verbose, i, lr * lr_sign)
+
         self._last_lr = [abs(group["lr"]) for group in self.optimizer.param_groups]
 
-    def print_lr(self, is_verbose, group, lr):
-        """Display the current learning rate."""
-        if is_verbose:
-            logging.warning(
-                f"Epoch={self.epoch}, batch={self.batch}, LR for group is {lr:.4e}, accum={self.accum}, num_accum_steps={self.num_accum_steps}"
-            )
-
-
-
-class InterpCosineLRScheduler(VariableCombinedLRScheduler):
-    def __init__(self,
-                 *args,
-                 min_factor: float = 0.0,
-                 half_cosine_scale: float = 0.0,
-                 linear_scale: float = 0.0,
-                 **kwargs):
-        """
-        This cosine LR scheduler encompasses the conventional cosine LR scheduler
-        that takes the cosine from 0 to pi (shifted to 0..1), the half-cosine LR
-        scheduler that takes the cosine from 0 to pi, and the linear LR scheduler
-        that takes the linear function from 1 to 0.
-        """
-        self.min_factor = min_factor
-        self.half_cosine_scale = half_cosine_scale
-        self.linear_scale = linear_scale
-        super().__init__(*args, **kwargs)
-
-    def get_lr(self):
-        progress = self.get_progress()
-        half_cos = math.cos((math.pi / 2) * progress)
-        cos = half_cos ** 2
-        linear = 1. - progress
-
-        linear_scale = self.linear_scale
-        half_cosine_scale = self.half_cosine_scale
-        cosine_scale = 1. - self.half_cosine_scale - linear_scale
-        assert cosine_scale >= 0.0
-
-        factor = linear_scale * linear + half_cosine_scale * half_cos + cosine_scale * cos
-        # apply min_factor via interpolation
-        factor = self.min_factor + factor * (1. - self.min_factor)
-        return [x * factor for x in self.base_lrs]
 
 
 class LambdaLRScheduler(VariableCombinedLRScheduler):
@@ -193,32 +149,7 @@ class LambdaLRScheduler(VariableCombinedLRScheduler):
         self.func = func
         super().__init__(*args, **kwargs)
 
-    def get_lr(self):
+    def get_lr_factor(self):
         progress = self.get_progress()
         factor = self.func(progress)
-
-        max_factor = 1
-        self.num_accum_steps = min(self.max_accum_steps, max(1, int((max_factor / factor) ** 2)))
-        factor = factor * (self.num_accum_steps ** 0.5)
-
-        return [x * factor for x in self.base_lrs]
-
-
-class LinearLRScheduler(VariableCombinedLRScheduler):
-    def __init__(self,
-                 *args,
-                 min_factor: float = 0.05,
-                 **kwargs):
-        """
-        This LR scheduler decreases linearly from 1 to min_factor.
-        It inherits from VariableCombinedLRScheduler (see its documentation
-        to understand general aspects of usage).
-        """
-        self.min_factor = min_factor
-        super().__init__(*args, **kwargs)
-
-    def get_lr(self):
-        progress = self.get_progress()
-        factor = 1.0 - progress  # linearly decreasing
-        factor = self.min_factor + factor * (1. - self.min_factor)  # apply min_factor via interpolation
-        return [x * factor for x in self.base_lrs]
+        return factor
