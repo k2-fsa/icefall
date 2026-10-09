@@ -454,7 +454,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--max-step-duration", type=float, default=72000, help="The maximum duration in seconds that we allow in a single optimzier step (this is 20 hours)."
+        "--max-seconds-per-update", type=float, default=72000, help="The maximum duration in seconds that we allow in a single optimizer update (this is 20 hours)."
     )
 
     parser.add_argument(
@@ -1434,7 +1434,7 @@ def run(rank, world_size, args):
         lr_factor = group["lr"]  # will be 1.0 for most params, 0.5 for biases, 0.6 for some projections.
         group["target_physical_lr"] = params.physical_lr * lr_factor
         group["base_logical_lr"] = params.logical_lr * lr_factor
-        group["max_data_per_step"] = params.max_step_duration
+        group["max_data_per_update"] = params.max_seconds_per_update
 
 
     optimizer = BatchedRubik(

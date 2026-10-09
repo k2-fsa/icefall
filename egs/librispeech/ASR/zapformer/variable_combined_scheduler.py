@@ -127,16 +127,16 @@ class VariableCombinedLRScheduler(object):
         for group in self.optimizer.param_groups:
             target_physical_lr = group["target_physical_lr"]
             base_logical_lr = group["base_logical_lr"]  # multiply this by factor.
-            max_data_per_step = group["max_data_per_step"] # maximum amount of data (in user defined units e.g. seconds) per step
+            max_data_per_update = group["max_data_per_update"] # maximum amount of data (in user defined units e.g. seconds) per update
             logical_lr = max(1.0e-20, base_logical_lr * factor)
-            data_per_step = min(max_data_per_step, (target_physical_lr / logical_lr) ** 2) # target num batches, as float
-            physical_lr = logical_lr * (data_per_step ** 0.5)  # unless we hit max_batches, will equal target_physical_lr
+            data_per_update = min(max_data_per_update, (target_physical_lr / logical_lr) ** 2) # target num batches, as float
+            physical_lr = logical_lr * (data_per_update ** 0.5)  # unless we hit max_batches, will equal target_physical_lr
             group["logical_lr"] = logical_lr  # just for diagnostics etc .
             group["lr"] = physical_lr
-            group["data_per_step"] = data_per_step  # this is interpreted by the rubik optimizer, it causes it to skip steps.
+            group["data_per_update"] = data_per_update  # this is interpreted by the rubik optimizer, it causes it to skip steps.
             if self.verbose:
                 logging.warning(
-                    f"Epoch={self.epoch}, batch={self.batch}, (logical,physical) LR for group is {logical_lr}, {physical_lr}, data_per_step={data_per_step}"
+                    f"Epoch={self.epoch}, batch={self.batch}, (logical,physical) LR for group is {logical_lr}, {physical_lr}, data_per_update={data_per_update}"
                 )
 
 

@@ -644,12 +644,12 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
                 loss = closure()
 
 
-        data_per_step = min([ group["data_per_step"] for group in self.param_groups ])
+        data_per_update = min([ group["data_per_update"] for group in self.param_groups ])
 
-        data = min(data, data_per_step)  # avoids excess piling up if data > data_per_step
+        data = min(data, data_per_update)  # avoids excess piling up if data > data_per_update
         self.cur_data += data
-        if self.cur_data >= data_per_step:
-            self.cur_data -= data_per_step
+        if self.cur_data >= data_per_update:
+            self.cur_data -= data_per_update
             update = True
         else:
             update = False  # accumulation-only step.
@@ -753,11 +753,11 @@ def _test_batched_rubik(hidden_dim: int):
 
         def set_batches_and_lr(target_physical_lr, logical_lr, optim):
             logical_lr = max(logical_lr, 1.0e-20)
-            data_per_step = min(max_batches, (target_physical_lr / logical_lr) ** 2) # target num batches, as float
-            physical_lr = logical_lr * (data_per_step ** 0.5)  # unless we hit max_batches, will equal target_physical_lr
+            data_per_update = min(max_batches, (target_physical_lr / logical_lr) ** 2) # target num batches, as float
+            physical_lr = logical_lr * (data_per_update ** 0.5)  # unless we hit max_batches, will equal target_physical_lr
             for group in optim.param_groups:
                 group["lr"] = physical_lr
-                group["data_per_step"] = data_per_step
+                group["data_per_update"] = data_per_update
 
 
         start = timeit.default_timer()
@@ -794,7 +794,7 @@ def _test_batched_rubik(hidden_dim: int):
                     bias_norm3 = '%.2e' % (m[4].bias**2).mean().sqrt().item()
 
                     logging.info(
-                        f"Epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, logical_lr={logical_lr:.4e}, lr={optim.param_groups[0]['lr']}, data_per_step={optim.param_groups[0]['data_per_step']},  norms={norm1,norm2,norm3}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
+                        f"Epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, logical_lr={logical_lr:.4e}, lr={optim.param_groups[0]['lr']}, data_per_update={optim.param_groups[0]['data_per_update']},  norms={norm1,norm2,norm3}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
                     )
                 loss.log().backward()
                 optim.step()
