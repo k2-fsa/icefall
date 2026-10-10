@@ -685,7 +685,6 @@ def train_one_epoch(
             loss, loss_info = compute_loss(
                 params=params,
                 model=model,
-                model_avg=model_avg,
                 sp=sp,
                 batch=batch,
                 is_training=True,
@@ -704,6 +703,17 @@ def train_one_epoch(
 
         if params.print_diagnostics and batch_idx == 30:
             return
+
+        if (
+            rank == 0
+            and params.batch_idx_train > 0
+            and params.batch_idx_train % params.average_period == 0
+        ):
+            update_averaged_model(
+                params=params,
+                model_cur=model,
+                model_avg=model_avg,
+            )
 
         if (
             params.batch_idx_train > 0
