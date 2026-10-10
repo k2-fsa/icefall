@@ -446,7 +446,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--physical-lr", type=float, default=0.03, help="The physical learning rate."
+        "--physical-lr", type=float, default=0.03, help="The base physical learning rate."
     )
 
     parser.add_argument(
@@ -454,7 +454,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--max-seconds-per-update", type=float, default=72000, help="The maximum duration in seconds that we allow in a single optimizer update (this is 20 hours)."
+        "--max-seconds-per-update", type=float, default=144000, help="The maximum duration in seconds that we allow in a single optimizer update (this is 40 hours)."
     )
 
     parser.add_argument(
@@ -1432,7 +1432,7 @@ def run(rank, world_size, args):
     groups = get_parameter_groups_with_lrs(model, lr=1.0, include_names=False, bias_factor=0.5)
     for group in groups:
         lr_factor = group["lr"]  # will be 1.0 for most params, 0.5 for biases, 0.6 for some projections.
-        group["target_physical_lr"] = params.physical_lr * lr_factor
+        group["base_physical_lr"] = params.physical_lr * lr_factor
         group["base_logical_lr"] = params.logical_lr * lr_factor
         group["max_data_per_update"] = params.max_seconds_per_update
 
@@ -1463,12 +1463,20 @@ def run(rank, world_size, args):
     logging.info(f"Copies per epoch: {copies_per_epoch}")
 
 
-    def progress_to_lr_factor(progress):
+    def progress_to_logical_lr_factor(progress):
         min_factor = 0.075  # applied as max
         return max((1 - progress), min_factor)
 
+    def progress_to_physical_lr_factor(progress):
+        if progress > 0.1:
+            return 1.0
+        else:
+            return 0.75 + 0.25 * (progress / 0.1)
+        # it also gets less than 1 at the end due to the max_data_per_update limitation.
+
     scheduler = LambdaLRScheduler(optimizer,
-                                  func=progress_to_lr_factor,
+                                  logical_func=progress_to_logical_lr_factor,
+                                  physical_func=progress_to_physical_lr_factor,
                                   batches_per_epoch=[params.batches_per_epoch * n for n in copies_per_epoch])
 
     if checkpoints and "optimizer" in checkpoints:
