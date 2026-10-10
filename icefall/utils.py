@@ -400,6 +400,12 @@ class KeywordResult:
     # The triggered phrase
     phrase: str
 
+    # Acoustic probabilities for the matched keyword tokens, in order.
+    ac_probs: Optional[List[float]] = None
+
+    # Mean acoustic probability used against the keyword threshold.
+    ac_prob: Optional[float] = None
+
 
 @dataclass
 class DecodingResults:
