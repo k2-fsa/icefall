@@ -1268,7 +1268,7 @@ def train_one_epoch(
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max([ group["lr"] for group in optimizer.param_groups ])
-            accum_steps = optimizer.param_groups[0]["data_per_step"] / (params.max_duration * params.world_size)
+            accum_steps = optimizer.param_groups[0]["data_per_update"] / (params.max_duration * params.world_size)
             logical_lr = max([ group["logical_lr"] for group in optimizer.param_groups ])
 
 
