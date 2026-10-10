@@ -366,6 +366,7 @@ def decode_dataset(
             params=params,
             model=model,
             sp=sp,
+            batch=batch,
         )
         masks.update(masks_dict)
 
