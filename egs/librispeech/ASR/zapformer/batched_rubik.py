@@ -439,27 +439,23 @@ def muon_internal(
 
     g = X
 
-    #if scale is not None:
-    #    g = g * scale  # apply it the 2nd time for symmetry
-
-    expected_rms = max(rows, cols) ** -0.5
     if rows > cols:
-        row_rms = (g ** 2).mean(dim=2, keepdim=True).sqrt() + eps
-        row_scale = (expected_rms / row_rms)
-        g = g * row_scale
+        row_sumsq =  (g ** 2).mean(dim=2, keepdim=True)
+        g = g * (row_sumsq.mean(dim=1, keepdim=True).sqrt() + eps) / (row_sumsq.sqrt() + eps)
     elif cols > rows:
-        col_rms = (g ** 2).mean(dim=1, keepdim=True).sqrt() + eps
-        col_scale = (expected_rms / col_rms)
-        g = g * col_scale
+        col_sumsq =  (g ** 2).mean(dim=1, keepdim=True)
+        g = g * (col_sumsq.mean(dim=2, keepdim=True).sqrt() + eps) / (col_sumsq.sqrt() + eps)
 
     if random.random() < 0.0002:
         for dim in [1, 2]:
             scale_ratio = (g ** 2).mean(dim=dim).sqrt()  * (max(rows, cols) ** 0.5)
             logging.info(f"dim={dim}, shape={g.shape}, abs-mean of scale_ratio is {(scale_ratio-1).abs().mean()}, min,max are {scale_ratio.min()},{scale_ratio.max()}")
 
-    # assumed scale of step size if it arose from momentum decay from i.i.d. variance-1 grads.
-    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)  / expected_rms
-    return (-lr * assumed_scale) * g
+    # expected_rms is the RMS if g was an orthogonal matrixc
+    expected_rms = max(rows, cols) ** -0.5
+    # assumed_scale is the assumed scale of step size if it arose from momentum decay from i.i.d. variance-1 grads.
+    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+    return (-lr * assumed_scale / expected_rms) * g
 
 
 def muon_core_step(group, state, grad, update):
