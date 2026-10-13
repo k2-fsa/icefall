@@ -1468,11 +1468,7 @@ def run(rank, world_size, args):
         return max((1 - progress), min_factor)
 
     def progress_to_physical_lr_factor(progress):
-        if progress > 0.1:
-            return 1.0
-        else:
-            return 0.75 + 0.25 * (progress / 0.1)
-        # it also gets less than 1 at the end due to the max_data_per_update limitation.
+        return 1.0
 
     scheduler = LambdaLRScheduler(optimizer,
                                   logical_func=progress_to_logical_lr_factor,
