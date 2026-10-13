@@ -846,7 +846,6 @@ class ZapformerEncoder(nn.Module):
                                      encoder_layer.embed_dim,
                                      bias=False,
                                      penalty_scale=0.0)
-        self.proj.lr_scale = 0.6 # make the projection weights learn slower.
 
         self.name = None
         self.layers = nn.ModuleList(
