@@ -446,7 +446,7 @@ def muon_internal(
         col_sumsq =  (g ** 2).mean(dim=1, keepdim=True)
         g = g * (col_sumsq.mean(dim=2, keepdim=True).sqrt() + eps) / (col_sumsq.sqrt() + eps)
 
-    if random.random() < 0.0002:
+    if random.random() < 0.0005:
         for dim in [1, 2]:
             scale_ratio = (g ** 2).mean(dim=dim).sqrt()  * (max(rows, cols) ** 0.5)
             logging.info(f"dim={dim}, shape={g.shape}, abs-mean of scale_ratio is {(scale_ratio-1).abs().mean()}, min,max are {scale_ratio.min()},{scale_ratio.max()}")
@@ -507,6 +507,7 @@ def scaling_step(group, param, state, grad, update):
         # biases and similar-shaped tensors
         delta = adam_step(group, state, grad, update)
 
+
     # caution: for accumulation-only steps (update == False), delta will be None.
 
     dims = list(range(1, param.ndim))
@@ -537,22 +538,12 @@ def scaling_step(group, param, state, grad, update):
 
     scale_ratio = scale / old_scale
 
-    rows, cols = matrix_shape(param.shape[1:])
-    #if min(rows, cols) > 1:
-    if False:
-        # if it is really at least matrix-shaped..
-        param_for_decay = limit_singular_values(param, 2.0 * scale * max(rows, cols) ** 0.5,
-                                                row_col_limits=True)
+    param_for_decay = param
 
-        if random.random() < 0.002:
-            dims = tuple(range(1, param_for_decay.ndim))
-            ratio = (param_for_decay ** 2).mean(dim=dims).sqrt() / ((param ** 2).mean(dim=dims).sqrt() + 1.0e-20)
-            logging.info(f"limit_singular_values, ratio={ratio}, shape={param.shape}")
-    else:
-        param_for_decay = param
+    dims = tuple(range(1, grad.ndim))
+    step_meansq = (delta ** 2).mean(dim=dims, keepdim=True)  # should be close to lr ** 2 in principle.
 
-
-    return (scale_ratio - 1) * param - (0.5 * lr ** 2) * param_for_decay  +  scale * delta
+    return (scale_ratio - 1) * param - (0.5 * step_meansq) * param_for_decay  +  scale * delta
 
 
 def adam_step(group, state, grad, update: bool):
