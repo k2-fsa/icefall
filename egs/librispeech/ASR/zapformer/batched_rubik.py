@@ -502,8 +502,10 @@ def scaling_step(group, param, state, grad, update):
     scalar_scale = group["scalar_scale"]
 
     if grad.ndim >= 2 and grad.numel() != grad.shape[0] * max(grad.shape[1:]):
+        beta1 = group["beta1"]
         delta = muon_core_step(group, state, grad, update)
     else:
+        beta1 = group["adam_beta1"]
         # biases and similar-shaped tensors
         delta = adam_step(group, state, grad, update)
 
@@ -541,7 +543,9 @@ def scaling_step(group, param, state, grad, update):
     param_for_decay = param
 
     dims = tuple(range(1, grad.ndim))
-    step_meansq = (delta ** 2).mean(dim=dims, keepdim=True)  # should be close to lr ** 2 in principle.
+
+    assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
+    step_meansq = (delta ** 2).mean(dim=dims, keepdim=True) / (assumed_scale ** 2) # should be close to lr ** 2 in principle.
 
     return (scale_ratio - 1) * param - (0.5 * step_meansq) * param_for_decay  +  scale * delta
 

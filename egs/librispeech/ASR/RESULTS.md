@@ -2,27 +2,31 @@
 
 ### zapformer (zapformer + pruned-transducer w/ CTC)
 
-Note: --num-real-epochs 40 takes about the same time as 20 epochs with the zipformer CR-CTC recipe.
-(each epoch is really 3 epochs due to speed-perturb).  So the time for training will be roughly 40%
-of the old zipformer recipe.  The "--epoch 13" reported below is the last epoch, the smaller
+Note: --num-real-epochs 32 takes about the same time as 16 epochs with the zipformer CR-CTC recipe.
+(in both cases, each epoch is really 3 epochs due to speed-perturb).  So the number of instances
+of the training data we train on will be about time for training will be roughly 40%
+of the old zipformer recipe.  The "--epoch 10" reported below is the last epoch, the smaller
 number of epochs has to do with the --min-copies,--max-copies, we will add this into the
 report later (later epochs take more real computation time because they make different SpecAug
-copies of the data.)
+copies of the data.)  You might get slightly better results than these with --num-real-epochs 40.
 
 # (non-streaming)
-./zapformer/train.py --world-size 4 \
-      --min-copies 1 --max-copies 8 --num-real-epochs 40 \
-      --base-lr=0.023  --batches-per-epoch 2400  --start-epoch 1 --use-fp16 1 \
-       --exp-dir zapformer/exp \
-      --use-ctc 1 --use-transducer 1 \
-      --base-dim 64 --ctc-loss-scale 0.2 \
-      --full-libri 1 --max-duration 1200 --master-port 43039
+
+ ./zapformer/train.py --world-size 4 --min-copies 1 --max-copies 8 --num-real-epochs 32 \
+        --physical-lr=0.032 --logical-lr=3.3e-04 --batches-per-epoch 2400 --start-epoch 1 \
+        --use-fp16 1 --exp-dir zapformer/exp1 --use-ctc 1 --use-transducer 1 --base-dim 64 \
+        --ctc-loss-scale 0.2 --full-libri 1 --max-duration 1200 --master-port 43111 &>> zapformer/exp1_log.txt &
+
+
+
+(note: this is for my local branch 3684.)
+
 
 | decoding method                      | test-clean | test-other | comment             |
 |--------------------------------------|------------|------------|---------------------|
-| greedy_search                        | 1.81       | 3.73       | --epoch 13 --avg 3  |
+| greedy_search                        | 1.84       | 3.75       | --epoch 10 --avg 2  |
 
-Note on other results: dev-clean=1.73,dev-other,3.55, giga test=16.69 giga dev=1.733. (i.e. on the model trained with Libri only).
+Note on other results: dev-clean=1.67,dev-other,3.65, giga test=16.69 giga dev=17.44. (i.e. on the model trained with Libri only).
 
 
 ### zipformer (zipformer + pruned-transducer w/ CR-CTC)
