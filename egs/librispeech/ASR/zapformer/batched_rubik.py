@@ -375,11 +375,14 @@ def attenuate_topsv(momentum, eps=1.0e-20):
     (batch_size, rows, cols) = momentum.shape
     row, col, l = compute_topsv(momentum, eps)
     sumsq = (momentum ** 2).sum(dim=(-2, -1), keepdim=True) + eps # sum of squared singular values
-    l_fraction = l**2 / sumsq
-    # note: if l_fraction is small, l_attenuation will be small, so any error in the singular value due to
-    # finite iterations will matter relatively less.
-    l_attenuation = l_fraction.clamp(max=0.99)
+    lsq = l**2
 
+    # scale = ((sumsq - lsq) / (lsq)).sqrt()  <--- we want to rescale lsq to this; sumsq-lsq is the
+    #       = (sumsq/lsq - 1).sqrt()
+    #                                       largest possible value of "second singular value".
+    # (scale - 1) = sumsq/lsq - 2  <-- this is the attenuation-- the amount we add.
+    scale = (sumsq / lsq - 1).clamp(min=1.0e-04, max=1.0).sqrt()
+    l_attenuation = (1 - scale)
     return momentum - (row * col * l * l_attenuation)
 
 
