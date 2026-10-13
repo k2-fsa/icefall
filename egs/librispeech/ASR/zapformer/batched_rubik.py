@@ -378,9 +378,8 @@ def attenuate_topsv(momentum, eps=1.0e-20):
     lsq = l**2
 
     # scale = ((sumsq - lsq) / (lsq)).sqrt()  <--- we want to rescale lsq to this; sumsq-lsq is the
-    #       = (sumsq/lsq - 1).sqrt()
     #                                       largest possible value of "second singular value".
-    # (scale - 1) = sumsq/lsq - 2  <-- this is the attenuation-- the amount we add.
+    #       = (sumsq/lsq - 1).sqrt()
     scale = (sumsq / lsq - 1).clamp(min=1.0e-04, max=1.0).sqrt()
     l_attenuation = (1 - scale)
     return momentum - (row * col * l * l_attenuation)
