@@ -355,6 +355,35 @@ def decay(moving_grad, eps, step):
     return moving_grad
 
 
+def compute_topsv(momentum, eps=1.0e-20):
+    # momentum: (batch_size, rows, cols)
+    (batch_size, rows, cols) = momentum.shape
+
+    def norm(x):
+        l = ((x ** 2).sum(dim=(1, 2), keepdim=True) + eps).sqrt()
+        return x / l, l
+
+    row = torch.ones(batch_size, 1, cols, device=momentum.device, dtype=torch.float) * (cols ** -0.5)
+
+    for _ in range(5):
+        col, l = norm(torch.matmul(momentum, row.mT))  # (batch_size, rows, 1)
+        row, l = norm(torch.matmul(col.mT, momentum))  # (batch_size, 1, cols)
+
+    return row, col, l
+
+def attenuate_topsv(momentum, eps=1.0e-20):
+    (batch_size, rows, cols) = momentum.shape
+    row, col, l = compute_topsv(momentum, eps)
+    sumsq = (momentum ** 2).sum(dim=(-2, -1), keepdim=True) + eps # sum of squared singular values
+    l_fraction = l**2 / sumsq
+    # note: if l_fraction is small, l_attenuation will be small, so any error in the singular value due to
+    # finite iterations will matter relatively less.
+    l_attenuation = l_fraction.clamp(max=0.99)
+
+    return momentum - (row * col * l * l_attenuation)
+
+
+
 #@torch.compile(dynamic=False, fullgraph=True)
 def muon_internal(
     momentum_buffer: Tensor,        # (12, 768, 3072) - first moment buffer
@@ -369,7 +398,7 @@ def muon_internal(
     All in one compiled graph to eliminate Python overhead between ops.
     Some of the constants are 0-D CPU tensors to avoid recompilation when values change.
     """
-    g = momentum_buffer.to(COMPUTE_DTYPE)
+    g = attenuate_topsv(momentum_buffer).to(COMPUTE_DTYPE)
 
     (batch_size, rows, cols) = g.shape
     if rows > cols:
@@ -872,6 +901,21 @@ def _test_polar_express():
         n += 1
 
 
+def _test_attenuate_topsv():
+    batch_size, rows, cols = 2, 10, 20
+
+
+    for factor in [ 1, 10, 100 ]:
+        a = torch.randn(batch_size, rows, cols) + factor * torch.randn(batch_size, rows, 1) * torch.randn(batch_size, 1, cols)
+        U, S, Vh = torch.linalg.svd(a)
+
+        logging.info(f"factor={factor}: before attenuate_topsv, singular values are {S[0].flatten()}")
+        # don't use regular singular-value computation to compute the singular values at it would change the
+        S = U.mT @ attenuate_topsv(a) @ Vh.mT
+        logging.info(f"factor={factor}: after attenuate_topsv, singular values are {S[0].diag()}")
+
+
+
 
 
 if __name__ == "__main__":
@@ -880,10 +924,6 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     import subprocess
 
-    s = subprocess.check_output(
-        "git status -uno .; git log -1; git diff HEAD .", shell=True
-    )
-    logging.info(s)
     import sys
 
     if len(sys.argv) > 1:
@@ -891,6 +931,7 @@ if __name__ == "__main__":
     else:
         hidden_dim = 200
 
+    _test_attenuate_topsv()
     _test_limit_singular_values_to_one()
     _test_limit_singular_values()
     _test_polar_express()
