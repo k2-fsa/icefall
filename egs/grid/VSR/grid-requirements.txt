@@ -1,0 +1,11 @@
+torch>=2.4.0
+torchaudio
+numpy==1.23.5
+hydra-core==1.0.7
+omegaconf==2.0.6
+kaldifst==1.7.14
+opencv-python
+zenodo_get
+python_speech_features
+scipy
+h5py

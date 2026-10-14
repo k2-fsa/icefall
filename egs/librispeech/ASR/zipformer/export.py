@@ -278,7 +278,7 @@ class EncoderModel(nn.Module):
         """
         x, x_lens = self.encoder_embed(features, feature_lengths)
 
-        src_key_padding_mask = make_pad_mask(x_lens)
+        src_key_padding_mask = make_pad_mask(x_lens).to(torch.int32)
         x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
         encoder_out, encoder_out_lens = self.encoder(x, x_lens, src_key_padding_mask)
@@ -327,7 +327,7 @@ class StreamingEncoderModel(nn.Module):
         )
         assert x.size(1) == chunk_size, (x.size(1), chunk_size)
 
-        src_key_padding_mask = make_pad_mask(x_lens)
+        src_key_padding_mask = make_pad_mask(x_lens).to(torch.int32)
 
         # processed_mask is used to mask out initial states
         processed_mask = torch.arange(left_context_len, device=x.device).expand(
@@ -335,7 +335,7 @@ class StreamingEncoderModel(nn.Module):
         )
         processed_lens = states[-1]  # (batch,)
         # (batch, left_context_size)
-        processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).flip(1)
+        processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).to(torch.int32).flip(1)
         # Update processed lengths
         new_processed_lens = processed_lens + x_lens
 

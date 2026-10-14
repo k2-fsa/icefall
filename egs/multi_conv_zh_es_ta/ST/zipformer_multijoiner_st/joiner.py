@@ -14,10 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from scaling import ScaledLinear
-from typing import Optional
+
 
 class Joiner(nn.Module):
     def __init__(
@@ -33,7 +35,7 @@ class Joiner(nn.Module):
         self.decoder_proj = ScaledLinear(decoder_dim, joiner_dim, initial_scale=0.25)
         if encoder_lid:
             self.lid_proj = ScaledLinear(encoder_lid, joiner_dim, initial_scale=0.25)
-        self.output_linear = nn.Linear(joiner_dim, vocab_size) 
+        self.output_linear = nn.Linear(joiner_dim, vocab_size)
 
     def forward(
         self,

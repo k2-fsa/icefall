@@ -79,13 +79,13 @@ from icefall.env import get_env_info
 from icefall.lexicon import Lexicon
 from icefall.otc_phone_graph_compiler import OtcPhoneTrainingGraphCompiler
 from icefall.utils import (
-    torch_autocast,
     AttributeDict,
     MetricsTracker,
     encode_supervisions_otc,
     get_texts,
     setup_logger,
     str2bool,
+    torch_autocast,
 )
 
 LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]

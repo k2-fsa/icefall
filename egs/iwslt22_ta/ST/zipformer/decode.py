@@ -248,8 +248,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
     )
     parser.add_argument(
         "--max-sym-per-frame",
@@ -346,9 +345,7 @@ def decode_one_batch(
     src_key_padding_mask = make_pad_mask(x_lens)
     x = x.permute(1, 0, 2)  # (N, T, C) -> (T, N, C)
 
-    encoder_out, encoder_out_lens = model.encoder(
-        x, x_lens, src_key_padding_mask
-    )
+    encoder_out, encoder_out_lens = model.encoder(x, x_lens, src_key_padding_mask)
     encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
 
     hyps = []
@@ -408,10 +405,7 @@ def decode_one_batch(
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
-    elif (
-        params.decoding_method == "greedy_search"
-        and params.max_sym_per_frame == 1
-    ):
+    elif params.decoding_method == "greedy_search" and params.max_sym_per_frame == 1:
         hyp_tokens = greedy_search_batch(
             model=model,
             encoder_out=encoder_out,
@@ -425,7 +419,7 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
-            use_hat=params.use_hat_decode
+            use_hat=params.use_hat_decode,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
@@ -519,7 +513,7 @@ def decode_dataset(
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
-        texts_tgt = batch["supervisions"]["tgt_text"]['eng']
+        texts_tgt = batch["supervisions"]["tgt_text"]["eng"]
 
         hyps_dict = decode_one_batch(
             params=params,
@@ -529,26 +523,26 @@ def decode_dataset(
             word_table=word_table,
             batch=batch,
         )
-        
+
         for name, hyps in hyps_dict.items():
             this_batch = []
             assert len(hyps) == len(texts)
-            
-            for cut_id, hyp_words, ref_text, ref_text_tgt in zip(cut_ids, hyps, texts, texts_tgt):
+
+            for cut_id, hyp_words, ref_text, ref_text_tgt in zip(
+                cut_ids, hyps, texts, texts_tgt
+            ):
                 ref_words = ref_text.split()
                 ref_words_tgt = ref_text_tgt.split()
                 this_batch.append((cut_id, ref_words, ref_words_tgt, hyp_words))
 
             results[name].extend(this_batch)
-        
+
         num_cuts += len(texts)
 
         if batch_idx % log_interval == 0:
             batch_str = f"{batch_idx}/{num_batches}"
 
-            logging.info(
-                f"batch {batch_str}, cuts processed until now is {num_cuts}"
-            )
+            logging.info(f"batch {batch_str}, cuts processed until now is {num_cuts}")
     return results
 
 
@@ -558,11 +552,9 @@ def save_results(
     results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     test_set_wers = dict()
-    
+
     for key, results in results_dict.items():
-        recog_path = (
-            params.res_dir / f"{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        recog_path = params.res_dir / f"{test_set_name}-{key}-{params.suffix}.txt"
         results = sorted(results)
         store_translations(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
@@ -579,7 +571,7 @@ def main():
     params.update(vars(args))
 
     # use predefined parameters that were used during the training
-    # params.num_encoder_layers = "2,2,2,2,2,2" 
+    # params.num_encoder_layers = "2,2,2,2,2,2"
     # params.feedforward_dim = "256,512,768,1024,768,512"
     # params.encoder_dim = "128,256,256,512,256,256"
     # params.encoder_unmasked_dim = "64,128,128,256,128,128"
@@ -620,9 +612,7 @@ def main():
             if "LG" in params.decoding_method:
                 params.suffix += f"-ngram-lm-scale-{params.ngram_lm_scale}"
     elif "beam_search" in params.decoding_method:
-        params.suffix += (
-            f"-{params.decoding_method}-beam-size-{params.beam_size}"
-        )
+        params.suffix += f"-{params.decoding_method}-beam-size-{params.beam_size}"
     else:
         params.suffix += f"-context-{params.context_size}"
         params.suffix += f"-max-sym-per-frame-{params.max_sym_per_frame}"
@@ -654,9 +644,9 @@ def main():
 
     if not params.use_averaged_model:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -683,9 +673,9 @@ def main():
             model.load_state_dict(average_checkpoints(filenames, device=device))
     else:
         if params.iter > 0:
-            filenames = find_checkpoints(
-                params.exp_dir, iteration=-params.iter
-            )[: params.avg + 1]
+            filenames = find_checkpoints(params.exp_dir, iteration=-params.iter)[
+                : params.avg + 1
+            ]
             if len(filenames) == 0:
                 raise ValueError(
                     f"No checkpoints found for"
@@ -744,9 +734,7 @@ def main():
             decoding_graph.scores *= params.ngram_lm_scale
         else:
             word_table = None
-            decoding_graph = k2.trivial_graph(
-                params.vocab_size - 1, device=device
-            )
+            decoding_graph = k2.trivial_graph(params.vocab_size - 1, device=device)
     else:
         decoding_graph = None
         word_table = None

@@ -91,7 +91,7 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   # We assume that you have downloaded the timit corpus
   # to $dl_dir/timit
   mkdir -p data/manifests
-  lhotse prepare timit -p $num_phones -j $nj $dl_dir/timit/data data/manifests
+  lhotse prepare timit -p $num_phones -j $nj $dl_dir/timit data/manifests
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then

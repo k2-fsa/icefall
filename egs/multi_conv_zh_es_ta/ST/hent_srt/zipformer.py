@@ -18,28 +18,33 @@
 # limitations under the License.
 
 import copy
+import logging
 import math
+import random
 import warnings
 from typing import List, Optional, Tuple, Union
-import logging
+
 import torch
-import random
 from encoder_interface import EncoderInterface
 from scaling import (
+    Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
+)
+from scaling import (
+    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
+)
+from scaling import (
+    ActivationDropoutAndLinear,
     Balancer,
     BiasNorm,
-    Dropout2,
     ChunkCausalDepthwiseConv1d,
-    ActivationDropoutAndLinear,
-    ScaledLinear,  # not as in other dirs.. just scales down initial parameter values.
+    Dropout2,
+    FloatLike,
+    ScheduledFloat,
     Whiten,
-    Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
+    convert_num_channels,
+    limit_param_value,
     penalize_abs_values_gt,
     softmax,
-    ScheduledFloat,
-    FloatLike,
-    limit_param_value,
-    convert_num_channels,
 )
 from torch import Tensor, nn
 
@@ -144,7 +149,7 @@ class Zipformer2(EncoderInterface):
         self.query_head_dim = query_head_dim = _to_tuple(query_head_dim)
         self.value_head_dim = value_head_dim = _to_tuple(value_head_dim)
         pos_head_dim = _to_tuple(pos_head_dim)
- 
+
         self.num_heads = num_heads = _to_tuple(num_heads)
         feedforward_dim = _to_tuple(feedforward_dim)
         self.cnn_module_kernel = cnn_module_kernel = _to_tuple(cnn_module_kernel)
@@ -367,7 +372,6 @@ class Zipformer2(EncoderInterface):
             return x, lengths, outputs[self.st_output_layer]
         else:
             return x, lengths
-    
 
     def _get_attn_mask(
         self, x: Tensor, chunk_size: int, left_context_chunks: int
@@ -462,7 +466,7 @@ class Zipformer2(EncoderInterface):
             num_layers = module.num_layers
             ds = self.downsampling_factor[i]
             x = convert_num_channels(x, self.encoder_dim[i])
-   
+
             x, new_layer_states = module.streaming_forward(
                 x,
                 states=states[layer_offset * 6 : (layer_offset + num_layers) * 6],

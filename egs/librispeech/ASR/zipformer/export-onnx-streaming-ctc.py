@@ -67,6 +67,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import num_tokens, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -273,7 +274,7 @@ class OnnxModel(nn.Module):
         )
         assert x.size(1) == self.chunk_size, (x.size(1), self.chunk_size)
 
-        src_key_padding_mask = torch.zeros(N, self.chunk_size, dtype=torch.bool)
+        src_key_padding_mask = torch.zeros(N, self.chunk_size, dtype=torch.int32)
 
         # processed_mask is used to mask out initial states
         processed_mask = torch.arange(left_context_len, device=x.device).expand(
@@ -281,7 +282,7 @@ class OnnxModel(nn.Module):
         )
         processed_lens = states[-1]  # (batch,)
         # (batch, left_context_size)
-        processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).flip(1)
+        processed_mask = (processed_lens.unsqueeze(1) <= processed_mask).to(torch.int32).flip(1)
         # Update processed lengths
         new_processed_lens = processed_lens + x_lens
         # (batch, left_context_size + chunk_size)
@@ -488,7 +489,8 @@ def export_streaming_ctc_model_onnx(
         }
         if dynamic_batch
         else {},
-    )
+        **get_onnx_export_kwargs(),
+)
 
     add_meta_data(
         filename=encoder_filename,
@@ -641,11 +643,13 @@ def main():
     )
     logging.info(f"Exported model to {model_filename}")
 
-    if params.enable_int8_quantization:
-        # Generate int8 quantization models
-        # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+    if not params.enable_int8_quantization:
+        return
 
-        logging.info("Generate int8 quantization models")
+    # Generate int8 quantization models
+    # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#data-type-selection
+
+    logging.info("Generate int8 quantization models")
 
     if params.use_external_data:
         model_filename_int8 = f"ctc-{suffix}.int8.onnx"

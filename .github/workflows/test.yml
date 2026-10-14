@@ -30,8 +30,8 @@ jobs:
         id: set-matrix
         run: |
           # outputting for debugging purposes
-          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10"
-          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10")
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0")
           echo "::set-output name=matrix::${MATRIX}"
   test:
     needs: generate_build_matrix
@@ -62,6 +62,7 @@ jobs:
             image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
             options: |
               --volume ${{ github.workspace }}/:/icefall
+              -e TORCHAUDIO_USE_BACKEND=soundfile
             shell: bash
             run: |
               export PYTHONPATH=/icefall:$PYTHONPATH
@@ -106,6 +107,7 @@ jobs:
               pytest -v -s
 
       - uses: actions/upload-artifact@v4
+        if: matrix.torch-version == '2.13.0'
         with:
           path: egs/librispeech/ASR/zipformer/swoosh.pdf
           name: swoosh-${{ matrix.python-version }}-${{ matrix.torch-version }}

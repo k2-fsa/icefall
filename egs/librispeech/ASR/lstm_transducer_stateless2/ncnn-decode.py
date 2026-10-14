@@ -41,6 +41,7 @@ import k2
 import kaldifeat
 import ncnn
 import torch
+import soundfile as sf
 import torchaudio
 
 
@@ -203,7 +204,13 @@ def read_sound_files(
     """
     ans = []
     for f in filenames:
-        wave, sample_rate = torchaudio.load(f)
+        data, sample_rate = sf.read(f, dtype='float32')
+
+        if len(data.shape) == 1:
+
+            data = data[:, None]
+
+        wave = torch.from_numpy(data.T)  # [channel, time]
         assert (
             sample_rate == expected_sample_rate
         ), f"expected sample rate: {expected_sample_rate}. Given: {sample_rate}"

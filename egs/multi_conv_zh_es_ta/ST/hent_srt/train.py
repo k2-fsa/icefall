@@ -59,11 +59,9 @@ import copy
 import logging
 import warnings
 from pathlib import Path
-from load_pretrained_model import load_pretrained_model
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
-from torch.optim import Optimizer
-from lhotse.dataset import SpecAugment
+
 import k2
 import optim
 import sentencepiece as spm
@@ -74,8 +72,10 @@ from asr_datamodule import MultiLingAsrDataModule
 from decoder import Decoder, LSTMDecoder
 from joiner import Joiner
 from lhotse.cut import Cut
+from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
+from load_pretrained_model import load_pretrained_model
 from model import HENT_SRT
 from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
@@ -83,6 +83,7 @@ from subsampling import Conv2dSubsampling
 from torch import Tensor
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
+from torch.optim import Optimizer
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer2
 
@@ -177,7 +178,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default="12",
         help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
     )
-    
 
     parser.add_argument(
         "--pos-head-dim",
@@ -197,7 +197,6 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=2,
         help="ST encoder output downsampling factor",
     )
-    
 
     parser.add_argument(
         "--pos-dim",
@@ -335,7 +334,8 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--st-value-head-dim",
         type=str,
         default="12",
-        help="Value dimension per head in encoder stacks: a single int or comma-separated list.",)
+        help="Value dimension per head in encoder stacks: a single int or comma-separated list.",
+    )
     parser.add_argument(
         "--st-pos-head-dim",
         type=str,
@@ -447,6 +447,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         default=False,
         help="If True, use CTC head with ST encoder.",
     )
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -822,6 +823,7 @@ def get_encoder_embed(params: AttributeDict) -> nn.Module:
     )
     return encoder_embed
 
+
 def get_encoder_model(params: AttributeDict) -> nn.Module:
     encoder = Zipformer2(
         output_downsampling_factor=params.output_downsampling_factor,
@@ -841,8 +843,10 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         causal=params.causal,
         chunk_size=_to_int_tuple(params.chunk_size),
         left_context_frames=_to_int_tuple(params.left_context_frames),
-        st_output_layer=-1,)
+        st_output_layer=-1,
+    )
     return encoder
+
 
 def get_st_encoder_model(params: AttributeDict) -> nn.Module:
     st_encoder = Zipformer2(
@@ -866,6 +870,7 @@ def get_st_encoder_model(params: AttributeDict) -> nn.Module:
     )
     return st_encoder
 
+
 def get_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = Decoder(
         vocab_size=params.vocab_size,
@@ -874,6 +879,7 @@ def get_decoder_model(params: AttributeDict) -> nn.Module:
         context_size=params.context_size,
     )
     return decoder
+
 
 def get_lstm_decoder_model(params: AttributeDict) -> nn.Module:
     decoder = LSTMDecoder(
@@ -890,7 +896,9 @@ def get_lstm_decoder_model(params: AttributeDict) -> nn.Module:
 
 def get_joiner_model(params: AttributeDict) -> nn.Module:
     joiner = Joiner(
-        encoder_dim=max(_to_int_tuple(params.encoder_dim)),  #int(params.encoder_dim.split(",")[-1]),
+        encoder_dim=max(
+            _to_int_tuple(params.encoder_dim)
+        ),  # int(params.encoder_dim.split(",")[-1]),
         decoder_dim=params.decoder_dim,
         joiner_dim=params.joiner_dim,
         vocab_size=params.vocab_size,
@@ -907,14 +915,18 @@ def get_st_decoder_model(params: AttributeDict) -> nn.Module:
     )
     return decoder
 
+
 def get_st_joiner_model(params: AttributeDict) -> nn.Module:
     st_joiner = Joiner(
-        encoder_dim=max(_to_int_tuple(params.st_encoder_dim)), #int(params.st_encoder_dim.split(",")[-1]),
+        encoder_dim=max(
+            _to_int_tuple(params.st_encoder_dim)
+        ),  # int(params.st_encoder_dim.split(",")[-1]),
         decoder_dim=params.decoder_dim,
         joiner_dim=params.st_joiner_dim,
         vocab_size=params.vocab_st_size,
     )
     return st_joiner
+
 
 def get_model(params: AttributeDict) -> nn.Module:
     assert params.use_transducer or params.use_ctc, (
@@ -944,7 +956,6 @@ def get_model(params: AttributeDict) -> nn.Module:
         decoder = None
         joiner = None
 
-
     model = HENT_SRT(
         encoder_embed=encoder_embed,
         encoder=encoder,
@@ -952,8 +963,12 @@ def get_model(params: AttributeDict) -> nn.Module:
         joiner=joiner,
         st_joiner=st_joiner,
         st_decoder=st_decoder,
-        encoder_dim=max(_to_int_tuple(params.encoder_dim)), #int(params.encoder_dim.split(",")[-1]),
-        st_encoder_dim=max(_to_int_tuple(params.st_encoder_dim)),    #int(params.st_encoder_dim.split(",")[-1]),
+        encoder_dim=max(
+            _to_int_tuple(params.encoder_dim)
+        ),  # int(params.encoder_dim.split(",")[-1]),
+        st_encoder_dim=max(
+            _to_int_tuple(params.st_encoder_dim)
+        ),  # int(params.st_encoder_dim.split(",")[-1]),
         decoder_dim=params.decoder_dim,
         vocab_size=params.vocab_size,
         st_vocab_size=params.vocab_st_size,
@@ -962,9 +977,10 @@ def get_model(params: AttributeDict) -> nn.Module:
         use_st_ctc=params.use_st_ctc,
         use_hat=params.use_hat,
         st_encoder=st_encoder,
-        use_lstm_pred=params.use_lstm_predictor
+        use_lstm_pred=params.use_lstm_predictor,
     )
     return model
+
 
 def get_spec_augment(params: AttributeDict) -> SpecAugment:
     num_frame_masks = int(10 * params.time_mask_ratio)
@@ -982,6 +998,7 @@ def get_spec_augment(params: AttributeDict) -> SpecAugment:
         max_frames_mask_fraction=max_frames_mask_fraction,  # default: 0.15
     )
     return spec_augment
+
 
 def load_checkpoint_if_available(
     params: AttributeDict,
@@ -1023,7 +1040,7 @@ def load_checkpoint_if_available(
         return None
 
     assert filename.is_file(), f"{filename} does not exist!"
-    
+
     saved_params = load_checkpoint(
         filename,
         model=model,
@@ -1093,16 +1110,17 @@ def save_checkpoint(
     if params.best_train_epoch == params.cur_epoch:
         best_train_filename = params.exp_dir / "best-train-loss.pt"
         copyfile(src=filename, dst=best_train_filename)
-        
+
     if params.best_valid_epoch == params.cur_epoch:
         best_valid_filename = params.exp_dir / "best-valid-loss.pt"
         copyfile(src=filename, dst=best_valid_filename)
 
+
 def find_bad_length(feats, texts):
-    
-    feats_dur = ((feats-7)//2+1)//2
+
+    feats_dur = ((feats - 7) // 2 + 1) // 2
     text_lengths = [len(t) for t in texts]
-    text_lengths_tensor = torch.tensor(text_lengths, device='cuda:0')
+    text_lengths_tensor = torch.tensor(text_lengths, device="cuda:0")
 
     # Check where text length is greater than duration
     errors = text_lengths_tensor > feats_dur
@@ -1113,7 +1131,8 @@ def find_bad_length(feats, texts):
     if error_indices:
         print(f"Feature after subsampling: {feats_dur[error_indices[0]]}")
         print(f"Tokens: {text_lengths[error_indices[0]]}")
-    
+
+
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
@@ -1143,7 +1162,7 @@ def compute_loss(
       spec_augment:
         The SpecAugment instance used only when use_cr_ctc is True.
     """
-    
+
     device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
@@ -1157,7 +1176,7 @@ def compute_loss(
     warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
-    st_texts = batch["supervisions"]['tgt_text']['en']
+    st_texts = batch["supervisions"]["tgt_text"]["en"]
     texts = [utt.replace("| ", "") for utt in texts]
     st_y = st_sp.encode(st_texts, out_type=int)
     st_y = k2.RaggedTensor(st_y)
@@ -1165,13 +1184,13 @@ def compute_loss(
     y = sp.encode(texts, out_type=int)
     y = k2.RaggedTensor(y)
     if params.st_scale != 1:
-        alpha_st = params.st_scale 
-        alpha_asr = 1-params.st_scale 
-        
+        alpha_st = params.st_scale
+        alpha_asr = 1 - params.st_scale
+
     else:
         alpha_st, alpha_asr = 1, 1
-    
-    use_asr_cr_ctc, use_st_cr_ctc  = params.use_asr_cr_ctc, params.use_st_cr_ctc
+
+    use_asr_cr_ctc, use_st_cr_ctc = params.use_asr_cr_ctc, params.use_st_cr_ctc
     use_spec_aug = (use_asr_cr_ctc or use_st_cr_ctc) and is_training
     if use_spec_aug:
         supervision_intervals = batch["supervisions"]
@@ -1187,7 +1206,16 @@ def compute_loss(
         supervision_segments = None
     with torch.set_grad_enabled(is_training):
         # find_bad_length(feature_lens, st_sp.encode(st_texts, out_type=int))
-        simple_loss, st_simple_loss, pruned_loss, st_pruned_loss, ctc_loss, st_ctc_loss, cr_loss, st_cr_loss = model(
+        (
+            simple_loss,
+            st_simple_loss,
+            pruned_loss,
+            st_pruned_loss,
+            ctc_loss,
+            st_ctc_loss,
+            cr_loss,
+            st_cr_loss,
+        ) = model(
             x=feature,
             x_lens=feature_lens,
             y=y,
@@ -1209,13 +1237,12 @@ def compute_loss(
         if params.use_st_joiner:
             st_simple_loss_is_finite = torch.isfinite(st_simple_loss)
             st_pruned_loss_is_finite = torch.isfinite(st_pruned_loss)
-           
-            # if use_st_cr_ctc:
-                
-                # if not st_ctc_loss_is_finite:
-                #     breakpoint()
 
-            
+            # if use_st_cr_ctc:
+
+            # if not st_ctc_loss_is_finite:
+            #     breakpoint()
+
             is_finite = (
                 simple_loss_is_finite
                 & pruned_loss_is_finite
@@ -1232,22 +1259,18 @@ def compute_loss(
                 )
             st_simple_loss = st_simple_loss[st_simple_loss_is_finite]
             st_pruned_loss = st_pruned_loss[st_pruned_loss_is_finite]
-            
+
         else:
-            is_finite = (
-                simple_loss_is_finite
-                & pruned_loss_is_finite
-            )
+            is_finite = simple_loss_is_finite & pruned_loss_is_finite
             if not torch.all(is_finite):
                 logging.info(
                     "Not all losses are finite!\n"
                     f"simple_losses: {simple_loss}\n"
                     f"pruned_losses: {pruned_loss}\n"
                 )
-      
+
         simple_loss = simple_loss[simple_loss_is_finite]
         pruned_loss = pruned_loss[pruned_loss_is_finite]
-        
 
         if params.use_transducer:
             s = params.simple_loss_scale
@@ -1259,17 +1282,22 @@ def compute_loss(
                 else 1.0 - (batch_idx_train / warm_step) * (1.0 - s)
             )
             pruned_loss_scale = (
-                    1.0
-                    if batch_idx_train >= warm_step
-                    else 0.1 + 0.9 * (batch_idx_train / warm_step)
-                )
-        
-            loss += alpha_asr*(simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss)
-            #loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+                1.0
+                if batch_idx_train >= warm_step
+                else 0.1 + 0.9 * (batch_idx_train / warm_step)
+            )
+
+            loss += alpha_asr * (
+                simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
+            )
+            # loss += simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
             if params.use_st_joiner:
-                
-                loss += alpha_st* (simple_loss_scale * st_simple_loss + pruned_loss_scale * st_pruned_loss)
-                #loss += pruned_loss_scale * lid_pruned_loss
+
+                loss += alpha_st * (
+                    simple_loss_scale * st_simple_loss
+                    + pruned_loss_scale * st_pruned_loss
+                )
+                # loss += pruned_loss_scale * lid_pruned_loss
 
         if params.use_ctc:
             loss += params.ctc_loss_scale * ctc_loss
@@ -1294,7 +1322,7 @@ def compute_loss(
         info["pruned_loss"] = pruned_loss.detach().cpu().item()
         if params.use_st_joiner:
             info["st_simple_loss"] = st_simple_loss.detach().cpu().item()
-            info["st_pruned_loss"] = st_pruned_loss.detach().cpu().item()     
+            info["st_pruned_loss"] = st_pruned_loss.detach().cpu().item()
     if params.use_ctc:
         info["ctc_loss"] = ctc_loss.detach().cpu().item()
         if params.use_asr_cr_ctc:
@@ -1624,21 +1652,21 @@ def run(rank, world_size, args):
         # model.load_state_dict(init_ckpt["model"], strict=True)
         # missing_keys, unexpected_keys = model.load_state_dict(init_ckpt["model"], strict=True)
         pretrained_paths = [
-            params.model_init_ckpt+":encoder_embed:encoder_embed",
-            params.model_init_ckpt+":encoder:encoder",  # Load ASR encoder
-            params.model_init_ckpt+":decoder:decoder",
-            params.model_init_ckpt+":joiner:joiner",
-            params.model_init_ckpt+":simple_lm_proj:simple_lm_proj",
-            params.model_init_ckpt+":simple_am_proj:simple_am_proj",
-            params.model_init_ckpt+":ctc_output:ctc_output",
-            ]
+            params.model_init_ckpt + ":encoder_embed:encoder_embed",
+            params.model_init_ckpt + ":encoder:encoder",  # Load ASR encoder
+            params.model_init_ckpt + ":decoder:decoder",
+            params.model_init_ckpt + ":joiner:joiner",
+            params.model_init_ckpt + ":simple_lm_proj:simple_lm_proj",
+            params.model_init_ckpt + ":simple_am_proj:simple_am_proj",
+            params.model_init_ckpt + ":ctc_output:ctc_output",
+        ]
         for pretrained_path in pretrained_paths:
             logging.info(f"Loading pretrained params from {pretrained_path}")
             load_pretrained_model(
                 model=model,
                 init_param=pretrained_path,
                 ignore_init_mismatch=True,  # Set to False if you want an error for mismatched layers
-                map_location=device  # Use "cuda" for GPU
+                map_location=device,  # Use "cuda" for GPU
             )
 
     if params.freeze_main_model:
@@ -1672,7 +1700,7 @@ def run(rank, world_size, args):
     )
 
     scheduler = Eden(optimizer, params.lr_batches, params.lr_epochs)
-    
+
     # if checkpoints and "optimizer" in checkpoints:
     #     logging.info("Loading optimizer state dict")
     #     optimizer.load_state_dict(checkpoints["optimizer"])
@@ -1718,19 +1746,21 @@ def run(rank, world_size, args):
         # and S is the number of tokens in the utterance
 
         # In ./zipformer.py, the conv module uses the following expression
-        # for subsampling 
+        # for subsampling
         if params.use_st_cr_ctc:
             T = ((c.num_frames - 7) // 2 + 1) // (params.st_output_downsampling_factor)
-            st_tokens = st_sp.encode(c.supervisions[0].custom['translated_text']['en'], out_type=str)
+            st_tokens = st_sp.encode(
+                c.supervisions[0].custom["translated_text"]["en"], out_type=str
+            )
             if T <= len(st_tokens):
-            #     logging.warning(
-            #         f"Exclude cut with ID {c.id} from training. "
-            #         f"Number of frames (before subsampling): {c.num_frames}. "
-            #         f"Number of frames (after subsampling): {T}. "
-            #         f"ST Text: {c.supervisions[0].custom['translated_text']['en']}. "
-            #         f"ST Tokens: {st_tokens}. "
-            #         f"Number of tokens: {len(st_tokens)}"
-            #     )
+                #     logging.warning(
+                #         f"Exclude cut with ID {c.id} from training. "
+                #         f"Number of frames (before subsampling): {c.num_frames}. "
+                #         f"Number of frames (after subsampling): {T}. "
+                #         f"ST Text: {c.supervisions[0].custom['translated_text']['en']}. "
+                #         f"ST Tokens: {st_tokens}. "
+                #         f"Number of tokens: {len(st_tokens)}"
+                #     )
                 return False
         if params.use_asr_cr_ctc:
             T = ((c.num_frames - 7) // 2 + 1) // (params.output_downsampling_factor)
@@ -1748,6 +1778,7 @@ def run(rank, world_size, args):
                 return False
 
         return True
+
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
@@ -1760,7 +1791,7 @@ def run(rank, world_size, args):
     train_dl = multling.train_dataloaders(
         train_cuts, sampler_state_dict=sampler_state_dict
     )
-    
+
     valid_cuts = multling.dev_all_cuts()
     valid_cuts = valid_cuts.filter(remove_short_and_long_utt)
     valid_dl = multling.valid_dataloaders(valid_cuts)
@@ -1796,14 +1827,14 @@ def run(rank, world_size, args):
             optimizer=optimizer,
             scheduler=scheduler,
             sp=sp,
-            st_sp = st_sp,
+            st_sp=st_sp,
             train_dl=train_dl,
             valid_dl=valid_dl,
             scaler=scaler,
             tb_writer=tb_writer,
             world_size=world_size,
             rank=rank,
-            spec_augment=spec_augment
+            spec_augment=spec_augment,
         )
 
         if params.print_diagnostics:
@@ -1916,6 +1947,7 @@ def main():
         mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
     else:
         run(rank=0, world_size=1, args=args)
+
 
 if __name__ == "__main__":
     main()

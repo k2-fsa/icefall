@@ -21,9 +21,13 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import torch
+
+if TYPE_CHECKING:
+    from torch.amp import GradScaler
+
 import torch.nn as nn
 from lhotse.dataset.sampling.base import CutSampler
 from torch import Tensor

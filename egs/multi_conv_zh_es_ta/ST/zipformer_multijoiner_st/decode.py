@@ -99,6 +99,8 @@ import argparse
 import logging
 import math
 import os
+import re
+import string
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -109,11 +111,11 @@ import torch
 import torch.nn as nn
 from asr_datamodule import MultiLingAsrDataModule
 from beam_search import (
-    greedy_search_st,
     greedy_search_batch,
+    greedy_search_st,
     modified_beam_search,
-    modified_beam_search_lm_shallow_fusion,
     modified_beam_search_lm_rescore_LODR,
+    modified_beam_search_lm_shallow_fusion,
     modified_beam_search_LODR,
 )
 from train import add_model_arguments, get_model, get_params
@@ -135,32 +137,35 @@ from icefall.utils import (
     str2bool,
     write_error_stats,
 )
-import string
-import re
 
 LOG_EPS = math.log(1e-10)
 
-def remove_punc(text, replacement_char='_'):
+
+def remove_punc(text, replacement_char="_"):
     """This function removes all English punctuations except the single quote (verbatim)."""
 
     english_punctuations = string.punctuation + "¿¡"
-    english_punctuations = english_punctuations.replace("'",'')
-    #english_punctuations = ''.join(c for c in string.punctuation if c != "'")
+    english_punctuations = english_punctuations.replace("'", "")
+    # english_punctuations = ''.join(c for c in string.punctuation if c != "'")
     # Create a translation table that maps each punctuation to the replacement character.
-    translator = str.maketrans(english_punctuations, replacement_char * len(english_punctuations))
-    
+    translator = str.maketrans(
+        english_punctuations, replacement_char * len(english_punctuations)
+    )
+
     # Translate the text using the translation table
     text = text.translate(translator)
-    text = text.replace('_','')
-    
+    text = text.replace("_", "")
+
     return text
+
 
 def clean(text):
     text = remove_punc(text)
     text = text.lower()
-    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r"\s+", " ", text)
     text = text.rstrip()
     return text
+
 
 def get_parser():
     parser = argparse.ArgumentParser(
@@ -371,15 +376,11 @@ def get_parser():
         Used only when `--use-shallow-fusion` is set to True.
         """,
     )
-    
+
     parser.add_argument(
-        "--dev-lang",
-        type=str,
-        default=None,
-        help="""dev language for evaluation"""
-        
+        "--dev-lang", type=str, default=None, help="""dev language for evaluation"""
     )
-    
+
     parser.add_argument(
         "--use-hat-decode",
         type=str2bool,
@@ -535,9 +536,9 @@ def decode_one_batch(
             use_hat=params.use_hat_decode,
         )
         for hyp, hyp_st in zip(sp.decode(hyp_tokens[0]), sp_st.decode(hyp_tokens[1])):
-            
+
             hyps.append([hyp.split(), hyp_st.split()])
-            
+
     elif params.decoding_method == "modified_beam_search_LODR":
         hyp_tokens = modified_beam_search_LODR(
             model=model,
@@ -565,8 +566,8 @@ def decode_one_batch(
             hyps.append(hyp.split())
 
     elif params.decoding_method == "modified_beam_search_lm_rescore_LODR":
-       lm_scale_list = [0.05 * i for i in range(4, 10)]
-       hyp_tokens = modified_beam_search_lm_rescore_LODR(
+        lm_scale_list = [0.05 * i for i in range(4, 10)]
+        hyp_tokens = modified_beam_search_lm_rescore_LODR(
             model=model,
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
@@ -576,7 +577,7 @@ def decode_one_batch(
             sp=sp,
             lm_scale_list=lm_scale_list,
         )
-       for hyp in sp.decode(hyp_tokens):
+        for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
 
     else:
@@ -591,7 +592,7 @@ def decode_one_batch(
                     model=model,
                     encoder_out=encoder_out_i,
                     max_sym_per_frame=params.max_sym_per_frame,
-                    st_blank_penalty =params.st_blank_penalty
+                    st_blank_penalty=params.st_blank_penalty,
                 )
             # elif params.decoding_method == "beam_search":
             #     hyp = beam_search(
@@ -669,7 +670,7 @@ def decode_dataset(
     results_st = defaultdict(list)
     for batch_idx, batch in enumerate(dl):
         texts = batch["supervisions"]["text"]
-        texts_st = batch["supervisions"]['tgt_text']['en']
+        texts_st = batch["supervisions"]["tgt_text"]["en"]
         cut_ids = [cut.id for cut in batch["supervisions"]["cut"]]
         hyps_dict = decode_one_batch(
             params=params,
@@ -689,7 +690,9 @@ def decode_dataset(
             this_batch = []
             this_batch_st = []
             assert len(hyps) == len(texts)
-            for cut_id, hyp_words, ref_text, ref_text_st in zip(cut_ids, hyps, texts, texts_st):
+            for cut_id, hyp_words, ref_text, ref_text_st in zip(
+                cut_ids, hyps, texts, texts_st
+            ):
                 if params.clean:
                     tmp_hyp = " ".join(hyp_words[0])
                     tmp_hyp = clean(tmp_hyp)
@@ -769,14 +772,15 @@ def save_st_results(
     results_dict: Dict[str, List[Tuple[str, List[str], List[str]]]],
 ):
     for key, results in results_dict.items():
-        recog_path = (
-            params.res_dir / f"{test_set_name}-{key}-{params.suffix}.txt"
-        )
+        recog_path = params.res_dir / f"{test_set_name}-{key}-{params.suffix}.txt"
         results = sorted(results)
         store_translations(filename=recog_path, texts=results)
         logging.info(f"The transcripts are stored in {recog_path}")
 
+
 import time
+
+
 def measure_real_time_factor(decode_fn, *args, **kwargs):
     """
     Measures the real-time factor (RTF) of the decoding function.
@@ -784,7 +788,7 @@ def measure_real_time_factor(decode_fn, *args, **kwargs):
     Args:
         decode_fn: The decoding function to wrap (e.g., decode_dataset).
         *args, **kwargs: Arguments passed to the decode function.
-    
+
     Returns:
         results: Output of the decode function.
         rtf: Real-time factor value.
@@ -806,8 +810,9 @@ def measure_real_time_factor(decode_fn, *args, **kwargs):
     print(f"Total audio duration: {total_duration:.2f}s")
     print(f"Total decoding time: {decoding_time:.2f}s")
     print(f"Real-time factor (RTF): {rtf:.4f}")
-    
+
     return results, rtf
+
 
 @torch.no_grad()
 def main():
@@ -981,12 +986,10 @@ def main():
     model.eval()
 
     # only load the neural network LM if required
-    if (
-        params.use_shallow_fusion
-        or params.decoding_method in (
-            "modified_beam_search_lm_shallow_fusion",
-            "modified_beam_search_LODR",
-            "modified_beam_search_lm_rescore_LODR",)
+    if params.use_shallow_fusion or params.decoding_method in (
+        "modified_beam_search_lm_shallow_fusion",
+        "modified_beam_search_LODR",
+        "modified_beam_search_lm_rescore_LODR",
     ):
         LM = LmScorer(
             lm_type=params.lm_type,
@@ -1071,25 +1074,25 @@ def main():
     test_iwslt22_dl = multiling.test_dataloaders(test_iwslt22)
     test_fisher_dl = multiling.test_dataloaders(test_fisher)
 
-    test_sets = [ "test-fisher", "iwslt-ta", "test-hkust"]
+    test_sets = ["test-fisher", "iwslt-ta", "test-hkust"]
 
     test_dl = [test_fisher_dl, test_iwslt22_dl, test_hkust_dl]
 
     for test_set, test_dl in zip(test_sets, test_dl):
-        (results_dict_asr, results_dict_st), rtf =  measure_real_time_factor(
-                decode_dataset,
-                test_dl,  # dataloader
-                params=params,
-                model=model,
-                sp=sp,
-                sp_st=sp_st,
-                word_table=word_table,
-                decoding_graph=decoding_graph,
-                context_graph=context_graph,
-                LM=LM,
-                ngram_lm=ngram_lm,
-                ngram_lm_scale=ngram_lm_scale,
-                                                )
+        (results_dict_asr, results_dict_st), rtf = measure_real_time_factor(
+            decode_dataset,
+            test_dl,  # dataloader
+            params=params,
+            model=model,
+            sp=sp,
+            sp_st=sp_st,
+            word_table=word_table,
+            decoding_graph=decoding_graph,
+            context_graph=context_graph,
+            LM=LM,
+            ngram_lm=ngram_lm,
+            ngram_lm_scale=ngram_lm_scale,
+        )
 
         save_asr_results(
             params=params,

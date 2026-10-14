@@ -76,9 +76,7 @@ from icefall.utils import (
     str2bool,
 )
 
-LRSchedulerType = Union[
-    torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler
-]
+LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler]
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
@@ -240,8 +238,7 @@ def get_parser():
         "--initial-lr",
         type=float,
         default=0.001,
-        help="The initial learning rate.  This value should not need "
-        "to be changed.",
+        help="The initial learning rate.  This value should not need " "to be changed.",
     )
 
     parser.add_argument(
@@ -264,8 +261,7 @@ def get_parser():
         "--context-size",
         type=int,
         default=2,
-        help="The context size in the decoder. 1 means bigram; "
-        "2 means tri-gram",
+        help="The context size in the decoder. 1 means bigram; " "2 means tri-gram",
     )
 
     parser.add_argument(
@@ -288,8 +284,7 @@ def get_parser():
         "--am-scale",
         type=float,
         default=0.0,
-        help="The scale to smooth the loss with am (output of encoder network)"
-        "part.",
+        help="The scale to smooth the loss with am (output of encoder network)" "part.",
     )
 
     parser.add_argument(
@@ -641,11 +636,7 @@ def compute_loss(
      warmup: a floating point value which increases throughout training;
         values >= 1.0 are fully warmed up and have all modules present.
     """
-    device = (
-        model.device
-        if isinstance(model, DDP)
-        else next(model.parameters()).device
-    )
+    device = model.device if isinstance(model, DDP) else next(model.parameters()).device
     feature = batch["inputs"]
     # at entry, feature is (N, T, C)
     assert feature.ndim == 3
@@ -653,7 +644,7 @@ def compute_loss(
 
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
-    #pdb.set_trace()
+    # pdb.set_trace()
     texts = batch["supervisions"]["text"]
     tgt_texts = batch["supervisions"]["tgt_text"]
     y = sp.encode(texts, out_type=int)
@@ -696,14 +687,9 @@ def compute_loss(
         # overwhelming the simple_loss and causing it to diverge,
         # in case it had not fully learned the alignment yet.
         pruned_loss_scale = (
-            0.0
-            if warmup < 1.0
-            else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
+            0.0 if warmup < 1.0 else (0.1 if warmup > 1.0 and warmup < 2.0 else 1.0)
         )
-        loss = (
-            params.simple_loss_scale * simple_loss
-            + pruned_loss_scale * pruned_loss
-        )
+        loss = params.simple_loss_scale * simple_loss + pruned_loss_scale * pruned_loss
 
     assert loss.requires_grad == is_training
 
@@ -711,9 +697,7 @@ def compute_loss(
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
 
-        info["frames"] = (
-            (feature_lens // params.subsampling_factor).sum().item()
-        )
+        info["frames"] = (feature_lens // params.subsampling_factor).sum().item()
 
     # # `utt_duration` and `utt_pad_proportion` would be normalized by `utterances`  # noqa
     # info["utterances"] = feature.size(0)
@@ -837,14 +821,10 @@ def train_one_epoch(
                         sp_tgt=sp_tgt,
                         batch=batch,
                         is_training=True,
-                        warmup=(
-                            params.batch_idx_train / params.model_warm_step
-                        ),
+                        warmup=(params.batch_idx_train / params.model_warm_step),
                     )
                 # summary stats
-                tot_loss = (
-                    tot_loss * (1 - 1 / params.reset_interval)
-                ) + loss_info
+                tot_loss = (tot_loss * (1 - 1 / params.reset_interval)) + loss_info
 
                 # NOTE: We use reduction==sum and loss is computed over utterances
                 # in the batch and there is no normalization to it so far.
@@ -901,7 +881,7 @@ def train_one_epoch(
             if batch_idx % params.log_interval == 0:
                 cur_lr = scheduler.get_last_lr()[0]
                 # https://silpara.medium.com/check-gpu-memory-usage-from-python-ccca503322ea
-                #memory_debugging()
+                # memory_debugging()
                 logging.info(
                     f"Epoch {params.cur_epoch}, "
                     f"batch {batch_idx}, loss[{loss_info}], "
@@ -927,14 +907,12 @@ def train_one_epoch(
                     params=params,
                     model=model,
                     sp=sp,
-                    sp_tgt=sp_tgt, 
+                    sp_tgt=sp_tgt,
                     valid_dl=valid_dl,
                     world_size=world_size,
                 )
                 model.train()
-                logging.info(
-                    f"Epoch {params.cur_epoch}, validation: {valid_info}"
-                )
+                logging.info(f"Epoch {params.cur_epoch}, validation: {valid_info}")
                 if tb_writer is not None:
                     valid_info.write_summary(
                         tb_writer, "train/valid_", params.batch_idx_train
@@ -1056,7 +1034,7 @@ def run(rank, world_size, args):
 
     if params.print_diagnostics:
         opts = diagnostics.TensorDiagnosticOptions(
-            2 ** 22
+            2**22
         )  # allow 4 megabytes per sub-module
         diagnostic = diagnostics.attach_diagnostics(model, opts)
 
@@ -1082,9 +1060,9 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 0.3 or c.duration > 30.0:
-            #logging.warning(
+            # logging.warning(
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            #)
+            # )
             return False
         if c.supervisions == []:
             return False
@@ -1114,10 +1092,11 @@ def run(rank, world_size, args):
         # Keep only text with charachters between 20 and 400
 
         return 3 <= len(c.supervisions[0].text) <= 400
-    #logging.info(f"Total duration before filtering {train_cuts.describe()}")
+
+    # logging.info(f"Total duration before filtering {train_cuts.describe()}")
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
     train_cuts = train_cuts.filter(remove_short_and_long_text)
-    #logging.info(f"Total duration after filtering {train_cuts.describe()}")
+    # logging.info(f"Total duration after filtering {train_cuts.describe()}")
 
     if params.start_batch > 0 and checkpoints and "sampler" in checkpoints:
         # We only load the sampler's state dict when it loads a checkpoint
@@ -1226,7 +1205,7 @@ def display_and_save_batch(
     logging.info(f"features shape: {features.shape}")
 
     y = sp.encode(supervisions["text"], out_type=int)
-    #y_tgt = sp_tgt.encode(supervisions["tgt_text"], out_type=int)
+    # y_tgt = sp_tgt.encode(supervisions["tgt_text"], out_type=int)
     num_tokens = sum(len(i) for i in y)
     logging.info(f"num tokens: {num_tokens}")
 

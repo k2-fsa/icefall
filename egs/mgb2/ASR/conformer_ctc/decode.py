@@ -575,7 +575,9 @@ def main():
         H = None
         bpe_model = None
         HLG = k2.Fsa.from_dict(
-            torch.load(f"{params.lang_dir}/HLG.pt", map_location=device, weights_only=False)
+            torch.load(
+                f"{params.lang_dir}/HLG.pt", map_location=device, weights_only=False
+            )
         )
         assert HLG.requires_grad is False
 
@@ -614,7 +616,9 @@ def main():
                 torch.save(G.as_dict(), params.lm_dir / "G_4_gram.pt")
         else:
             logging.info("Loading pre-compiled G_4_gram.pt")
-            d = torch.load(params.lm_dir / "G_4_gram.pt", map_location=device, weights_only=False)
+            d = torch.load(
+                params.lm_dir / "G_4_gram.pt", map_location=device, weights_only=False
+            )
             G = k2.Fsa.from_dict(d)
 
         if params.method in ["whole-lattice-rescoring", "attention-decoder"]:

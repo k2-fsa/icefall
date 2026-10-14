@@ -8,12 +8,6 @@ on:
     types: [labeled]
 
   schedule:
-    # minute (0-59)
-    # hour (0-23)
-    # day of the month (1-31)
-    # month (1-12)
-    # day of the week (0-6)
-    # nightly build at 15:50 UTC time every day
     - cron: "50 15 * * *"
 
   workflow_dispatch:
@@ -23,51 +17,76 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  generate_build_matrix:
+    if: github.repository_owner == 'csukuangfj' || github.repository_owner == 'k2-fsa'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generating build matrix
+        id: set-matrix
+        run: |
+          python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0"
+          MATRIX=$(python ./.github/scripts/docker/generate_build_matrix.py --python-version "3.10" --min-torch-version "2.2.0")
+          echo "::set-output name=matrix::${MATRIX}"
+
   run_ptb_rnn_lm_training:
     if: github.event.label.name == 'ready' || github.event.label.name == 'rnnlm' || github.event_name == 'push' || github.event_name == 'schedule'
-    runs-on: ${{ matrix.os }}
+    needs: generate_build_matrix
+    name: py${{ matrix.python-version }} torch${{ matrix.torch-version }} v${{ matrix.version }}
+    runs-on: ubuntu-latest
     strategy:
-      matrix:
-        os: [ubuntu-latest]
-        python-version: ["3.8"]
-
       fail-fast: false
+      matrix:
+        ${{ fromJson(needs.generate_build_matrix.outputs.matrix) }}
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-          cache: 'pip'
-          cache-dependency-path: '**/requirements-ci.txt'
-
-      - name: Install Python dependencies
-        run: |
-          grep -v '^#' ./requirements-ci.txt  | grep -v kaldifst | xargs -n 1 -L 1 pip install
-          pip uninstall -y protobuf
-          pip install --no-binary protobuf protobuf==3.20.*
-
       - name: Prepare data
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          cd egs/ptb/LM
-          ./prepare.sh
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+              -e TORCHAUDIO_USE_BACKEND=soundfile
+            shell: bash
+            run: |
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+              git config --global --add safe.directory /icefall
+
+              python3 -m torch.utils.collect_env
+              python3 -m k2.version
+              pip list
+
+              cd egs/ptb/LM
+              ./prepare.sh
 
       - name: Run training
-        shell: bash
-        run: |
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          cd egs/ptb/LM
-          ./train-rnn-lm.sh --world-size 1 --num-epochs 5 --use-epoch 4 --use-avg 2
+        uses: addnab/docker-run-action@v3
+        with:
+            image: ghcr.io/${{ github.repository_owner }}/icefall:cpu-py${{ matrix.python-version }}-torch${{ matrix.torch-version }}-v${{ matrix.version }}
+            options: |
+              --volume ${{ github.workspace }}/:/icefall
+              -e TORCHAUDIO_USE_BACKEND=soundfile
+            shell: bash
+            run: |
+              export PYTHONPATH=/icefall:$PYTHONPATH
+              cd /icefall
+              git config --global --add safe.directory /icefall
+
+              cd egs/ptb/LM
+              ./train-rnn-lm.sh --world-size 1 --num-epochs 5 --use-epoch 4 --use-avg 2
 
       - name: Upload pretrained models
         uses: actions/upload-artifact@v4
-        if: github.event.label.name == 'ready' || github.event.label.name == 'rnnlm' || github.event_name == 'push' || github.event_name == 'schedule'
+        if: matrix.torch-version == '2.13.0' && (github.event.label.name == 'ready' || github.event.label.name == 'rnnlm' || github.event_name == 'push' || github.event_name == 'schedule')
         with:
           name: python-${{ matrix.python-version }}-ubuntu-rnn-lm-ptb
           path: egs/ptb/LM/my-rnnlm-exp/
