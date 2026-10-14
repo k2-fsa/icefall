@@ -41,6 +41,7 @@ use the exported ONNX models.
 """
 
 import argparse
+import inspect
 import logging
 from pathlib import Path
 from typing import Dict, Tuple
@@ -61,6 +62,14 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import make_pad_mask, num_tokens, str2bool
+
+
+def onnx_export_kwargs() -> Dict:
+    """torch >= 2.9 defaults torch.onnx.export to the dynamo exporter, which fails on this model when converting
+    to the requested opset; keep the TorchScript exporter where the option exists."""
+    if "dynamo" in inspect.signature(torch.onnx.export).parameters:
+        return {"dynamo": False}
+    return {}
 
 
 def get_parser():
@@ -316,8 +325,8 @@ def export_encoder_model_onnx(
             (x, x_lens),
             encoder_filename,
             verbose=True,
-            enable_onnx_checker=False,
             opset_version=opset_version,
+            **onnx_export_kwargs(),
             input_names=["x", "x_lens"],
             output_names=["encoder_out", "encoder_out_lens"],
             dynamic_axes={
@@ -377,6 +386,7 @@ def export_decoder_model_onnx(
         decoder_filename,
         verbose=False,
         opset_version=opset_version,
+        **onnx_export_kwargs(),
         input_names=["y"],
         output_names=["decoder_out"],
         dynamic_axes={
@@ -419,6 +429,7 @@ def export_joiner_model_onnx(
         joiner_filename,
         verbose=False,
         opset_version=opset_version,
+        **onnx_export_kwargs(),
         input_names=[
             "encoder_out",
             "decoder_out",
