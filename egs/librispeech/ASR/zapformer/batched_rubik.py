@@ -127,43 +127,6 @@ class BatchedOptimizer(Optimizer):
 
 
 
-def three_way_product(x):
-    """ returns the 3-way matrix product x @ x.t() @ x """
-    if x.shape[-2] <= x.shape[-1]:
-        x2 = torch.matmul(x, x.transpose(-2, -1))
-        return torch.matmul(x2, x)
-    else:
-        x2 = torch.matmul(x.transpose(-2, -1), x)
-        return torch.matmul(x, x2)
-
-
-def scaled_three_way_product(x):
-    """
-    Returns alpha * (x @ x.t() @ x),
-    where alpha is computed from the 2-norm of x in such a way that if all the singular values of
-    x are the same, it will return x itself.  (There is only one such formula.)  If the singular
-    values of x differ from each other, the result will in general have a larger norm than x.
-    """
-    rows, cols = x.shape[-2], x.shape[-1]
-    eps = 1.0e-40
-    x_meansq = (x ** 2).mean(dim=(-2, -1), keepdim=True) + eps
-    x = x * (x_meansq * max(rows, cols)) ** (-1/3)
-    return three_way_product(x)
-
-def compute_scale(x: Tensor, y: Tensor) -> Tensor:
-    """
-    Solve the equation: ||x - scale y||_2^2 == [minimum]
-
-          x.x - 2 scale y.x + scale^2 y.y = 0
-       scale^2 y.y - 2 scale x.y = 0
-d/d[scale]:
-           2 scale y.y = 2 x.y
-                 scale = x.y / y.y
-    """
-    eps = 1.0e-40
-    xy = (x * y).mean(dim=(1, 2), keepdim=True)
-    yy = y.square().mean(dim=(1, 2), keepdim=True)
-    return xy / (yy + eps)
 
 
 
@@ -189,51 +152,6 @@ def matrix_shape(shape):
 
 
 
-def half_normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
-    """
-    Normalize the rms of x using row-wise and column-wise stats, while
-    updating the moving-average stats; return the normalized x.
-    Shapes:
-        x: (batch_size, rows, cols)
-row_stats: (batch_size, rows, 1)
-col_stats: (batch_size, 1, cols)
-    Returns:
-         normalized x, shape: (batch_size, rows, cols)
-    """
-    row_stats.mul_(beta2).add_(x.abs().mean(dim=2, keepdim=True), alpha=(1 - beta2))
-    row_denom = (row_stats + eps)
-    x = x / row_denom
-    col_stats.mul_(beta2).add_(x.abs().mean(dim=1, keepdim=True), alpha=(1 - beta2))
-    col_denom = (col_stats + eps)
-    row_denom_sqrt = row_denom.sqrt()
-    col_denom_sqrt = col_denom.sqrt()
-    x_half_norm = (x * row_denom_sqrt) / col_denom_sqrt
-    x = x / col_denom
-    invP = row_denom * col_denom
-    return x, x_half_norm, invP
-
-
-
-def normalize_and_update_stats(x, row_stats, col_stats, beta2, eps):
-    """
-    Normalize the rms of x using row-wise and column-wise stats, while
-    updating the moving-average stats; return the normalized x.
-    Shapes:
-        x: (batch_size, rows, cols)
-row_stats: (batch_size, rows, 1)
-col_stats: (batch_size, 1, cols)
-    Returns:
-         normalized x, shape: (batch_size, rows, cols)
-    """
-    # use squared norm to save memory
-    row_stats.mul_(beta2).add_(x.square().mean(dim=2, keepdim=True), alpha=(1 - beta2))
-    row_denom = (row_stats.sqrt() + eps)
-    x = x / row_denom
-    col_stats.mul_(beta2).add_(x.square().mean(dim=1, keepdim=True), alpha=(1 - beta2))
-    col_denom = (col_stats.sqrt() + eps)
-    x = x / col_denom
-    return x
-
 
 
 # Coefficients for Polar Express (computed for num_iters=5, safety_factor=2e-2, cushion=2)
@@ -246,113 +164,6 @@ polar_express_coeffs = [
     (2.3465413258596377, -1.7097828382687081, 0.42323551169305323),
 ]
 
-polar_express_coeffs8 = [  # taken directly from paper https://arxiv.org/pdf/2505.16932 page 16
-    (8.28721201814563, -23.595886519098837, 17.300387312530933),
-    (4.107059111542203, -2.9478499167379106, 0.5448431082926601),
-    (3.9486908534822946, -2.908902115962949, 0.5518191394370137),
-    (3.3184196573706015, -2.488488024314874, 0.51004894012372),
-    (2.300652019954817, -1.6689039845747493, 0.4188073119525673),
-    (1.891301407787398, -1.2679958271945868, 0.37680408948524835),
-    (1.8750014808534479, -1.2500016453999487, 0.3750001645474248),
-    (1.875, -1.25, 0.375), # subsequent coeffs equal this numerically
-]
-
-def limit_singular_values(x, l, row_col_limits: bool):
-    """
-    Maps singular values of x with the mapping a -> a / sqrt((a/l)**2 + 1), which is close to a->a for
-    a << l, and close to l for a >> l.  So a little like a continuous version of the function
-    singular_value.clamp(max=l)
-    """
-    return l * limit_singular_values_to_one(x / l, row_col_limits)
-
-
-
-def limit_singular_values_to_one(x, row_col_limits: bool):
-    # a recurrence that maps singular values of x with the mapping a ->  a / (a^2 + 1).sqrt(),
-    # which limits them to at most 1 while
-    if x.ndim != 3:
-        orig_shape = x.shape
-        batch_size = x.shape[0]
-        rows, cols = matrix_shape(x.shape[1:])
-        return limit_singular_values_to_one(x.reshape(batch_size, rows, cols), row_col_limits).reshape(*orig_shape)
-
-    dtype = COMPUTE_DTYPE
-    orig_dtype = x.dtype
-
-    # maps singular values a -> a / (a + 1) which is equivalent to a if a << 1 and 1 if a >> 1.
-    assert x.ndim == 3
-    (batch_size, rows, cols) = x.shape
-    if rows > cols:
-        return limit_singular_values_to_one(x.mT, row_col_limits).mT
-
-    # Polar express
-    # Cast to bf16 for speed when available; skip cast otherwise (fp16 is unstable here due to limited exponent range)
-    X = x.to(dtype)
-    # define sym(X) as (X @ X^T)^{1/2}.
-    # versus the normal formula, the den value is increased by 1.  that is because we are dividing
-    # not by sym(X) but by sym(X) + I
-    den = (X.norm(dim=(-2, -1), keepdim=True) * 1.01 + 1.01)
-    X = X / den
-
-    # will become inverse
-    inverse = torch.eye(rows, device=X.device, dtype=X.dtype) / den
-
-    # assume rows <= cols
-    ns_steps = 5
-    for a, b, c in polar_express_coeffs[:ns_steps]:
-        A = X @ X.mT  +  inverse @ inverse.mT
-        B = b * A + c * (A @ A)
-        X = a * X + B @ X
-        inverse = a * inverse + B @ inverse
-
-    if row_col_limits:
-        expected_rms = max(rows, cols) ** -0.5  # expected RMS of elements, if singular values are 1.
-        X = X * (expected_rms / (X ** 2).mean(dim=1, keepdim=True).sqrt().clamp(min=expected_rms))
-        X = X * (expected_rms / (X ** 2).mean(dim=2, keepdim=True).sqrt().clamp(min=expected_rms))
-
-    return X.to(orig_dtype)
-
-
-
-
-
-def decay(moving_grad, eps, step):
-    moving_grad = moving_grad.clone()
-    num_steps = 2
-    for i in range(num_steps):
-        # prod3 would have the same value as moving_grad_precon if moving_grad_precon's singular values were
-        # all equal, but in general its 2-norm is >= the 2-norm of moving_grad_precon.
-
-        moving_grad_norm = moving_grad.norm(dim=(1,2), keepdim=True)
-        prod3 = three_way_product(moving_grad / (moving_grad_norm + eps))
-        prod3_norm = prod3.norm(dim=(1,2), keepdim=True)
-
-        first_eig = prod3_norm.clamp(min=eps, max=0.999) ** (1/3)
-        # the second part of the minimum says that the second eig must be less than the
-        # top eig.   (for first_eig less than about 0.6, this is an issue.)
-        second_eig = torch.minimum((1 - first_eig**2) ** 0.5,
-                                   0.5 * first_eig)
-
-        # need f(second_eig) <= f(first_eig) to keep the correct ordering.
-        # so:
-        #   first_eig - alpha first_eig^3 >= second_eig - alpha second_eig^3
-        # first_eig - second_eig >= alpha (first_eig^3 - second_eig^3)
-        # can set:
-        #  alpha = (first_eig - second_eig) / (first_eig^3 - second_eig^3)
-
-        alpha = (first_eig - second_eig) / (first_eig**3 - second_eig**3)
-
-        moving_grad.add_(prod3 * moving_grad_norm * alpha, alpha=-1)
-
-        moving_grad_norm2 = moving_grad.norm(dim=(1,2), keepdim=True)
-
-        beta1_eff = ((moving_grad_norm2 + eps) / (moving_grad_norm + eps)).clamp(min=1.0e-05, max=0.999)
-        #moving_grad.mul_(1 / beta1_eff)  # undo the norm change caused by the cubic decay.  [or it would affect normalize_and_update_stats later.]
-
-        if step % 1000 == 0:
-            logging.info(f"iter={i}, shape={moving_grad.shape}, moving_grad_norm={moving_grad_norm.flatten()}, prod3_norm={prod3_norm.flatten()}, alpha={alpha.flatten()}, beta1_eff={beta1_eff.flatten()}") # = min({cubic_alpha_limit.flatten()}, {cubic_alpha_ceil.flatten()}")
-
-    return moving_grad
 
 
 def compute_topsv(momentum, eps=1.0e-20):
@@ -540,14 +351,12 @@ def scaling_step(group, param, state, grad, update):
 
     scale_ratio = scale / old_scale
 
-    param_for_decay = param
-
     dims = tuple(range(1, grad.ndim))
 
     assumed_scale = (1 - beta1) * ((1 - beta1**2)**-0.5)
     step_meansq = (delta ** 2).mean(dim=dims, keepdim=True) / (assumed_scale ** 2) # should be close to lr ** 2 in principle.
 
-    return (scale_ratio - 1) * param - (0.5 * step_meansq) * param_for_decay  +  scale * delta
+    return ((scale_ratio - 1) - (0.5 * step_meansq)) * param  +  scale * delta
 
 
 def adam_step(group, state, grad, update: bool):
@@ -833,44 +642,6 @@ def _test_batched_rubik(hidden_dim: int):
 
 
 
-def _test_scaled_three_way_product():
-    x = torch.randn(3, 16, 32)
-    _U, _S, V = torch.linalg.svd(x, full_matrices=False)
-    W = V  * torch.randn(3, 1, 1)
-    # so now all the singular values of x will be identical (but arbitrary)
-
-    X = scaled_three_way_product(W)
-    #print("X = ", X[0])
-    #print("W = ", W[0])
-    assert torch.allclose(W, X, atol=1.0e-03)
-    # but the result won't be identical to the input if the singular values are not all identical.
-    assert not torch.allclose(x, scaled_three_way_product(x), atol=1.0e-03)
-
-
-
-def _test_limit_singular_values_to_one():
-    batch_size, rows, cols = 2, 5, 10
-
-    a = 0.2 * torch.randn(batch_size, rows, cols)
-    U, S, V = torch.linalg.svd(a)
-    S2 = S / (S * S + 1).sqrt()
-    print(f"Initially, singular values are {S}")
-    b = limit_singular_values_to_one(a, row_col_limits=False)
-    U, S, V = torch.linalg.svd(b)
-    print(f"After limit_singular_values_to_one, singular values are {S} vs should be {S2}, ratio={S/S2}")
-
-
-def _test_limit_singular_values():
-    batch_size, rows, cols = 1, 10, 20
-
-    l = 3.0
-    a = torch.randn(batch_size, rows, cols)
-    U, S, V = torch.linalg.svd(a)
-    S2 = S / ((S/l)**2 + 1).sqrt()
-    print("Initially, singular values are ", S)
-    b = limit_singular_values(a, l, row_col_limits=False)
-    U, S, V = torch.linalg.svd(b)
-    print(f"After limit_singular_values with l={l}, singular values are {S} versus should be {S2}, ratio={S/S2}")
 
 
 def _test_polar_express():
@@ -925,8 +696,5 @@ if __name__ == "__main__":
         hidden_dim = 200
 
     _test_attenuate_topsv()
-    _test_limit_singular_values_to_one()
-    _test_limit_singular_values()
     _test_polar_express()
-    _test_scaled_three_way_product()
     _test_batched_rubik(hidden_dim)
