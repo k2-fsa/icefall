@@ -153,7 +153,9 @@ def limit_param_value(
     # You apply this to (typically) an nn.Parameter during training to ensure that its
     # (elements mostly) stays within a supplied range.  This is done by modifying the
     # gradients in backprop.
-    if torch.jit.is_scripting():
+    # forward is the identity: under tracing (ONNX export) the autograd Function would only add an
+    # aten::view_as node that the ONNX exporter cannot handle.
+    if torch.jit.is_scripting() or torch.jit.is_tracing():
         return x
     if training:
         return LimitParamValue.apply(x, min, max)
