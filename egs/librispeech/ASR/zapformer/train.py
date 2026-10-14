@@ -1472,11 +1472,11 @@ def run(rank, world_size, args):
         cutoff = 0.1
         M = 3
         if progress < cutoff:
-            return 1 - M * progress
+            factor = 1 - M * progress
         else:
-            return (1 - M * cutoff) * (progress - cutoff) / (1 - cutoff)
-
-        return max((1 - progress), min_factor)
+            final_progress = (progress - cutoff) / (1 - cutoff)  # between 0 and 1
+            factor = (1 - M * cutoff) * (1 - final_progress)
+        return max(factor, min_factor)
 
     def progress_to_physical_lr_factor(progress):
         return 1.0
