@@ -1279,7 +1279,7 @@ def train_one_epoch(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, logical_lr: {logical_lr}, accum_steps: {accum_steps}, "
+                f"physical_lr: {cur_lr:.3e}, logical_lr: {logical_lr:.3e}, accum_steps: {accum_steps:.3e}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
             )
 
