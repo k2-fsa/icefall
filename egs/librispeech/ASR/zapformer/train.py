@@ -1479,7 +1479,11 @@ def run(rank, world_size, args):
         return max(factor, min_factor)
 
     def progress_to_physical_lr_factor(progress):
-        return 1.0
+        # warm up from 0.9 to 1.0 over the first half of training.
+        if progress < 0.5:
+            return 0.9 + 0.1 * progress / 0.5
+        else:
+            return 1.0
 
     scheduler = LambdaLRScheduler(optimizer,
                                   logical_func=progress_to_logical_lr_factor,
