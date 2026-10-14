@@ -1175,7 +1175,9 @@ def run(rank, world_size, args):
         logging.info(
             f"Initializing model with checkpoint from {params.model_init_ckpt}"
         )
-        init_ckpt = torch.load(params.model_init_ckpt, map_location=device, weights_only=False)
+        init_ckpt = torch.load(
+            params.model_init_ckpt, map_location=device, weights_only=False
+        )
         model.load_state_dict(init_ckpt["model"], strict=True)
 
     if world_size > 1:

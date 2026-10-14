@@ -29,8 +29,8 @@ from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
-    K2SpeechRecognitionDataset,
     K2Speech2TextTranslationDataset,
+    K2SpeechRecognitionDataset,
     PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
@@ -392,30 +392,26 @@ class MultiLingAsrDataModule:
     @lru_cache()
     def train_cuts(self) -> CutSet:
         logging.info("Train data: About to get training cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_train.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_train.jsonl.gz")
 
     @lru_cache()
     def dev_all_cuts(self) -> CutSet:
         logging.info("Dev data: About to get develop cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_dev.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_dev.jsonl.gz")
 
     @lru_cache()
     def test_hkust(self) -> CutSet:
         logging.info("About to get test-hkust cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "cuts_hkust_test.jsonl.gz"
-        )
+        return load_manifest_lazy(self.args.manifest_dir / "cuts_hkust_test.jsonl.gz")
+
     def test_iwslt22(self) -> CutSet:
         logging.info("About to get test-iwslt22 cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_iwslt_ta_test.jsonl.gz"
         )
+
     def test_fisher(self) -> CutSet:
         logging.info("About to get test-fisher cuts")
         return load_manifest_lazy(
             self.args.manifest_dir / "cuts_fisher-sp_test.jsonl.gz"
-        ) 
+        )

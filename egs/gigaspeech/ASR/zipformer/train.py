@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright    2021-2023  Xiaomi Corp.        (authors: Fangjun Kuang,
+# Copyright    2021-2026  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Wei Kang,
 #                                                       Mingshuang Luo,
 #                                                       Zengwei Yao,
@@ -29,19 +29,28 @@ export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
   --world-size 8 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --use-fp16 1 \
+  --use-bf16 1 \
   --exp-dir zipformer/exp \
-  --max-duration 1000
+  --max-duration 5000
+
+# For multi-node / cluster training, launch with torchrun
+# (`--world-size` is ignored; world size comes from the env):
+torchrun --nproc_per_node 8 ./zipformer/train.py \
+  --num-epochs 30 \
+  --start-epoch 1 \
+  --use-bf16 1 \
+  --exp-dir zipformer/exp \
+  --max-duration 5000
 
 # For streaming model training:
 ./zipformer/train.py \
   --world-size 8 \
   --num-epochs 30 \
   --start-epoch 1 \
-  --use-fp16 1 \
+  --use-bf16 1 \
   --exp-dir zipformer/exp \
   --causal 1 \
-  --max-duration 1000
+  --max-duration 5000
 
 It supports training with:
   - transducer loss (default), with `--use-transducer True --use-ctc False`
@@ -53,15 +62,28 @@ It supports training with:
 import argparse
 import copy
 import logging
+import os
 import warnings
 from pathlib import Path
 from shutil import copyfile
 from typing import Any, Dict, Optional, Tuple, Union
 
+warnings.filterwarnings(
+    "ignore",
+    message=r"`torch\.cuda\.amp\.custom_(fwd|bwd)\(args\.\.\.\)` is deprecated.*",
+    category=FutureWarning,
+)
+
+from typing import TYPE_CHECKING
+
 import k2
 import optim
 import sentencepiece as spm
 import torch
+
+if TYPE_CHECKING:
+    from torch.amp import GradScaler
+
 import torch.multiprocessing as mp
 import torch.nn as nn
 from asr_datamodule import GigaSpeechAsrDataModule
@@ -75,7 +97,6 @@ from optim import Eden, ScaledAdam
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
-from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.tensorboard import SummaryWriter
 from zipformer import Zipformer2
@@ -87,13 +108,20 @@ from icefall.checkpoint import (
     save_checkpoint_with_global_batch_idx,
     update_averaged_model,
 )
-from icefall.dist import cleanup_dist, setup_dist
+from icefall.dist import (
+    cleanup_dist,
+    get_local_rank,
+    get_rank,
+    get_world_size,
+    setup_dist,
+)
 from icefall.env import get_env_info
 from icefall.err import raise_grad_scale_is_too_small_error
 from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
+    create_grad_scaler,
     get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
@@ -480,6 +508,13 @@ def get_parser():
         help="Whether to use half precision training.",
     )
 
+    parser.add_argument(
+        "--use-bf16",
+        type=str2bool,
+        default=False,
+        help="Whether to use bf16 in AMP.",
+    )
+
     add_model_arguments(parser)
 
     return parser
@@ -537,7 +572,7 @@ def get_params() -> AttributeDict:
             "best_train_epoch": -1,
             "best_valid_epoch": -1,
             "batch_idx_train": 0,
-            "log_interval": 500,
+            "log_interval": 100,
             "reset_interval": 2000,
             "valid_interval": 20000,
             # parameters for zipformer
@@ -719,7 +754,7 @@ def save_checkpoint(
     optimizer: Optional[torch.optim.Optimizer] = None,
     scheduler: Optional[LRSchedulerType] = None,
     sampler: Optional[CutSampler] = None,
-    scaler: Optional[GradScaler] = None,
+    scaler: Optional["GradScaler"] = None,
     rank: int = 0,
 ) -> None:
     """Save model, optimizer, scheduler and training stats to file.
@@ -895,7 +930,7 @@ def train_one_epoch(
     sp: spm.SentencePieceProcessor,
     train_dl: torch.utils.data.DataLoader,
     valid_dl: torch.utils.data.DataLoader,
-    scaler: GradScaler,
+    scaler: "GradScaler",
     model_avg: Optional[nn.Module] = None,
     tb_writer: Optional[SummaryWriter] = None,
     world_size: int = 1,
@@ -959,7 +994,7 @@ def train_one_epoch(
         batch_size = len(batch["supervisions"]["text"])
 
         try:
-            with torch_autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_autocast, dtype=params.dtype):
                 loss, loss_info = compute_loss(
                     params=params,
                     model=model,
@@ -1019,7 +1054,7 @@ def train_one_epoch(
                 rank=rank,
             )
 
-        if batch_idx % 100 == 0 and params.use_fp16:
+        if batch_idx % 100 == 0 and params.use_autocast:
             # If the grad scale was less than 1, try increasing it.    The _growth_interval
             # of the grad scaler is configurable, but we can't configure it to have different
             # behavior depending on the current grad scale.
@@ -1038,14 +1073,14 @@ def train_one_epoch(
 
         if batch_idx % params.log_interval == 0:
             cur_lr = max(scheduler.get_last_lr())
-            cur_grad_scale = scaler._scale.item() if params.use_fp16 else 1.0
+            cur_grad_scale = scaler._scale.item() if params.use_autocast else 1.0
 
             logging.info(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
                 f"lr: {cur_lr:.2e}, "
-                + (f"grad_scale: {scaler._scale.item()}" if params.use_fp16 else "")
+                + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
             )
 
             if tb_writer is not None:
@@ -1057,7 +1092,7 @@ def train_one_epoch(
                     tb_writer, "train/current_", params.batch_idx_train
                 )
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
-                if params.use_fp16:
+                if params.use_autocast:
                     tb_writer.add_scalar(
                         "train/grad_scale", cur_grad_scale, params.batch_idx_train
                     )
@@ -1093,7 +1128,8 @@ def run(rank, world_size, args):
     Args:
       rank:
         It is a value between 0 and `world_size-1`, which is
-        passed automatically by `mp.spawn()` in :func:`main`.
+        passed automatically by `mp.spawn()` in :func:`main`, or read from
+        the env when launched with `torchrun`.
         The node with rank 0 is responsible for saving checkpoint.
       world_size:
         Number of GPUs for DDP training.
@@ -1104,8 +1140,17 @@ def run(rank, world_size, args):
     params.update(vars(args))
 
     fix_random_seed(params.seed)
+
+    # torchrun sets up the env; otherwise fall back to mp.spawn.
+    use_ddp_launch = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    # Multi-node: pick the CUDA device by local rank, not global rank.
+    local_rank = get_local_rank() if use_ddp_launch else rank
     if world_size > 1:
-        setup_dist(rank, world_size, params.master_port)
+        if use_ddp_launch:
+            setup_dist(use_ddp_launch=True)
+            torch.cuda.set_device(local_rank)
+        else:
+            setup_dist(rank, world_size, params.master_port)
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
@@ -1117,7 +1162,7 @@ def run(rank, world_size, args):
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
-        device = torch.device("cuda", rank)
+        device = torch.device("cuda", local_rank)
     logging.info(f"Device: {device}")
 
     sp = spm.SentencePieceProcessor()
@@ -1129,6 +1174,21 @@ def run(rank, world_size, args):
 
     if not params.use_transducer:
         params.ctc_loss_scale = 1.0
+
+    if params.use_bf16:  # amp + bf16
+        assert torch.cuda.is_bf16_supported(), "Your GPU does not support bf16!"
+        assert not params.use_fp16, "You can only use either fp16 or bf16"
+        params.dtype = torch.bfloat16
+        params.use_autocast = True
+    elif params.use_fp16:  # amp + fp16
+        params.dtype = torch.float16
+        params.use_autocast = True
+    else:  # fp32
+        params.dtype = torch.float32
+        params.use_autocast = False
+
+    logging.info(f"Using dtype={params.dtype}")
+    logging.info(f"Use AMP={params.use_autocast}")
 
     logging.info(params)
 
@@ -1152,7 +1212,7 @@ def run(rank, world_size, args):
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
+        model = DDP(model, device_ids=[local_rank], find_unused_parameters=True)
 
     optimizer = ScaledAdam(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=True),
@@ -1186,7 +1246,12 @@ def run(rank, world_size, args):
     def remove_short_utt(c: Cut):
         # In ./zipformer.py, the conv module uses the following expression
         # for subsampling
-        T = ((c.num_frames - 7) // 2 + 1) // 2
+        # When using on-the-fly feature extraction, c.num_frames is None,
+        # so we estimate it from the duration (Fbank frame_shift = 0.01s).
+        num_frames = (
+            c.num_frames if c.num_frames is not None else round(c.duration / 0.01)
+        )
+        T = ((num_frames - 7) // 2 + 1) // 2
         return T > 0
 
     gigaspeech = GigaSpeechAsrDataModule(args)
@@ -1225,7 +1290,7 @@ def run(rank, world_size, args):
             params=params,
         )
 
-    scaler = GradScaler(enabled=params.use_fp16, init_scale=1.0)
+    scaler = create_grad_scaler(enabled=params.use_autocast, init_scale=1.0)
     if checkpoints and "grad_scaler" in checkpoints:
         logging.info("Loading grad scaler state dict")
         scaler.load_state_dict(checkpoints["grad_scaler"])
@@ -1325,7 +1390,7 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            with torch_autocast(enabled=params.use_fp16):
+            with torch_autocast(enabled=params.use_autocast, dtype=params.dtype):
                 loss, _ = compute_loss(
                     params=params,
                     model=model,
@@ -1357,12 +1422,19 @@ def main():
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
 
-    world_size = args.world_size
-    assert world_size >= 1
-    if world_size > 1:
-        mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+    if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
+        # Launched with torchrun: read rank/world_size from env, no mp.spawn.
+        # `--world-size` is ignored in this mode.
+        world_size = get_world_size()
+        rank = get_rank()
+        run(rank=rank, world_size=world_size, args=args)
     else:
-        run(rank=0, world_size=1, args=args)
+        world_size = args.world_size
+        assert world_size >= 1
+        if world_size > 1:
+            mp.spawn(run, args=(world_size, args), nprocs=world_size, join=True)
+        else:
+            run(rank=0, world_size=1, args=args)
 
 
 torch.set_num_threads(1)

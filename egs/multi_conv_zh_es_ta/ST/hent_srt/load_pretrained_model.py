@@ -90,7 +90,7 @@ def load_pretrained_model(
             >>> assert A.linear.weight is get_attr(A, 'linear.weight')
 
             """
-            
+
             if key.strip() == "":
                 return obj
             for k in key.split("."):
@@ -98,20 +98,20 @@ def load_pretrained_model(
             return obj
 
         obj = get_attr(model, dst_key)
-    
+
     src_state = torch.load(path, map_location=map_location)
-    
+
     if excludes is not None:
         for e in excludes.split(","):
             src_state = {k: v for k, v in src_state.items() if not k.startswith(e)}
     if src_key is not None:
-        src_state['model'] = {
+        src_state["model"] = {
             k[len(src_key) + 1 :]: v
-            for k, v in src_state['model'].items()
+            for k, v in src_state["model"].items()
             if k.startswith(src_key)
         }
     dst_state = obj.state_dict()
     if ignore_init_mismatch:
-        src_state = filter_state_dict(dst_state, src_state['model'])
+        src_state = filter_state_dict(dst_state, src_state["model"])
     dst_state.update(src_state)
     obj.load_state_dict(dst_state)

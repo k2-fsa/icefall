@@ -389,7 +389,12 @@ class EncoderModel(nn.Module):
             features: (N, T, C)
             feature_lengths: (N,)
         """
-        encoder_out, encoder_out_lens, st_encoder_out, st_encoder_out_lens = model.forward_encoder(feature, feature_lengths)
+        (
+            encoder_out,
+            encoder_out_lens,
+            st_encoder_out,
+            st_encoder_out_lens,
+        ) = self.model.forward_encoder(features, feature_lengths)
         encoder_out = encoder_out.permute(1, 0, 2)  # (T, N, C) ->(N, T, C)
         st_encoder_out = st_encoder_out.permute(1, 0, 2)
         return encoder_out, encoder_out_lens, st_encoder_out, st_encoder_out_lens
@@ -596,8 +601,8 @@ def main():
                     filename_start=filename_start,
                     filename_end=filename_end,
                     device=device,
-                    
-                ), strict=False
+                ),
+                strict=False,
             )
 
     model.eval()

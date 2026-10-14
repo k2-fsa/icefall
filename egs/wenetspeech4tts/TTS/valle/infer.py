@@ -38,6 +38,7 @@ from pathlib import Path
 os.environ["PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION"] = "python"
 
 import torch
+import soundfile as sf
 import torchaudio
 from compute_neural_codec_and_prepare_text_tokens import (
     AudioTokenizer,
@@ -160,7 +161,13 @@ def load_model(checkpoint, device):
 
 def tokenize_audio(tokenizer: AudioTokenizer, audio_path: str):
     # Load and pre-process the audio waveform
-    wav, sr = torchaudio.load(audio_path)
+    data, sr = sf.read(audio_path, dtype='float32')
+
+    if len(data.shape) == 1:
+
+        data = data[:, None]
+
+    wav = torch.from_numpy(data.T)  # [channel, time]
     wav = convert_audio(wav, sr, tokenizer.sample_rate, tokenizer.channels)
     wav = wav.unsqueeze(0)
 

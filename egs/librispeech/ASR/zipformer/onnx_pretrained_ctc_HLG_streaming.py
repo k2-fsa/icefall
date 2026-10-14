@@ -71,6 +71,7 @@ import kaldifst
 import numpy as np
 import onnxruntime as ort
 import torch
+import soundfile as sf
 import torchaudio
 from kaldi_decoder import DecodableCtc, FasterDecoder, FasterDecoderOptions
 from kaldifeat import FbankOptions, OnlineFbank, OnlineFeature
@@ -106,7 +107,7 @@ def get_parser():
         "sound_file",
         type=str,
         help="The input sound file to transcribe. "
-        "Supported formats are those supported by torchaudio.load(). "
+        "Supported formats include wav, flac, and other formats supported by soundfile. "
         "For example, wav and flac are supported. ",
     )
 
@@ -309,7 +310,13 @@ def read_sound_files(
     """
     ans = []
     for f in filenames:
-        wave, sample_rate = torchaudio.load(f)
+        data, sample_rate = sf.read(f, dtype='float32')
+
+        if len(data.shape) == 1:
+
+            data = data[:, None]
+
+        wave = torch.from_numpy(data.T)  # [channel, time]
         if sample_rate != expected_sample_rate:
             logging.info(f"Resample {sample_rate} to {expected_sample_rate}")
             wave = torchaudio.functional.resample(

@@ -31,6 +31,7 @@ from pathlib import Path
 
 import datasets
 import torch
+import soundfile as sf
 import torch.nn.functional as F
 import torchaudio
 from accelerate import Accelerator
@@ -168,7 +169,13 @@ def get_inference_prompt(
         metainfo, desc="Processing prompts..."
     ):
         # Audio
-        ref_audio, ref_sr = torchaudio.load(prompt_wav)
+        data, ref_sr = sf.read(prompt_wav, dtype='float32')
+
+        if len(data.shape) == 1:
+
+            data = data[:, None]
+
+        ref_audio = torch.from_numpy(data.T)  # [channel, time]
         ref_rms = torch.sqrt(torch.mean(torch.square(ref_audio)))
         if ref_rms < target_rms:
             ref_audio = ref_audio * target_rms / ref_rms
@@ -191,7 +198,13 @@ def get_inference_prompt(
         # Duration, mel frame length
         ref_mel_len = ref_audio.shape[-1] // hop_length
         if use_truth_duration:
-            gt_audio, gt_sr = torchaudio.load(gt_wav)
+            data, gt_sr = sf.read(gt_wav, dtype='float32')
+
+            if len(data.shape) == 1:
+
+                data = data[:, None]
+
+            gt_audio = torch.from_numpy(data.T)  # [channel, time]
             if gt_sr != target_sample_rate:
                 resampler = torchaudio.transforms.Resample(gt_sr, target_sample_rate)
                 gt_audio = resampler(gt_audio)
@@ -522,7 +535,13 @@ def get_inference_prompt_cosy_voice(
         metainfo, desc="Processing prompts..."
     ):
         # Audio
-        ref_audio_org, ref_sr = torchaudio.load(prompt_wav)
+        data, ref_sr = sf.read(prompt_wav, dtype='float32')
+
+        if len(data.shape) == 1:
+
+            data = data[:, None]
+
+        ref_audio_org = torch.from_numpy(data.T)  # [channel, time]
 
         # cosy voice
         if ref_sr != 16000:
@@ -570,7 +589,13 @@ def get_inference_prompt_cosy_voice(
         # Duration, mel frame length
         ref_mel_len = ref_audio.shape[-1] // hop_length
         if use_truth_duration:
-            gt_audio, gt_sr = torchaudio.load(gt_wav)
+            data, gt_sr = sf.read(gt_wav, dtype='float32')
+
+            if len(data.shape) == 1:
+
+                data = data[:, None]
+
+            gt_audio = torch.from_numpy(data.T)  # [channel, time]
             if gt_sr != target_sample_rate:
                 resampler = torchaudio.transforms.Resample(gt_sr, target_sample_rate)
                 gt_audio = resampler(gt_audio)

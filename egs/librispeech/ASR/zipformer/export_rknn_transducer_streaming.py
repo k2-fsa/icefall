@@ -9,9 +9,9 @@ from typing import List
 from rknn.api import RKNN
 from test_rknn_on_cpu_simulator_ctc_streaming import (
     MetaData,
+    export_rknn,
     get_meta_data,
     init_model,
-    export_rknn,
 )
 
 logging.basicConfig(level=logging.WARNING)

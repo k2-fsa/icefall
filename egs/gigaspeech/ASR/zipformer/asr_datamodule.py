@@ -134,7 +134,7 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--on-the-fly-feats",
             type=str2bool,
-            default=False,
+            default=True,
             help="When enabled, use on-the-fly cut mixing and feature "
             "extraction. Will drop existing precomputed feature manifests "
             "if available.",
@@ -164,9 +164,17 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--num-workers",
             type=int,
-            default=2,
+            default=8,
             help="The number of training dataloader workers that "
             "collect the batches.",
+        )
+
+        group.add_argument(
+            "--prefetch-factor",
+            type=int,
+            default=8,
+            help="Number of batches each worker prefetches in advance. "
+            "Ignored when --num-workers is 0.",
         )
 
         group.add_argument(
@@ -189,7 +197,7 @@ class GigaSpeechAsrDataModule:
         group.add_argument(
             "--enable-musan",
             type=str2bool,
-            default=True,
+            default=False,
             help="When enabled, select noise from MUSAN and mix it"
             "with training dataset. ",
         )
@@ -343,8 +351,12 @@ class GigaSpeechAsrDataModule:
             sampler=train_sampler,
             batch_size=None,
             num_workers=self.args.num_workers,
-            persistent_workers=False,
+            persistent_workers=self.args.num_workers > 0,
             worker_init_fn=worker_init_fn,
+            pin_memory=True,
+            prefetch_factor=self.args.prefetch_factor
+            if self.args.num_workers > 0
+            else None,
         )
 
         return train_dl
@@ -389,8 +401,11 @@ class GigaSpeechAsrDataModule:
             validate,
             sampler=valid_sampler,
             batch_size=None,
-            num_workers=2,
+            num_workers=self.args.num_workers,
             persistent_workers=False,
+            prefetch_factor=self.args.prefetch_factor
+            if self.args.num_workers > 0
+            else None,
         )
 
         return valid_dl

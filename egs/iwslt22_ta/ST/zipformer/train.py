@@ -335,7 +335,7 @@ def get_parser():
         files, e.g., checkpoints, log, etc, are saved
         """,
     )
-    
+
     parser.add_argument(
         "--bpe-tgt-model",
         type=str,
@@ -790,11 +790,8 @@ def compute_loss(
     batch_idx_train = params.batch_idx_train
     warm_step = params.warm_step
 
-    texts = batch["supervisions"]["text"]
-    tgt_texts = batch["supervisions"]["tgt_text"]['eng']
-    y = sp.encode(texts, out_type=int)
+    tgt_texts = batch["supervisions"]["tgt_text"]["eng"]
     y_tgt = sp_tgt.encode(tgt_texts, out_type=int)
-    y = k2.RaggedTensor(y).to(device)
     y_tgt = k2.RaggedTensor(y_tgt).to(device)
 
     with torch.set_grad_enabled(is_training):
@@ -817,7 +814,7 @@ def compute_loss(
                 f"simple_loss: {simple_loss}\n"
                 f"pruned_loss: {pruned_loss}"
             )
-            display_and_save_batch(batch, params=params, sp=sp, sp_tgt=sp_tgt)
+            display_and_save_batch(batch, params=params, sp_tgt=sp_tgt)
             simple_loss = simple_loss[simple_loss_is_finite]
             pruned_loss = pruned_loss[pruned_loss_is_finite]
 
@@ -985,7 +982,7 @@ def train_one_epoch(
                 continue
         except:  # noqa
             save_bad_model()
-            display_and_save_batch(batch, params=params, sp=sp)
+            display_and_save_batch(batch, params=params, sp_tgt=sp_tgt)
             raise
 
         if params.print_diagnostics and batch_idx == 5:
@@ -1074,7 +1071,6 @@ def train_one_epoch(
             valid_info = compute_validation_loss(
                 params=params,
                 model=model,
-                sp=sp,
                 sp_tgt=sp_tgt,
                 valid_dl=valid_dl,
                 world_size=world_size,
@@ -1132,8 +1128,8 @@ def run(rank, world_size, args):
     sp_tgt.load(params.bpe_tgt_model)
 
     # <blk> is defined in local/train_bpe_model.py
-    params.blank_id = sp.piece_to_id("<blk>")
-    params.vocab_size = sp.get_piece_size()
+    params.blank_id = sp_tgt.piece_to_id("<blk>")
+    params.vocab_size = sp_tgt.get_piece_size()
 
     logging.info(params)
 
@@ -1201,9 +1197,9 @@ def run(rank, world_size, args):
         # an utterance duration distribution for your dataset to select
         # the threshold
         if c.duration < 0.1 or c.duration > 30.0:
-            #logging.warning(
+            # logging.warning(
             #    f"Exclude cut with ID {c.id} from training. Duration: {c.duration}"
-            #)
+            # )
             return False
         if c.supervisions == []:
             return False
@@ -1214,7 +1210,9 @@ def run(rank, world_size, args):
         # In ./conformer.py, the conv module uses the following expression
         # for subsampling
         T = ((c.num_frames - 1) // 2 - 1) // 2
-        tokens = sp_tgt.encode(c.supervisions[0].custom['translated_text']['eng'], out_type=str)
+        tokens = sp_tgt.encode(
+            c.supervisions[0].custom["translated_text"]["eng"], out_type=str
+        )
 
         if T < len(tokens):
             # logging.warning(
@@ -1232,7 +1230,8 @@ def run(rank, world_size, args):
     def remove_short_and_long_text(c: Cut):
         # Keep only text with charachters between 20 and 400
 
-        return 3 <= len(c.supervisions[0].custom['translated_text']['eng']) <= 400
+        return 3 <= len(c.supervisions[0].custom["translated_text"]["eng"]) <= 400
+
     train_cuts = train_cuts.filter(remove_short_and_long_utt)
     # train_cuts = train_cuts.filter(remove_short_and_long_text)
 
@@ -1314,7 +1313,6 @@ def run(rank, world_size, args):
 def display_and_save_batch(
     batch: dict,
     params: AttributeDict,
-    sp: spm.SentencePieceProcessor,
     sp_tgt: spm.SentencePieceProcessor,
 ) -> None:
     """Display the batch statistics and save the batch into disk.
@@ -1325,7 +1323,7 @@ def display_and_save_batch(
         for the content in it.
       params:
         Parameters for training. See :func:`get_params`.
-      sp:
+      sp_tgt:
         The BPE model.
     """
     from lhotse.utils import uuid4
@@ -1339,7 +1337,6 @@ def display_and_save_batch(
 
     logging.info(f"features shape: {features.shape}")
 
-    y = sp.encode(supervisions["text"], out_type=int)
     y_tgt = sp_tgt.encode(supervisions["tgt_text"], out_type=int)
     num_tokens = sum(len(i) for i in y_tgt)
     logging.info(f"num tokens: {num_tokens}")
@@ -1380,7 +1377,7 @@ def scan_pessimistic_batches_for_oom(
                     f"Failing criterion: {criterion} "
                     f"(={crit_values[criterion]}) ..."
                 )
-            display_and_save_batch(batch, params=params, sp=sp, sp_tgt=sp_tgt)
+            display_and_save_batch(batch, params=params, sp_tgt=sp_tgt)
             raise
         logging.info(
             f"Maximum memory allocated so far is {torch.cuda.max_memory_allocated()//1000000}MB"

@@ -14,13 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional, Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils.rnn import pad_sequence
-
 from scaling import Balancer
-
+from torch.nn.utils.rnn import pad_sequence
 
 # Copyright    2021-2024  Xiaomi Corp.        (authors: Fangjun Kuang,
 #                                                       Zengrui Jin,
@@ -39,13 +39,6 @@ from scaling import Balancer
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from typing import Optional, Tuple
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from scaling import Balancer
 
 
 class LSTMDecoder(nn.Module):
@@ -109,7 +102,7 @@ class LSTMDecoder(nn.Module):
             batch_first=True,
             dropout=rnn_dropout,
         )
-  
+
         self.balancer2 = Balancer(
             decoder_dim,
             channel_dim=-1,
@@ -124,7 +117,7 @@ class LSTMDecoder(nn.Module):
         self,
         y: torch.Tensor,
         states: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,
-        need_pad: bool = False
+        need_pad: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -142,7 +135,9 @@ class LSTMDecoder(nn.Module):
 
         embedding_out = self.balancer(embedding_out)
         if need_pad is True:
-                embedding_out = pad_sequence(embedding_out, batch_first=True, padding_value=0)
+            embedding_out = pad_sequence(
+                embedding_out, batch_first=True, padding_value=0
+            )
 
         rnn_out, (h, c) = self.rnn(embedding_out, states)
 

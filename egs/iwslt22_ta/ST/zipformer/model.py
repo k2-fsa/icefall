@@ -19,9 +19,9 @@ import k2
 import torch
 import torch.nn as nn
 from encoder_interface import EncoderInterface
+from scaling import ScaledLinear
 
 from icefall.utils import add_sos, make_pad_mask
-from scaling import ScaledLinear
 
 
 class Transducer(nn.Module):
@@ -81,7 +81,6 @@ class Transducer(nn.Module):
             vocab_size,
             initial_scale=0.25,
         )
-
 
     def forward(
         self,
@@ -219,7 +218,7 @@ class Transducer(nn.Module):
             )
 
         return (simple_loss, pruned_loss)
-    
+
 
 class Transducer_asr_st(Transducer):
     """
@@ -419,7 +418,7 @@ class Transducer_asr_st(Transducer):
                 reduction="sum",
                 return_grad=True,
             )
-        
+
         with torch.cuda.amp.autocast(enabled=False):
             simple_loss_tgt, (px_grad_tgt, py_grad_tgt) = k2.rnnt_loss_smoothed(
                 lm=lm.float(),

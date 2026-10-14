@@ -15,15 +15,16 @@
 # limitations under the License.
 
 
-from typing import Optional, Tuple, Union
 import logging
-import k2
-from torch.cuda.amp import custom_fwd, custom_bwd
-import random
-import torch
 import math
+import random
+from typing import Optional, Tuple, Union
+
+import k2
+import torch
 import torch.nn as nn
 from torch import Tensor
+from torch.cuda.amp import custom_bwd, custom_fwd
 
 
 def logaddexp_onnx(x: Tensor, y: Tensor) -> Tensor:

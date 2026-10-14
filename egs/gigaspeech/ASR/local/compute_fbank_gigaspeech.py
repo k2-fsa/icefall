@@ -16,11 +16,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import argparse
 import logging
 from pathlib import Path
 
 import torch
 from lhotse import CutSet, KaldifeatFbank, KaldifeatFbankConfig
+
+from icefall.utils import str2bool
 
 # Torch's multithreaded behavior needs to be disabled or
 # it wastes a lot of CPU and slow things down.
@@ -30,7 +33,22 @@ torch.set_num_threads(1)
 torch.set_num_interop_threads(1)
 
 
-def compute_fbank_gigaspeech():
+def get_args():
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+    )
+    parser.add_argument(
+        "--on-the-fly",
+        type=str2bool,
+        default=True,
+        help="When True, do not compute and store fbank features; only "
+        "produce the trimmed cut manifests so that features are extracted "
+        "on-the-fly during training.",
+    )
+    return parser.parse_args()
+
+
+def compute_fbank_gigaspeech(on_the_fly: bool = True):
     in_out_dir = Path("data/fbank")
 
     # number of workers in dataloader
@@ -51,7 +69,11 @@ def compute_fbank_gigaspeech():
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
-    extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
+
+    # on-the-fly mode does not need the extractor (and kaldifeat may be absent)
+    extractor = None
+    if not on_the_fly:
+        extractor = KaldifeatFbank(KaldifeatFbankConfig(device=device))
 
     logging.info(f"device: {device}")
 
@@ -66,15 +88,21 @@ def compute_fbank_gigaspeech():
         logging.info(f"Loading {raw_cuts_path}")
         cut_set = CutSet.from_file(raw_cuts_path)
 
-        logging.info("Computing features")
+        if on_the_fly:
+            logging.info(
+                "on-the-fly is enabled - skipping feature extraction, "
+                "only saving the trimmed cut manifest"
+            )
+        else:
+            logging.info("Computing features")
+            cut_set = cut_set.compute_and_store_features_batch(
+                extractor=extractor,
+                storage_path=f"{in_out_dir}/gigaspeech_feats_{partition}",
+                num_workers=num_workers,
+                batch_duration=batch_duration,
+                overwrite=True,
+            )
 
-        cut_set = cut_set.compute_and_store_features_batch(
-            extractor=extractor,
-            storage_path=f"{in_out_dir}/gigaspeech_feats_{partition}",
-            num_workers=num_workers,
-            batch_duration=batch_duration,
-            overwrite=True,
-        )
         cut_set = cut_set.trim_to_supervisions(
             keep_overlapping=False, min_duration=None
         )
@@ -88,7 +116,8 @@ def main():
     formatter = "%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s"
     logging.basicConfig(format=formatter, level=logging.INFO)
 
-    compute_fbank_gigaspeech()
+    args = get_args()
+    compute_fbank_gigaspeech(on_the_fly=args.on_the_fly)
 
 
 if __name__ == "__main__":

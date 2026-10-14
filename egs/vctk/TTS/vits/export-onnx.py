@@ -46,6 +46,7 @@ from tokenizer import Tokenizer
 from train import get_model, get_params
 
 from icefall.checkpoint import load_checkpoint
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -211,7 +212,8 @@ def export_model_onnx(
             "audio": {0: "N", 1: "T"},
             "speaker": {0: "N"},
         },
-    )
+        **get_onnx_export_kwargs(),
+)
 
     meta_data = {
         "model_type": "vits",
