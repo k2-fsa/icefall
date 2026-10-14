@@ -1465,6 +1465,17 @@ def run(rank, world_size, args):
 
     def progress_to_logical_lr_factor(progress):
         min_factor = 0.075  # applied as max
+
+        # decrease at three times the normal rate until "cutoff", so
+        # it would decrease from 1.0 to 0.7 over 0.1 of training, then
+        # decrease linearly until the end.
+        cutoff = 0.1
+        M = 3
+        if progress < cutoff:
+            return 1 - M * progress
+        else:
+            return (1 - M * cutoff) * (progress - cutoff) / (1 - cutoff)
+
         return max((1 - progress), min_factor)
 
     def progress_to_physical_lr_factor(progress):
