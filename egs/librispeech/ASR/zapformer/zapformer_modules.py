@@ -860,7 +860,8 @@ class ActivationAndLinear(torch.nn.Module):
     def forward(self, x: Tensor):
         if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
             if torch.jit.is_scripting() or torch.jit.is_tracing():
-                x = swash(x)
+                # must match self.forward_func: exports (tracing / scripting) would otherwise always use Swash
+                x = swash(x) if self.activation == "Swash" else silu(x)
             else:
                 x = self.forward_func(x)
             return torch.nn.functional.linear(x, self.weight, self.bias)

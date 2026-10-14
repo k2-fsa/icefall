@@ -247,10 +247,13 @@ class Zapformer(EncoderInterface):
         chunk_size, left_context_chunks = self.get_chunk_info()
         orig_seq_len = x.shape[0]
 
-        pad = (-orig_seq_len) % max(self.downsampling_factor)
-        # pad sequence length to be multiple of max(self.downsampling_factor)
-        x = torch.cat((x, x[-1:].repeat(pad, 1, 1)),
-                      dim=0)
+        # pad sequence length to be multiple of max(self.downsampling_factor), repeating the last frame.
+        # Written without a data-dependent Python int (a traced/exported graph would bake in the padding
+        # amount of the example input and then only accept lengths with the same remainder).
+        ds_max = max(self.downsampling_factor)
+        if ds_max > 1:
+            padded_len = (orig_seq_len + ds_max - 1) // ds_max * ds_max
+            x = torch.cat((x, x[-1:].expand(ds_max - 1, -1, -1)), dim=0)[:padded_len]
 
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             # Not support exporting a model for simulating streaming decoding
@@ -507,7 +510,9 @@ class Zapformer(EncoderInterface):
             key_dim = self.query_head_dim[i] * num_heads
             value_dim = self.value_head_dim[i] * num_heads
             downsample_left = self.left_context_frames[0] // ds
-            conv_left_pad = self.conv_params[i] - 1
+            # stacks without a conv module (conv_params == 0) keep a zero-width conv cache, so every layer still
+            # has 9 cached tensors (the layout export-onnx-streaming.py and the runtimes expect).
+            conv_left_pad = max(self.conv_params[i] - 1, 0)
 
             for layer_idx, enc_layer in enumerate(module.layers):
                 cached_key = torch.zeros(downsample_left, batch_size, key_dim, device=device)
@@ -543,13 +548,10 @@ def pad_mask(mask: Optional[Tensor], seq_len: int):
     # if mask is not None, returns mask: (batch_size, seq_len); pads with True (i.e., masked).
     if mask is None:
         return None
-    (batch_size, old_seq_len) = mask.shape
-    pad = seq_len - old_seq_len
-    if pad == 0:
-        return mask
-    else:
-        return torch.cat((mask, torch.ones(batch_size, pad, device=mask.device, dtype=torch.bool)),
-                         dim=1)
+    # No data-dependent branch / pad size, so traced and exported graphs work for any length.
+    batch_size = mask.shape[0]
+    return torch.cat((mask, torch.ones(batch_size, seq_len, device=mask.device, dtype=torch.bool)),
+                     dim=1)[:, :seq_len]
 
 
 def downsample_by(x: Tensor, downsampling_factor: int) -> Tensor:
@@ -2101,8 +2103,6 @@ class ConvolutionModule(nn.Module):
                                 apply_mask=False)  # just applied it.
         x = x.permute(1, 2, 0)  # (batch, bottleneck_dim, time)
         if self.causal:
-            # Not support exporting a model for simulated streaming decoding
-            assert not torch.jit.is_scripting() and not torch.jit.is_tracing()
             x_shape = x.shape
             x = torch.nn.functional.pad(x, (self.left_pad, 0))
             x = self.depthwise_conv(x)
