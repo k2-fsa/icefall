@@ -16,18 +16,18 @@ copies of the data.)  You might get slightly better results than these with --nu
 
 # (non-streaming)
 
-Note: this should give the same results if run with fewer than 4 job, and quite close to the same if
-run with more.
-
+This should give almost the exact same results if run with fewer than 4 jobs, and quite close to the same
+results if run with more.
 ```bash
  ./zapformer/train.py --world-size 4 --min-copies 1 --max-copies 8 --num-real-epochs 32 \
-        --physical-lr=0.032 --logical-lr=3.3e-04 --batches-per-epoch 2400 --start-epoch 1 \
+        --physical-lr=0.035 --logical-lr=4.2e-04 --batches-per-epoch 2400 --start-epoch 1 \
         --use-fp16 1 --exp-dir zapformer/exp1 --use-ctc 1 --use-transducer 1 --base-dim 64 \
         --ctc-loss-scale 0.2 --full-libri 1 --max-duration 1200 --master-port 43111 &>> zapformer/exp1_log.txt &
 ```
 
 
-(The results given are for my local branch 3680.)
+(Note from Dan: the results given are for my local branch 3680, this is not quite the same as the current version, will
+update the numbers soon.)
 
 
 | decoding method                      | test-clean | test-other | comment             |
