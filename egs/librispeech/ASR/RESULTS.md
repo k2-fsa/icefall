@@ -20,7 +20,7 @@ This should give almost the exact same results if run with fewer than 4 jobs, an
 results if run with more.
 ```bash
  ./zapformer/train.py --world-size 4 --min-copies 1 --max-copies 8 --num-real-epochs 32 \
-        --physical-lr=0.035 --logical-lr=4.2e-04 --batches-per-epoch 2400 --start-epoch 1 \
+        --physical-lr=0.035 --logical-lr=4.5e-04 --batches-per-epoch 2400 --start-epoch 1 \
         --use-fp16 1 --exp-dir zapformer/exp1 --use-ctc 1 --use-transducer 1 --base-dim 64 \
         --ctc-loss-scale 0.2 --full-libri 1 --max-duration 1200 --master-port 43111 &>> zapformer/exp1_log.txt &
 ```
