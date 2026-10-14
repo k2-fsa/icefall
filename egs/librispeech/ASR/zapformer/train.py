@@ -1467,10 +1467,10 @@ def run(rank, world_size, args):
         min_factor = 0.075  # applied as max
 
         # decrease at three times the normal rate until "cutoff", so
-        # it would decrease from 1.0 to 0.666 over 0.1 of training, then
+        # it would decrease from 1.0 to 0.7 over 0.1 of training, then
         # decrease linearly until the end.
         cutoff = 0.1
-        M = 3.333
+        M = 3
         if progress < cutoff:
             factor = 1 - M * progress
         else:
