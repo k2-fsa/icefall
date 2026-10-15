@@ -606,7 +606,6 @@ def save_checkpoint(
 def compute_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    sp: spm.SentencePieceProcessor,
     sp_tgt: spm.SentencePieceProcessor,
     batch: dict,
     is_training: bool,
@@ -640,11 +639,8 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
     # pdb.set_trace()
-    texts = batch["supervisions"]["text"]
     tgt_texts = batch["supervisions"]["tgt_text"]["eng"]
-    y = sp.encode(texts, out_type=int)
     y_tgt = sp_tgt.encode(tgt_texts, out_type=int)
-    y = k2.RaggedTensor(y).to(device)
     y_tgt = k2.RaggedTensor(y_tgt).to(device)
 
     with torch.set_grad_enabled(is_training):
@@ -714,7 +710,6 @@ def compute_loss(
 def compute_validation_loss(
     params: AttributeDict,
     model: Union[nn.Module, DDP],
-    sp: spm.SentencePieceProcessor,
     sp_tgt: spm.SentencePieceProcessor,
     valid_dl: torch.utils.data.DataLoader,
     world_size: int = 1,
@@ -728,7 +723,6 @@ def compute_validation_loss(
             loss, loss_info, inf_flag = compute_loss(
                 params=params,
                 model=model,
-                sp=sp,
                 sp_tgt=sp_tgt,
                 batch=batch,
                 is_training=False,
@@ -1201,7 +1195,6 @@ def scan_pessimistic_batches_for_oom(
     model: Union[nn.Module, DDP],
     train_dl: torch.utils.data.DataLoader,
     optimizer: torch.optim.Optimizer,
-    sp: spm.SentencePieceProcessor,
     sp_tgt: spm.SentencePieceProcessor,
     params: AttributeDict,
     warmup: float,
@@ -1223,7 +1216,6 @@ def scan_pessimistic_batches_for_oom(
                 loss, _, _ = compute_loss(
                     params=params,
                     model=model,
-                    sp=sp,
                     sp_tgt=sp_tgt,
                     batch=batch,
                     is_training=True,
