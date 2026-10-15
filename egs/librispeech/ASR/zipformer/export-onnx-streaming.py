@@ -204,22 +204,110 @@ def get_parser():
     return parser
 
 
+def _load_float16_converter():
+    """Return the float16 conversion function.
+
+    onnxmltools <= 1.12 exposes it as onnxmltools.utils.float16_converter;
+    newer versions removed that module in favor of onnxconverter-common,
+    whose convert_float_to_float16() is the same implementation.
+    """
+    try:
+        from onnxmltools.utils.float16_converter import (  # noqa: F401
+            convert_float_to_float16,
+            convert_float_to_float16_model_path,
+        )
+    except ImportError:
+        from onnxconverter_common.float16 import (
+            convert_float_to_float16,
+            convert_float_to_float16_model_path,
+        )
+
+    return convert_float_to_float16, convert_float_to_float16_model_path
+
+
+def _fix_cast_nodes_after_fp16_conversion(model):
+    """Fix Cast nodes left inconsistent by convert_float_to_float16().
+
+    The converter (onnxconverter-common, which also backs
+    onnxmltools.utils.float16_converter) never updates the ``to`` attribute of
+    Cast nodes, yet it rewrites the declared type of every float32 tensor in
+    graph.value_info to float16. A Cast producing float32 is thus left with
+    ``to`` == float while its output is declared float16, and onnxruntime
+    (hence sherpa-onnx) refuses to load the exported model with
+
+      Type Error: Type (tensor(float16)) of output arg (/decoder/Cast_1_output_0)
+      of node (/decoder/Cast_1) does not match expected type (tensor(float)).
+
+    Such Cast nodes are common: e.g. the bool->float cast generated for
+    ``self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)`` in decoder.py.
+    Note that a model *trained* in fp16 exports with ``Cast(to=float16)``
+    there, which is why natively-fp16 models load fine and fp32-trained
+    ones converted by this script do not (see issue #2011).
+
+    The fix aligns ``to`` with the already-converted output type so the Cast
+    produces float16 directly, matching all its (already fp16) consumers.
+    Casts whose output is not declared float16 (e.g. ones the converter kept
+    in fp32) are left untouched.
+
+    See https://github.com/k2-fsa/icefall/issues/2011.
+    """
+    FLOAT = onnx.TensorProto.FLOAT
+    FLOAT16 = onnx.TensorProto.FLOAT16
+
+    def fix_graph(graph):
+        declared_fp16 = {
+            value_info.name
+            for value_info in list(graph.value_info) + list(graph.output)
+            if value_info.type.tensor_type.elem_type == FLOAT16
+        }
+        num_fixed = 0
+        for node in graph.node:
+            if node.op_type != "Cast":
+                continue
+            for attr in node.attribute:
+                if attr.name != "to" or attr.i != FLOAT:
+                    continue
+                if any(name in declared_fp16 for name in node.output):
+                    attr.i = FLOAT16
+                    num_fixed += 1
+        # recurse into sub-graphs, if any (If/Loop bodies)
+        for node in graph.node:
+            for attr in node.attribute:
+                if attr.HasField("g"):
+                    num_fixed += fix_graph(attr.g)
+                for sub_graph in attr.graphs:
+                    num_fixed += fix_graph(sub_graph)
+        return num_fixed
+
+    num_fixed = fix_graph(model.graph)
+    if num_fixed > 0:
+        logging.info(
+            f"Fixed {num_fixed} Cast node(s) whose 'to' attribute was left "
+            "float32 by the fp16 converter"
+        )
+    return model
+
+
 def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
     import onnxmltools
-    from onnxmltools.utils.float16_converter import convert_float_to_float16
+
+    convert_float_to_float16, _ = _load_float16_converter()
 
     onnx_fp32_model = onnxmltools.utils.load_model(onnx_fp32_path)
     onnx_fp16_model = convert_float_to_float16(onnx_fp32_model, keep_io_types=True)
+    _fix_cast_nodes_after_fp16_conversion(onnx_fp16_model)
     onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
 
 
 def export_onnx_fp16_large_2gb(onnx_fp32_path, onnx_fp16_path):
     import onnxmltools
-    from onnxmltools.utils.float16_converter import convert_float_to_float16_model_path
+
+    _, convert_float_to_float16_model_path = _load_float16_converter()
 
     onnx_fp16_model = convert_float_to_float16_model_path(
         onnx_fp32_path, keep_io_types=True
     )
+    _fix_cast_nodes_after_fp16_conversion(onnx_fp16_model)
     onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
 
 
