@@ -2462,10 +2462,35 @@ def time_warp(
 def get_onnx_export_kwargs():
     """Return extra kwargs for torch.onnx.export for backward compatibility.
 
-    Newer versions of PyTorch (>= 2.9.0) default to dynamo-based ONNX export,
-    which doesn't support ``dynamic_axes``. This function checks whether the
-    current torch version supports the ``dynamo`` parameter and returns
-    ``dynamo=False`` if so, falling back to the legacy export path.
+    Newer versions of PyTorch (>= 2.9) default to the dynamo (torch.export)
+    based ONNX exporter, which does not support ``dynamic_axes``. Its
+    compatibility layer tries to convert ``dynamic_axes`` to
+    ``dynamic_shapes`` by introspecting the model's forward signature, but
+    that fails for models wrapped with ``torch.jit.trace()`` (their
+    ``__call__`` is a pybind11 builtin without a Python signature) with::
+
+        ValueError: no signature found for builtin ...
+        RuntimeError: # Failed to convert 'dynamic_axes' to 'dynamic_shapes'.
+
+    See https://github.com/k2-fsa/icefall/issues/2040.
+
+    This function checks whether ``torch.onnx.export`` supports the
+    ``dynamo`` parameter and returns ``dynamo=False`` if so, selecting the
+    legacy TorchScript-based exporter, which supports both
+    ``dynamic_axes`` and scripted/traced modules.
+
+    Version compatibility:
+
+    - torch < 2.5: ``torch.onnx.export`` has no ``dynamo`` parameter; the
+      legacy exporter is the default, so nothing extra is needed.
+    - torch 2.5 - 2.8: ``dynamo`` exists but defaults to False; passing
+      ``dynamo=False`` is harmless.
+    - torch 2.9 - 2.13: ``dynamo`` defaults to True; ``dynamo=False`` is
+      still accepted (with a DeprecationWarning) and is the only path that
+      works with ``dynamic_axes`` on traced/scripted modules.
+    - If a future torch removes the legacy exporter, this function returns
+      an empty dict and the export scripts would need to be rewritten to
+      export eager modules with ``dynamic_shapes``.
 
     Returns:
         A dict of keyword arguments to pass to ``torch.onnx.export``.
@@ -2480,5 +2505,6 @@ def get_onnx_export_kwargs():
         if "external_data" in export_sig.parameters:
             kwargs["external_data"] = False
     except (ValueError, TypeError):
+        # Very old torch versions: fall back to the default export path.
         pass
     return kwargs

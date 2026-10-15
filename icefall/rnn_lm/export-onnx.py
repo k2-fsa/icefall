@@ -15,6 +15,7 @@ from train import get_params
 
 from icefall.checkpoint import average_checkpoints, find_checkpoints, load_checkpoint
 from icefall.utils import AttributeDict, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def add_meta_data(filename: str, meta_data: Dict[str, str]):
@@ -205,6 +206,7 @@ def export_without_state(
             "x_lens": {0: "N"},
             "nll": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
 
     meta_data = {
@@ -265,6 +267,7 @@ def export_with_state(
             "next_h0": {1: "N"},
             "next_c0": {1: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
 
     meta_data = {
