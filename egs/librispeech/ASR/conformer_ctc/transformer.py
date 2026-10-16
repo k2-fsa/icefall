@@ -442,9 +442,17 @@ class TransformerEncoderLayer(nn.Module):
         src: torch.Tensor,
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
+        is_causal: bool = False,
     ) -> torch.Tensor:
         """
         Pass the input through the encoder layer.
+
+        Args:
+            is_causal:
+              Accepted for signature compatibility with newer PyTorch, whose
+              ``nn.TransformerEncoder`` forwards this flag to every layer.
+              This layer relies on the explicit ``src_mask`` /
+              ``src_key_padding_mask`` above, so the flag is a no-op here.
 
         Args:
             src: the sequence to the encoder layer (required).
