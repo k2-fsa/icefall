@@ -1429,7 +1429,7 @@ def run(rank, world_size, args):
 
 
     # the LRs will be 1.0, we'll fix them later.
-    groups = get_parameter_groups_with_lrs(model, lr=1.0, include_names=False, bias_factor=0.5)
+    groups = get_parameter_groups_with_lrs(model, lr=1.0, include_names=False)
     for group in groups:
         lr_factor = group["lr"]  # will be 1.0 for most params, 0.5 for biases, 0.6 for some projections.
         group["base_physical_lr"] = params.physical_lr * lr_factor
