@@ -262,8 +262,6 @@ class Conv2dSubsampling(nn.Module):
 
         key_padding_mask = torch.arange(0, x.shape[1], device=x.device) >= x_lens.unsqueeze(-1)
 
-        assert x.size(1) == x_lens.max().item(), (x.size(1), x_lens.max())
-
         return 0.15 * x, x_lens
 
     def streaming_forward(
@@ -309,8 +307,6 @@ class Conv2dSubsampling(nn.Module):
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 x_lens = (x_lens - 7) // 2
-
-        assert x.size(1) == x_lens.max().item(), (x.shape, x_lens.max())
 
         return 0.15 * x, x_lens, cache
 

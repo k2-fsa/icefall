@@ -41,6 +41,7 @@ It will generate the following 3 files inside exp-dir:
 """
 
 import argparse
+import inspect
 import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -61,6 +62,14 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import num_tokens, str2bool
+
+
+def onnx_export_kwargs() -> Dict:
+    """torch >= 2.9 defaults torch.onnx.export to the dynamo exporter, which fails on this model when converting
+    to the requested opset; keep the TorchScript exporter where the option exists."""
+    if "dynamo" in inspect.signature(torch.onnx.export).parameters:
+        return {"dynamo": False}
+    return {}
 
 
 def get_parser():
@@ -321,7 +330,7 @@ def export_encoder_model_onnx(
     T = decode_chunk_len + 7
 
     x = torch.rand(1, T, feature_dim, dtype=torch.float32)
-    init_state = encoder_model.get_init_states()
+    init_state = [s.detach() for s in encoder_model.get_init_states()]
     logging.info(f"len(init_state): {len(init_state)}")
 
     # Warm up angular freq bases for tracing
@@ -442,6 +451,13 @@ def export_encoder_model_onnx(
         "num_heads": ",".join(map(str, num_heads)),
     }
 
+    # The SequenceNorm caches do not start at zero: they start from learned "ballast" statistics. Runtimes must
+    # initialize them from these values (per layer), not with zeros. Stacks with conv_params == 0 have no conv
+    # module; their cached_conv has zero width (left pad = max(conv_params - 1, 0)).
+    num_layers_total = len(init_state[:-2]) // 9
+    meta_data["norm_init_stats"] = ",".join(f"{float(init_state[i * 9 + 3].reshape(-1)[0]):.9g}" for i in range(num_layers_total))
+    meta_data["norm_init_len"] = ",".join(f"{float(init_state[i * 9 + 4].reshape(-1)[0]):.9g}" for i in range(num_layers_total))
+    meta_data["states_per_layer"] = "9"
     logging.info(f"meta_data: {meta_data}")
 
     # 9 tensors per layer
@@ -475,6 +491,7 @@ def export_encoder_model_onnx(
         encoder_filename,
         verbose=False,
         opset_version=opset_version,
+        **onnx_export_kwargs(),
         input_names=input_names,
         output_names=output_names,
         dynamic_axes={
@@ -507,6 +524,7 @@ def export_decoder_model_onnx(
         decoder_filename,
         verbose=False,
         opset_version=opset_version,
+        **onnx_export_kwargs(),
         input_names=["y"],
         output_names=["decoder_out"],
         dynamic_axes={
@@ -542,6 +560,7 @@ def export_joiner_model_onnx(
         joiner_filename,
         verbose=False,
         opset_version=opset_version,
+        **onnx_export_kwargs(),
         input_names=[
             "encoder_out",
             "decoder_out",

@@ -1465,21 +1465,14 @@ def run(rank, world_size, args):
 
     def progress_to_logical_lr_factor(progress):
         min_factor = 0.075  # applied as max
-
-        # decrease at three times the normal rate until "cutoff", so
-        # it would decrease from 1.0 to 0.7 over 0.1 of training, then
-        # decrease linearly until the end.
-        cutoff = 0.1
-        M = 3
-        if progress < cutoff:
-            factor = 1 - M * progress
-        else:
-            final_progress = (progress - cutoff) / (1 - cutoff)  # between 0 and 1
-            factor = (1 - M * cutoff) * (1 - final_progress)
-        return max(factor, min_factor)
+        return max(1 - progress, min_factor)
 
     def progress_to_physical_lr_factor(progress):
-        return 1.0
+        # warm up from 0.9 to 1.0 over the first quarter of training.
+        if progress < 0.25:
+            return 0.9 + 0.1 * progress / 0.25
+        else:
+            return 1.0
 
     scheduler = LambdaLRScheduler(optimizer,
                                   logical_func=progress_to_logical_lr_factor,

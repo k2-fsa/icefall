@@ -40,10 +40,10 @@ import k2
 import numpy as np
 import sentencepiece as spm
 import torch
+import torchaudio
 from asr_datamodule import CommonVoice, LibriSpeech, GigaSpeech, AsrDataModule
 from decode import cv_post_processing, giga_post_processing
 from decode_stream import DecodeStream
-from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet, set_caching_enabled
 from streaming_beam_search import (
     fast_beam_search_one_best,
@@ -584,13 +584,6 @@ def decode_dataset(
     """
     device = model.device
 
-    opts = FbankOptions()
-    opts.device = device
-    opts.frame_opts.dither = 0
-    opts.frame_opts.snip_edges = False
-    opts.frame_opts.samp_freq = 16000
-    opts.mel_opts.num_bins = 80
-
     log_interval = 100
 
     decode_results = []
@@ -623,8 +616,15 @@ def decode_dataset(
 
         samples = torch.from_numpy(audio).squeeze(0)
 
-        fbank = Fbank(opts)
-        feature = fbank(samples.to(device))
+        feature = torchaudio.compliance.kaldi.fbank(
+            samples.unsqueeze(0),
+            num_mel_bins=80,
+            sample_frequency=16000,
+            dither=0,
+            snip_edges=False,
+            high_freq=-400,
+        )
+        feature = feature.to(device)
         decode_stream.set_features(feature, tail_pad_len=30)
         decode_stream.ground_truth = cut.supervisions[0].text
 
