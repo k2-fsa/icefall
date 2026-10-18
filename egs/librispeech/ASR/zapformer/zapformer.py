@@ -28,7 +28,6 @@ from encoder_interface import EncoderInterface
 from zapformer_modules import (
     ActivationAndLinear,
     CausalSequenceNorm,
-    CorrelationLimiter,
     Identity,  # more friendly to backward hooks than nn.Identity(), for diagnostic reasons.
     OrthogonalLinear,
     RmsNorm,
@@ -629,13 +628,6 @@ class ZapformerEncoderLayer(nn.Module):
 
         self.offset_scale_limiter = ScaleLimiter(max_rms=1.0)
 
-        #power = 0.35  # power should be between 0 and 1.  1 would mean cov == I (unattainable)
-        #limit = (1. / (embed_dim  ** power)))
-        limit = 0.25  # this is very enormous limit on correlations, it's just to prevent divergence
-        # and bad parameter locations from which it's impossible for the optimizer to escape.  i.e.
-        # it should impose no real limitation on "normal" training runs.
-        self.correlation_limiter = CorrelationLimiter(limit=limit)
-
         self.self_attn = MultiheadRelPosGatedSelfAttention(
             embed_dim,
             num_heads=num_heads,
@@ -684,9 +676,6 @@ class ZapformerEncoderLayer(nn.Module):
                A tensor which has the same shape as src
         """
         src_orig = src
-
-        src = with_loss(src, self.correlation_limiter(src.permute(1, 0, 2),
-                                                      2. * aux_loss_scale, mask=src_key_padding_mask))
 
         src_pre_ff1 = src
 
