@@ -1465,7 +1465,8 @@ def run(rank, world_size, args):
 
     def progress_to_logical_lr_factor(progress):
         min_factor = 0.075  # applied as max
-        return max(1 - progress, min_factor)
+        factor = 0.25 * ((1 - progress)**3) + 0.75 * (1-progress)
+        return max(factor, min_factor)
 
     def progress_to_physical_lr_factor(progress):
         # warm up from 0.9 to 1.0 over the first quarter of training.
