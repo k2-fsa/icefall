@@ -63,7 +63,7 @@ import k2
 import numpy as np
 import sentencepiece as spm
 import torch
-from asr_datamodule import ReazonSpeechAsrDataModule
+from asr_datamodule import MultiDatasetAsrDataModule
 from decode_stream import DecodeStream
 from kaldifeat import Fbank, FbankOptions
 from lhotse import CutSet
@@ -740,7 +740,7 @@ def save_results(
 @torch.no_grad()
 def main():
     parser = get_parser()
-    ReazonSpeechAsrDataModule.add_arguments(parser)
+    MultiDatasetAsrDataModule.add_arguments(parser)
     Tokenizer.add_arguments(parser)
     args = parser.parse_args()
     args.exp_dir = Path(args.exp_dir)
@@ -887,7 +887,7 @@ def main():
 
     # we need cut ids to display recognition results.
     args.return_cuts = True
-    reazonspeech_corpus = ReazonSpeechAsrDataModule(args)
+    multidataset_datamodule = MultiDatasetAsrDataModule(args)
 
     if params.bilingual:
         multi_dataset = MultiDataset(args)
@@ -904,8 +904,8 @@ def main():
         test_sets = test_sets_cuts.keys()
         test_cuts = [test_sets_cuts[k] for k in test_sets]
 
-    valid_cuts = reazonspeech_corpus.valid_cuts()
-    test_cuts = reazonspeech_corpus.test_cuts()
+    valid_cuts = multidataset_datamodule.valid_cuts()
+    test_cuts = multidataset_datamodule.test_cuts()
 
     test_sets = ["valid", "test"]
     test_cuts = [valid_cuts, test_cuts]
