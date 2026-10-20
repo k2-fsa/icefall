@@ -2,6 +2,7 @@
 # Copyright 2021 Xiaomi Corporation (Author: Liyong Guo,
 #                                            Fangjun Kuang,
 #                                            Quandong Wang)
+# Copyright      2026  (author: Ibrahim Almajai)
 #
 # See ../../../../LICENSE for clarification regarding multiple authors
 #
@@ -19,6 +20,7 @@
 
 import argparse
 import logging
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -28,6 +30,7 @@ import sentencepiece as spm
 import torch
 import torch.nn as nn
 from asr_datamodule import GridAsrDataModule
+from cmn import apply_cmn
 from conformer import Conformer
 
 from icefall.bpe_graph_compiler import BpeCtcTrainingGraphCompiler
@@ -48,6 +51,7 @@ from icefall.decode import (
     rescore_with_whole_lattice,
 )
 from icefall.env import get_env_info
+from icefall.graph_compiler import CtcTrainingGraphCompiler
 from icefall.lexicon import Lexicon
 from icefall.rnn_lm.model import RnnLmModel
 from icefall.utils import (
@@ -69,7 +73,7 @@ def get_parser():
     parser.add_argument(
         "--epoch",
         type=int,
-        default=30,
+        default=8,
         help="""It specifies the checkpoint to use for decoding.
         Note: Epoch counts from 1.
         You can specify --avg to use more checkpoints for model averaging.""",
@@ -88,10 +92,36 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
-        default=29,
+        default=4,
         help="Number of checkpoints to average. Automatically select "
         "consecutive checkpoints before the checkpoint specified by "
         "'--epoch' and '--iter'",
+    )
+
+    parser.add_argument(
+        "--feature-dim",
+        type=int,
+        default=768,
+        help="Input SSL feature dimension: 768 for AV-HuBERT Base, 1024 for "
+        "Large. Must match the features and the training run. "
+        "Default: %(default)s",
+    )
+
+    parser.add_argument(
+        "--encoder-dim",
+        type=int,
+        default=128,
+        help="""Conformer attention dim; must match the checkpoint's
+        training value. Default: %(default)s""",
+    )
+
+    parser.add_argument(
+        "--cmn",
+        choices=["none", "utt"],
+        default="none",
+        help="""Cepstral mean normalisation of the features. Must match the
+        value the checkpoint was trained with (train.py --cmn); a mismatch
+        degrades accuracy silently. Default: %(default)s""",
     )
 
     parser.add_argument(
@@ -139,7 +169,7 @@ def get_parser():
     parser.add_argument(
         "--num-decoder-layers",
         type=int,
-        default=2,
+        default=3,
         help="""Number of decoder layer of transformer decoder.
         Setting this to 0 will not create the decoder at all (pure CTC model)
         """,
@@ -177,7 +207,7 @@ def get_parser():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        default="data/lang_bpe_58",
+        default="data/lang_phone",
         help="The lang dir",
     )
 
@@ -246,6 +276,16 @@ def get_parser():
         """,
     )
 
+    parser.add_argument(
+        "--finetuned",
+        type=str2bool,
+        default=False,
+        help="""Decode a checkpoint from train_ft.py, whose AV-HuBERT front-end
+        was fine-tuned with the head. Reads mean-face ROI frames instead of
+        precomputed features; needs --avhubert-ckpt and --layer as in training.
+        """,
+    )
+
     return parser
 
 
@@ -257,11 +297,10 @@ def get_params() -> AttributeDict:
             "feature_dim": 768,
             "nhead": 8,
             "dim_feedforward": 1024,
-            "encoder_dim": 256,
-            "num_encoder_layers": 4,
+            "num_encoder_layers": 6,
             # parameters for decoding
             "search_beam": 20,
-            "output_beam": 8,
+            "output_beam": 4,
             "min_active_states": 30,
             "max_active_states": 10000,
             "use_double_scores": True,
@@ -380,11 +419,18 @@ def decode_one_batch(
     else:
         device = H.device
     feature = batch["inputs"]
-    assert feature.ndim == 3
-    feature = feature.to(device)
-    # at entry, feature is (N, T, C)
-
     supervisions = batch["supervisions"]
+    if params.finetuned:
+        # ROI frames (N, T, H, W) -> (N, 1, T, H, W) for the AV-HuBERT front-end
+        assert feature.ndim == 4
+        feature = feature.float().unsqueeze(1).to(device)
+    else:
+        assert feature.ndim == 3
+        feature = feature.to(device)
+        # at entry, feature is (N, T, C)
+
+        # Must match the --cmn the checkpoint was trained with.
+        feature = apply_cmn(feature, params.cmn, supervisions["num_frames"].to(device))
 
     nnet_output, memory, memory_key_padding_mask = model(feature, supervisions)
     # nnet_output is (N, T, C)
@@ -741,18 +787,38 @@ def main():
     max_token_id = max(lexicon.tokens)
     num_classes = max_token_id + 1  # +1 for the blank
 
+    # Mirror train.py: with a phone lexicon, <sos/eos> is not a real phone and
+    # was given the next free class at training time, so the trained model has
+    # one more output than the lexicon implies (37 tokens -> 38 classes). The
+    # BPE inventory already contains <sos/eos>, so it needs no adjustment.
+    if "lang_bpe" not in str(params.lang_dir) and params.num_decoder_layers > 0:
+        num_classes += 1
+
     device = torch.device("cpu")
     if torch.cuda.is_available():
         device = torch.device("cuda", 0)
 
     logging.info(f"device: {device}")
 
-    graph_compiler = BpeCtcTrainingGraphCompiler(
-        params.lang_dir,
-        device=device,
-        sos_token="<sos/eos>",
-        eos_token="<sos/eos>",
-    )
+    # Branch on the lexicon type as train.py does: a phone lang_dir has no
+    # bpe.model.
+    if "lang_bpe" in str(params.lang_dir):
+        graph_compiler = BpeCtcTrainingGraphCompiler(
+            params.lang_dir,
+            device=device,
+            sos_token="<sos/eos>",
+            eos_token="<sos/eos>",
+        )
+    else:
+        lexicon_ph = Lexicon(params.lang_dir)
+        graph_compiler = CtcTrainingGraphCompiler(
+            lexicon_ph,
+            device=device,
+        )
+        # Mirror train.py: <sos/eos> is not a real phone, so it was given the
+        # next free class at training time. The compiler does not set these
+        # itself, and decode.py reads them.
+        graph_compiler.sos_id = graph_compiler.eos_id = max(lexicon_ph.tokens) + 1
     sos_id = graph_compiler.sos_id
     eos_id = graph_compiler.eos_id
 
@@ -837,16 +903,32 @@ def main():
     else:
         G = None
 
-    model = Conformer(
-        num_features=params.feature_dim,
-        nhead=params.nhead,
-        d_model=params.encoder_dim,
-        num_classes=num_classes,
-        subsampling_factor=params.subsampling_factor,
-        num_encoder_layers=params.num_encoder_layers,
-        num_decoder_layers=params.num_decoder_layers,
-        dim_feedforward=1024,
-    )
+    if params.finetuned:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "local"))
+        from compute_avhubert_grid import load_globals_avbubert
+        from ft_model import FTConformer
+
+        model = FTConformer(
+            avhubert=load_globals_avbubert(args)["model"].cpu(),
+            num_classes=num_classes,
+            d_model=params.encoder_dim,
+            nhead=params.nhead,
+            dim_feedforward=1024,
+            num_encoder_layers=params.num_encoder_layers,
+            num_decoder_layers=params.num_decoder_layers,
+            subsampling_factor=params.subsampling_factor,
+        )
+    else:
+        model = Conformer(
+            num_features=params.feature_dim,
+            nhead=params.nhead,
+            d_model=params.encoder_dim,
+            num_classes=num_classes,
+            subsampling_factor=params.subsampling_factor,
+            num_encoder_layers=params.num_encoder_layers,
+            num_decoder_layers=params.num_decoder_layers,
+            dim_feedforward=1024,
+        )
 
     if not params.use_averaged_model:
         if params.iter > 0:
@@ -961,7 +1043,7 @@ def main():
 
     test_cuts = grid.test_cuts()
 
-    test_dl = grid.test_dataloaders(test_cuts)
+    test_dl = grid.test_dataloaders(test_cuts, frames=params.finetuned)
 
     test_sets = ["test"]
     test_dl = [test_dl]
