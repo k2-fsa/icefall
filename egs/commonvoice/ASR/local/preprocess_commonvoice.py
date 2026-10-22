@@ -21,6 +21,7 @@ import re
 from pathlib import Path
 from typing import Optional
 
+from japanese_text import normalize_japanese_text
 from lhotse import CutSet
 from lhotse.recipes.utils import read_manifests_if_cached
 
@@ -52,13 +53,15 @@ def normalize_text(utt: str, language: str) -> str:
         return re.sub(r"[^A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ' ]", "", utt).upper()
     elif language == "pl":
         return re.sub(r"[^a-ząćęłńóśźżA-ZĄĆĘŁŃÓŚŹŻ' ]", "", utt).upper()
+    elif language in {"ja", "ja-JP"}:
+        return normalize_japanese_text(utt)
     elif language in ["yue", "zh-HK"]:
         # Mozilla Common Voice uses both "yue" and "zh-HK" for Cantonese
         # Not sure why they decided to do this...
         # None en/zh-yue tokens are manually removed here
 
         # fmt: off
-        tokens_to_remove = ["，", "。", "？", "！", "?", "!", "‘", "、", ",", "\.", ":", ";", "「", "」", "“", "”", "~", "—", "ㄧ", "《", "》", "…", "⋯", "·", "﹒", "．", "：", "︰", "﹖", "（", "）", "－", "～", "；", "￼", "⠀", "﹔", "／", "Ａ", "Ｂ", "–", "‧"]
+        tokens_to_remove = ["，", "。", "？", "！", "?", "!", "‘", "、", ",", r"\.", ":", ";", "「", "」", "“", "”", "~", "—", "ㄧ", "《", "》", "…", "⋯", "·", "﹒", "．", "：", "︰", "﹖", "（", "）", "－", "～", "；", "￼", "⠀", "﹔", "／", "Ａ", "Ｂ", "–", "‧"]
 
         # fmt: on
         utt = utt.upper().replace("\\", "")
@@ -139,7 +142,7 @@ def preprocess_commonvoice(
         if partition == "validated":
             logging.warning(
                 """
-                The 'validated' partition contains the data of both 'train', 'dev' 
+                The 'validated' partition contains the data of both 'train', 'dev'
                 and 'test' partitions. We filter out the 'dev' and 'test' partition
                 here.
                 """

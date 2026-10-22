@@ -1145,9 +1145,8 @@ def keywords_search(
             top_hyp = B[i].get_most_probable(length_norm=True)
             matched, matched_state = keywords_graph.is_matched(top_hyp.context_state)
             if matched:
-                ac_prob = (
-                    sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level
-                )
+                matched_ac_probs = top_hyp.ac_probs[-matched_state.level :]
+                ac_prob = sum(matched_ac_probs) / matched_state.level
             if (
                 matched
                 and top_hyp.num_tailing_blanks > num_tailing_blanks
@@ -1157,6 +1156,8 @@ def keywords_search(
                     hyps=top_hyp.ys[-matched_state.level :],
                     timestamps=top_hyp.timestamp[-matched_state.level :],
                     phrase=matched_state.phrase,
+                    ac_probs=matched_ac_probs,
+                    ac_prob=ac_prob,
                 )
                 sorted_ans[i].append(keyword)
                 B[i] = HypothesisList()
@@ -1176,14 +1177,15 @@ def keywords_search(
         top_hyp = hyps.get_most_probable(length_norm=True)
         matched, matched_state = keywords_graph.is_matched(top_hyp.context_state)
         if matched:
-            ac_prob = (
-                sum(top_hyp.ac_probs[-matched_state.level :]) / matched_state.level
-            )
+            matched_ac_probs = top_hyp.ac_probs[-matched_state.level :]
+            ac_prob = sum(matched_ac_probs) / matched_state.level
         if matched and ac_prob >= matched_state.ac_threshold:
             keyword = KeywordResult(
                 hyps=top_hyp.ys[-matched_state.level :],
                 timestamps=top_hyp.timestamp[-matched_state.level :],
                 phrase=matched_state.phrase,
+                ac_probs=matched_ac_probs,
+                ac_prob=ac_prob,
             )
             sorted_ans[i].append(keyword)
 
@@ -1784,8 +1786,6 @@ def modified_beam_search_lm_rescore_LODR(
     lm_scores = -1 * lm_scores.sum(dim=1)
 
     # now LODR scores
-    import math
-
     LODR_scores = []
     for seq in candidate_seqs:
         tokens = " ".join(sp.id_to_piece(seq))
