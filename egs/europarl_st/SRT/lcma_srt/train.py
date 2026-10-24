@@ -1877,7 +1877,6 @@ def run(rank: int, world_size: int, args: argparse.Namespace) -> None:
             rank=rank,
             world_size=world_size,
             master_port=params.master_port,
-            local_rank=local_rank,
         )
 
     setup_logger(f"{params.exp_dir}/log/log-train")
