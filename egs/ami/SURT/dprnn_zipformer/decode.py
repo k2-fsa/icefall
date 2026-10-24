@@ -357,6 +357,7 @@ def decode_dataset(
             params=params,
             model=model,
             sp=sp,
+            batch=batch,
         )
 
         for name, hyps in hyps_dict.items():
