@@ -43,7 +43,6 @@ import sentencepiece as spm
 import torch
 import torch.distributed as dist
 import torch.nn as nn
-from lhotse.dataset.signal_transforms import time_warp as time_warp_impl
 from packaging import version
 from pypinyin import lazy_pinyin, pinyin
 from pypinyin.contrib.tone_convert import to_finals, to_finals_tone, to_initials
@@ -158,6 +157,12 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
+
+def dist_barrier() -> None:
+    if dist.is_available() and dist.is_initialized():
+        world_size = dist.get_world_size()
+        if world_size > 1:
+            dist.barrier()
 
 def setup_logger(
     log_filename: Pathlike,
@@ -1584,6 +1589,7 @@ def get_parameter_groups_with_lrs(
     model: nn.Module,
     lr: float,
     include_names: bool = False,
+    bias_factor: float = 1.0,  # factor on learning rate of parameters with bias-like shapes.
     freeze_modules: List[str] = [],
 ) -> List[dict]:
     """
@@ -1625,6 +1631,10 @@ def get_parameter_groups_with_lrs(
     # otherwise a list of parameters for that learning rate.
     lr_to_params = defaultdict(list)
 
+    def is_bias(parameter):
+        return (parameter.numel() > 1 and parameter.numel() == max(parameter.shape))
+
+
     for name, parameter in model.named_parameters():
         split_name = name.split(".")
         # caution: as a special case, if the name is '', split_name will be [ '' ].
@@ -1644,6 +1654,8 @@ def get_parameter_groups_with_lrs(
         for part in split_name[1:]:
             prefix = ".".join([prefix, part])
             cur_lr *= flat_lr_scale[prefix]
+        if is_bias(parameter):
+            cur_lr *= bias_factor
         lr_to_params[cur_lr].append((name, parameter) if include_names else parameter)
 
     if include_names:
@@ -2422,38 +2434,94 @@ def num_tokens(
     return num_tokens
 
 
+def time_warp_impl(features: torch.Tensor, factor: int) -> torch.Tensor:
+    """
+    # modified from https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py#L338C1-L369C1
+    # to use torch rng rather than the numpy one, this has to do with which rngs
+    # are synchronized and which are not.  (we keep the numpy and python rng's synchronized
+    # for the sake of lhotse's sampler code, where they need to be synchronized to avoid data
+    # overlap).
+
+    Time warping as described in the SpecAugment paper.
+    Implementation based on Espresso:
+    https://github.com/freewym/espresso/blob/master/espresso/tools/specaug_interpolate.py#L51
+
+    :param features: input tensor of shape ``(T, F)``
+    :param factor: time warping parameter.
+    :return: a warped tensor of shape ``(T, F)``
+    """
+    t = features.size(0)
+    if t - factor <= factor + 1:
+        return features
+    center = torch.randint(factor + 1, t - factor, ()).item()
+    warped = torch.randint(center - factor, center + factor + 1, ()).item()
+    if warped == center:
+        return features
+    features = features.unsqueeze(0).unsqueeze(0)
+    left = torch.nn.functional.interpolate(
+        features[:, :, :center, :],
+        size=(warped, features.size(3)),
+        mode="bicubic",
+        align_corners=False,
+    )
+    right = torch.nn.functional.interpolate(
+        features[:, :, center:, :],
+        size=(t - warped, features.size(3)),
+        mode="bicubic",
+        align_corners=False,
+    )
+    return torch.cat((left, right), dim=2).squeeze(0).squeeze(0)
+
+
 # Based on https://github.com/lhotse-speech/lhotse/blob/master/lhotse/dataset/signal_transforms.py
 def time_warp(
     features: torch.Tensor,
     p: float = 0.9,
     time_warp_factor: Optional[int] = 80,
     supervision_segments: Optional[torch.Tensor] = None,
+    feature_lens: Optional[torch.Tensor] = None,
 ):
-    """Apply time warping on a batch of features"""
+    """Apply time warping on a batch of features
+       supervision_segments and feature_lens are two alternative ways of specifying the parts of the feature matrix to
+       warp, see the code for details.
+    """
     if time_warp_factor is None or time_warp_factor < 1:
         return features
     assert (
         len(features.shape) == 3
     ), f"SpecAugment only supports batches of single-channel feature matrices. {features.shape}"
     features = features.clone()
-    if supervision_segments is None:
+
+    # we use torch.rand(1).item() instead of random.random() because for lhotse reasons we keep the
+    # python RNG synchronized across ranks, but we keep the torch RNG desynchronized.
+    if supervision_segments is None and feature_lens is None:
         # No supervisions - apply spec augment to full feature matrices.
         for sequence_idx in range(features.size(0)):
-            if random.random() > p:
+            if torch.rand(1).item() > p:
                 # Randomly choose whether this transform is applied
                 continue
             features[sequence_idx] = time_warp_impl(
                 features[sequence_idx], factor=time_warp_factor
             )
-    else:
+    elif supervision_segments is not None:
+        assert feature_lens is None
         # Supervisions provided - we will apply time warping only on the supervised areas.
         for sequence_idx, start_frame, num_frames in supervision_segments:
-            if random.random() > p:
+            if torch.rand(1).item() > p:
                 # Randomly choose whether this transform is applied
                 continue
             end_frame = start_frame + num_frames
             features[sequence_idx, start_frame:end_frame] = time_warp_impl(
                 features[sequence_idx, start_frame:end_frame], factor=time_warp_factor
+            )
+
+    else:
+        for sequence_idx, num_frames in enumerate(feature_lens):
+            if torch.rand(1).item() > p:
+                # Randomly choose whether this transform is applied
+                continue
+            features[sequence_idx, :num_frames] = time_warp_impl(
+                features[sequence_idx, :num_frames], factor=time_warp_factor
             )
 
     return features
