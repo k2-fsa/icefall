@@ -6,6 +6,8 @@
 frozen recipe taps, fine-tuned end-to-end with the Conformer-CTC head.
 Trained by train_ft.py and decoded by decode.py --finetuned true.
 """
+from typing import Optional
+
 import torch
 import torch.nn as nn
 from conformer import Conformer
@@ -47,7 +49,17 @@ class FTConformer(nn.Module):
             layer_dropout=layer_dropout,
         )
 
-    def forward(self, x: torch.Tensor, supervisions=None, warmup: float = 1.0):
+    def forward(
+        self,
+        x: torch.Tensor,
+        supervisions=None,
+        warmup: float = 1.0,
+        att_targets: Optional[dict] = None,
+    ):
+        """att_targets, if given, holds decoder_forward()'s token_ids, sos_id
+        and eos_id; the attention loss is then appended to the outputs, so
+        that DDP sees the decoder inside its forward pass.
+        """
         # The frozen recipe extracts with output_layer=--layer. With
         # layer_norm_first, fairseq applies the final encoder.layer_norm only
         # when output_layer is None, so pass the layer count to tap the same
@@ -61,7 +73,12 @@ class FTConformer(nn.Module):
             padding_mask=padding_mask,
             output_layer=n_layers,
         )
-        return self.conformer(feats, supervisions, warmup=warmup)
+        out = self.conformer(feats, supervisions, warmup=warmup)
+        if att_targets is None:
+            return out
+        _, memory, memory_mask = out
+        att_loss = self.conformer.decoder_forward(memory, memory_mask, **att_targets)
+        return (*out, att_loss)
 
     def decoder_forward(self, *args, **kwargs):
         return self.conformer.decoder_forward(*args, **kwargs)

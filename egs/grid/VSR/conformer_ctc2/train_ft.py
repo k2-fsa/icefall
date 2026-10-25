@@ -637,10 +637,39 @@ def compute_loss(
     supervisions = batch["supervisions"]
     feature_lens = supervisions["num_frames"].to(device)
 
-    with torch.set_grad_enabled(is_training):
-        nnet_output, encoder_memory, memory_mask = model(
-            feature, supervisions, warmup=warmup
+    att_targets = None
+    if params.att_rate != 0.0:
+        # Note: We need to generate an unsorted version of token_ids
+        # `encode_supervisions()` called below sorts text, but
+        # encoder_memory and memory_mask are not sorted, so we
+        # use an unsorted version `supervisions["text"]` to regenerate
+        # the token_ids
+        #
+        # See https://github.com/k2-fsa/icefall/issues/97
+        # for more details
+        if isinstance(graph_compiler, CtcTrainingGraphCompiler):
+            # texts_to_ids() on this compiler returns WORD ids (a
+            # different, larger vocabulary than the phone-sized decoder
+            # output layer), so they are not usable here.
+            unsorted_token_ids = texts_to_phone_ids(
+                supervisions["text"],
+                graph_compiler.word2phones,
+                graph_compiler.token_table,
+                graph_compiler.oov_phones,
+            )
+        else:
+            unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
+        att_targets = dict(
+            token_ids=unsorted_token_ids,
+            sos_id=graph_compiler.sos_id,
+            eos_id=graph_compiler.eos_id,
         )
+
+    # The attention loss is computed inside model(), so that DDP sees the
+    # decoder as part of the forward pass.
+    with torch.set_grad_enabled(is_training):
+        outputs = model(feature, supervisions, warmup=warmup, att_targets=att_targets)
+    nnet_output, encoder_memory, memory_mask = outputs[:3]
 
     # NOTE: We need `encode_supervisions` to sort sequences with
     # different duration in decreasing order, required by
@@ -674,36 +703,7 @@ def compute_loss(
     )
 
     if params.att_rate != 0.0:
-        with torch.set_grad_enabled(is_training):
-            mmodel = model.module if hasattr(model, "module") else model
-            # Note: We need to generate an unsorted version of token_ids
-            # `encode_supervisions()` called above sorts text, but
-            # encoder_memory and memory_mask are not sorted, so we
-            # use an unsorted version `supervisions["text"]` to regenerate
-            # the token_ids
-            #
-            # See https://github.com/k2-fsa/icefall/issues/97
-            # for more details
-            if isinstance(graph_compiler, CtcTrainingGraphCompiler):
-                # texts_to_ids() on this compiler returns WORD ids (a
-                # different, larger vocabulary than the phone-sized decoder
-                # output layer), so they are not usable here.
-                unsorted_token_ids = texts_to_phone_ids(
-                    supervisions["text"],
-                    graph_compiler.word2phones,
-                    graph_compiler.token_table,
-                    graph_compiler.oov_phones,
-                )
-            else:
-                unsorted_token_ids = graph_compiler.texts_to_ids(supervisions["text"])
-            att_loss = mmodel.decoder_forward(
-                encoder_memory,
-                memory_mask,
-                token_ids=unsorted_token_ids,
-                sos_id=graph_compiler.sos_id,
-                eos_id=graph_compiler.eos_id,
-            )
-
+        att_loss = outputs[3]
         loss = (1.0 - params.att_rate) * ctc_loss + params.att_rate * att_loss
     else:
         loss = ctc_loss
