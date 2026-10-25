@@ -9,6 +9,7 @@ Trained by train_ft.py and decoded by decode.py --finetuned true.
 import torch
 import torch.nn as nn
 from conformer import Conformer
+from transformer import encoder_padding_mask
 
 
 class FTConformer(nn.Module):
@@ -52,9 +53,12 @@ class FTConformer(nn.Module):
         # when output_layer is None, so pass the layer count to tap the same
         # representation.
         n_layers = len(self.avhubert.encoder.layers)
+        padding_mask = encoder_padding_mask(x.size(2), supervisions)
+        if padding_mask is not None:
+            padding_mask = padding_mask.to(x.device)
         feats, _ = self.avhubert.extract_finetune(
             source={"video": x, "audio": None},
-            padding_mask=None,
+            padding_mask=padding_mask,
             output_layer=n_layers,
         )
         return self.conformer(feats, supervisions, warmup=warmup)

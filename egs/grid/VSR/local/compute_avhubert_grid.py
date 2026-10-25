@@ -301,7 +301,11 @@ def extract_features_from_visual(
         frames = transform(np.load(mfroi_file)["roi"])
     # Mouth frames (or cache load)
     elif mouth_frames_file.exists():
-        frames = list(np.load(mouth_frames_file)["frames"])
+        frames = np.load(mouth_frames_file)["frames"]
+        if frames.dtype == np.uint8:
+            # Caches written before 2026-10 hold raw pixels.
+            frames = transform(frames.astype(np.float32))
+        frames = list(frames)
         logging.info(f"Loaded cached mouth frames from {mouth_frames_file}.")
     else:
         # Landmarks (or cache load)

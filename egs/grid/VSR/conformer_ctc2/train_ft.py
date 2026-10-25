@@ -728,7 +728,7 @@ def compute_loss(
     info["utt_duration"] = feature_lens.sum().item()
     # averaged padding proportion over utterances
     info["utt_pad_proportion"] = (
-        ((feature.size(1) - feature_lens) / feature.size(1)).sum().item()
+        ((feature.size(2) - feature_lens) / feature.size(2)).sum().item()
     )
 
     return loss, info
@@ -1065,13 +1065,15 @@ def run(rank, world_size, args):
         params=params, model=model, model_avg=model_avg
     )
 
+    # Freeze before DDP wraps the model, so its reducer only tracks the
+    # trainable parameters.
+    freeze_avhubert_frontend(model.avhubert)
     model.to(device)
     if world_size > 1:
         logging.info("Using DDP")
-        model = DDP(model, device_ids=[rank])
+        model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     mmodel = model.module if hasattr(model, "module") else model
-    freeze_avhubert_frontend(mmodel.avhubert)
     num_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logging.info(f"Number of trainable parameters: {num_trainable} / {num_param}")
 

@@ -46,7 +46,7 @@ You can find the pretrained model (seed 42, epochs 5 to 8 averaged) by visiting
 <https://huggingface.co/ialmajai/icefall-vsr-grid-conformer-ctc2-phone-l8-2026-10-03>
 
 ```bash
-# copy exp/pretrained.pt to $PWD/epoch-9999.pt
+# copy exp/pretrained.pt from the Hugging Face repo above to $PWD/epoch-9999.pt
 
 ./conformer_ctc2/decode.py \
   --exp-dir $PWD \
@@ -113,7 +113,7 @@ The seed-42 model (epochs 5 to 8 averaged) is at
 | 1best                  | 6.72% |
 
 
-These commands rely on the script defaults at commit `88c30de1`; the current defaults train the phone system above instead.
+Check out commit `88c30de1` before running these commands: they rely on that commit's script defaults, and the current defaults train the phone system above instead.
 
 The training command is:
 ```bash

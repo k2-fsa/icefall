@@ -263,7 +263,7 @@ class LipReader:
             num_encoder_layers=args.num_encoder_layers,
             num_decoder_layers=args.num_decoder_layers,
         )
-        load_checkpoint(str(args.checkpoint), model)
+        load_checkpoint(str(args.checkpoint), model, strict=True)
         self.model = model.to(self.device).eval()
         logging.info(
             f"Loaded model from {args.checkpoint} "
@@ -564,21 +564,22 @@ def add_model_args(p: argparse.ArgumentParser) -> None:
     p.add_argument(
         "--method",
         choices=["ctc-greedy", "1best"],
-        default="ctc-greedy",
-        help="Decoding method. ctc-greedy uses --tokens only; "
-        "1best is lexicon-constrained (needs --HLG and --words-file).",
+        default="1best",
+        help="Decoding method. 1best is lexicon-constrained (uses --HLG and "
+        "--words-file); ctc-greedy uses --tokens only and groups BPE tokens "
+        "into words, so it suits BPE models only.",
     )
     p.add_argument(
         "--HLG",
         type=Path,
-        default=None,
-        help="HLG.pt decoding graph (required for --method 1best).",
+        default=Path("data/lang_phone/HLG.pt"),
+        help="HLG.pt decoding graph (used by --method 1best).",
     )
     p.add_argument(
         "--words-file",
         type=Path,
-        default=None,
-        help="words.txt symbol table (required for --method 1best).",
+        default=Path("data/lang_phone/words.txt"),
+        help="words.txt symbol table (used by --method 1best).",
     )
     p.add_argument(
         "--avhubert-code-dir",

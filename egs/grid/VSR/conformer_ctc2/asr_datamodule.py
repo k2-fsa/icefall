@@ -793,6 +793,11 @@ class VisualFeatureInputStrategy(BatchIO):
             ) / self._IMAGE_STD
         else:
             frames = np.load(video_path.with_suffix(".mouth_frames.npz"))["frames"]
+            if frames.dtype == np.uint8:
+                # Caches written before 2026-10 hold raw pixels.
+                frames = (
+                    frames.astype(np.float32) / 255.0 - self._IMAGE_MEAN
+                ) / self._IMAGE_STD
 
         frames = torch.FloatTensor(frames)
 
