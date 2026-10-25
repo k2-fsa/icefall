@@ -66,7 +66,7 @@ def get_args():
     parser.add_argument(
         "--perturb-speed",
         type=str2bool,
-        default=False,
+        default=True,
         help="""Perturb speed with factor 0.9 and 1.1 on train subset.""",
     )
 
