@@ -1450,7 +1450,6 @@ def run(rank, world_size, args):
 
 
     def progress_to_logical_lr_factor(progress):
-        min_factor = 0.075  # applied as max
         f = (1 - progress)
         return 0.2 * (f ** 0.5) + 0.4 * f + 0.4 * (f ** 3)
 
