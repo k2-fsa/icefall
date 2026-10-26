@@ -121,10 +121,6 @@ from icefall.utils import (
     setup_logger,
     str2bool,
 )
-try:
-    from icefall.utils import  dist_barrier
-except:
-    pass
 
 
 
@@ -1006,12 +1002,6 @@ def compute_loss(
         with torch.amp.autocast('cuda', enabled=False):
             features = specaug(features.to(torch.float), feature_lens)
 
-
-    if batch_idx_train % 50 == 0:
-        logging.info(
-            f"rng_state={torch.cuda.get_rng_state()}, features-sum={features.sum()}"
-        )
-
     with torch.set_grad_enabled(is_training):
         simple_loss, pruned_loss, ctc_loss, attention_decoder_loss = model(
             x=features,
@@ -1353,9 +1343,6 @@ def run(rank, world_size, args):
 
     if world_size > 1:
         setup_dist(rank, world_size, params.master_port)
-    # need torch.distributed.barrier() after fix_random_seed() as it fixes
-    #  random seeds of all GPUs, not just the GPU of this process.
-    dist_barrier()
 
     setup_logger(f"{params.exp_dir}/log/log-train")
     logging.info("Training started")
@@ -1367,7 +1354,6 @@ def run(rank, world_size, args):
 
     device = torch.device("cpu")
     if torch.cuda.is_available():
-        torch.cuda.set_device(rank)
         device = torch.device("cuda", rank)
     logging.info(f"Device: {device}")
 
@@ -1627,12 +1613,10 @@ def run(rank, world_size, args):
     for epoch in range(params.start_epoch, num_epochs + 1):
         # fix all random seeds before starting the dataloaders, as they require
         # all seeds to be synchronized, in particular for the sampler, which
-        # uns in the main process and relies on the currently-set random seed
+        # uuns in the main process and relies on the currently-set random seed
         # (in practice it's just the random module's
         # seed and possibly the numpy seed that really matter here.
-        dist_barrier()
         fix_random_seed(params.seed + epoch - 1)
-        dist_barrier()
 
         num_copies = copies_per_epoch[epoch - 1]
         logging.info(f"On epoch {epoch}, for dataloader: num_copies={num_copies}, this will affect num batches.")

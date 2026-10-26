@@ -293,10 +293,10 @@ def muon_core_step(group, state, grad, update):
     if not update:
         return None
     else:
-        step = muon_internal(momentum_buffer, beta1, lr, eps, 5, step)
+        delta = muon_internal(momentum_buffer, beta1, lr, eps, 5, step)
         momentum_buffer.mul_(beta1)
 
-    return step.reshape(orig_shape)
+    return delta.reshape(orig_shape)
 
 
 def scaling_step(group, param, state, grad, update):
@@ -459,15 +459,16 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
         super(BatchedRubik, self).__setstate__(state)
 
     @torch.no_grad()
-    def step(self, closure=None, data=1.0):
+    def step(self, closure=None, data: Optional[float] = None):
         """Performs a single optimization step.
 
         Arguments:
             closure (callable, optional): A closure that reevaluates the model
                 and returns the loss.
             data: the amount of data, measured in an arbitrary way (e.g. seconds, images, pixels); the logical
-                learning rate "logical_lr" in each param_group dictates the LR for each unit of data.  "data"
-                should be a float that indicates the total amount of data, pre-aggregated over all processes.
+                learning rate "logical_lr" in each param_group dictates the LR for each unit of data.  But this
+                class will only read the "data_per_update" which will be set by the learning-rate-scheduler
+                code, and the "lr".
         """
         loss = None
         if closure is not None:
@@ -475,15 +476,17 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
                 loss = closure()
 
 
-        data_per_update = min([ group["data_per_update"] for group in self.param_groups ])
-
-        data = min(data, data_per_update)  # avoids excess piling up if data > data_per_update
-        self.cur_data += data
-        if self.cur_data >= data_per_update:
-            self.cur_data -= data_per_update
-            update = True
+        if data is not None:
+            data_per_update = min([ group["data_per_update"] for group in self.param_groups ])
+            data = min(data, data_per_update)  # avoids excess piling up if data > data_per_update
+            self.cur_data += data
+            if self.cur_data >= data_per_update:
+                self.cur_data -= data_per_update
+                update = True
+            else:
+                update = False  # accumulation-only step.
         else:
-            update = False  # accumulation-only step.
+            update = True
 
         for group in self.param_groups:
             lr = group["lr"]
@@ -507,14 +510,14 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
                         # "scalar_scale" the assumed parameter scale used for
                         # scalars, in this case it just acts as a multiplier on
                         # the learning rate.
-                        step = adam_step(group, state, grad, update)
+                        delta = adam_step(group, state, grad, update)
                         if update:
                             # update step, not accumulation step
-                            p += group["scalar_scale"] * step
+                            p += group["scalar_scale"] * delta
                     else:
-                        step = scaling_step(group, p.detach(), state, grad, update)
+                        delta = scaling_step(group, p.detach(), state, grad, update)
                         if update:
-                            p += step
+                            p += delta
 
                     if update:
                         # Do not increase step count on accumulation-only steps
@@ -563,11 +566,11 @@ def _test_batched_rubik(hidden_dim: int):
             for _ in range(20)
         ]
 
-        target_physical_lr = 0.018
+        physical_lr = 0.018
         base_logical_lr = 0.018  # data will be measured in batches.
         max_batches = 4
 
-        optim = BatchedRubik(m.parameters(), lr=target_physical_lr, beta1=0.995)
+        optim = BatchedRubik(m.parameters(), lr=physical_lr, beta1=0.995)
 
         num_epochs = 180
 
@@ -582,21 +585,20 @@ def _test_batched_rubik(hidden_dim: int):
             return (cos ** 2)
 
 
-        def set_batches_and_lr(target_physical_lr, logical_lr, optim):
+        def set_batches_and_lr(physical_lr, logical_lr, optim):
             logical_lr = max(logical_lr, 1.0e-20)
-            data_per_update = min(max_batches, (target_physical_lr / logical_lr) ** 2) # target num batches, as float
-            physical_lr = logical_lr * (data_per_update ** 0.5)  # unless we hit max_batches, will equal target_physical_lr
+            data_per_update = min(max_batches, (physical_lr / logical_lr) ** 2) # target num batches, as float
+            lr = logical_lr * (data_per_update ** 0.5)  # unless we hit max_batches, will equal physical_lr
             for group in optim.param_groups:
-                group["lr"] = physical_lr
+                group["lr"] = lr
                 group["data_per_update"] = data_per_update
 
 
         start = timeit.default_timer()
         avg_loss = 0.0
         for epoch in range(180):
-
             logical_lr = base_logical_lr * get_logical_lr_factor(epoch)
-            set_batches_and_lr(target_physical_lr, logical_lr, optim)
+            set_batches_and_lr(physical_lr, logical_lr, optim)
 
             # if epoch == 100 and test in [2,3]:
             #    optim.reset_speedup()  # check it doesn't crash.
@@ -628,7 +630,7 @@ def _test_batched_rubik(hidden_dim: int):
                         f"Epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, logical_lr={logical_lr:.4e}, lr={optim.param_groups[0]['lr']}, data_per_update={optim.param_groups[0]['data_per_update']},  norms={norm1,norm2,norm3}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
                     )
                 loss.log().backward()
-                optim.step()
+                optim.step(data=1.0)
                 optim.zero_grad()
 
         # diagnostic.print_diagnostics()

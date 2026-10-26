@@ -736,8 +736,8 @@ def swash(x: Tensor) -> Tensor:
     zero = torch.zeros_like(x)
     return 0.25 * logaddexp(zero, 4 * x - 1.0) - 0.08 * x - 0.07831542175
 
-
 def swash_and_deriv(x: Tensor):
+    # no longer needed.
     x_offset = 4. * x - 1.
     denom = 1. + x_offset.exp()
     inv_denom = 1. / denom  # note: 1 / infinity = 0.
@@ -812,9 +812,9 @@ class ActivationAndLinear(torch.nn.Module):
     """
      This merges an activation function followed by a nn.Linear module;
      it does so in a memory efficient way so that it only stores the input to the whole
-     module.  If activation == Swash, this will be
+     module.  If activation == SiLU, this will be
      equivalent to:
-       nn.Sequential(Swash(),
+       nn.Sequential(nn.SiLU(),
                      ScaledLinear(in_channels, out_channels, bias=bias,
                                   initial_scale=initial_scale))
 
@@ -822,14 +822,14 @@ class ActivationAndLinear(torch.nn.Module):
         in_channels: number of input channels, e.g. 256
         out_channels: number of output channels, e.g. 256
         bias: if true, have a bias
-        activation: the activation function, for now just support Swash.
+        activation: the activation function, for now just support SiLU
     """
     def __init__(
         self,
         in_channels: int,
         out_channels: int,
         bias: bool = True,
-        activation: str = "Swash",
+        activation: str = "SiLU",
         initial_scale: float = 1.0,
     ):
         super().__init__()
@@ -848,20 +848,16 @@ class ActivationAndLinear(torch.nn.Module):
 
         self.activation = activation
 
-        assert activation in ["Swash", "SiLU"]
-        if activation == "Swash":
-            self.forward_func = torch_compile(swash)
-            self.backward_func = torch_compile(swash_and_deriv)
-        else:
-            self.forward_func = torch_compile(silu)
-            self.backward_func = torch_compile(silu_and_deriv)
+        assert activation in ["SiLU"]
+        self.forward_func = torch_compile(silu)
+        self.backward_func = torch_compile(silu_and_deriv)
+
 
 
     def forward(self, x: Tensor):
         if not self.training or torch.jit.is_scripting() or torch.jit.is_tracing():
             if torch.jit.is_scripting() or torch.jit.is_tracing():
-                # must match self.forward_func: exports (tracing / scripting) would otherwise always use Swash
-                x = swash(x) if self.activation == "Swash" else silu(x)
+                x = silu(x)
             else:
                 x = self.forward_func(x)
             return torch.nn.functional.linear(x, self.weight, self.bias)
@@ -876,20 +872,6 @@ class ActivationAndLinear(torch.nn.Module):
 
 
 
-def _test_swash_deriv():
-    x = torch.randn(10, 12, dtype=torch.double) * 3.0
-    x.requires_grad = True
-    m = Swash()
-
-    tol = 1.0 / 255.0
-    torch.autograd.gradcheck(m, x, atol=tol, eps=0.01)
-
-    # for self-test.
-    x = torch.randn(1000, 1000, dtype=torch.double) * 3.0
-    x.requires_grad = True
-    y = m(x)
-
-
 def _test_activation_and_linear():
     in_channels = 20
     out_channels = 30
@@ -897,7 +879,7 @@ def _test_activation_and_linear():
     for bias in [True, False]:
         if True:
             m1 = nn.Sequential(
-                Swash(),
+                nn.SiLU(),
                 ScaledLinear(
                     in_channels, out_channels, bias=bias, initial_scale=0.5
                 ),
@@ -907,7 +889,7 @@ def _test_activation_and_linear():
                 out_channels,
                 bias=bias,
                 initial_scale=0.5,
-                activation=activation,
+                activation="SiLU",
             )
             with torch.no_grad():
                 m2.weight[:] = m1[1].weight
@@ -928,9 +910,6 @@ def _test_activation_and_linear():
             y2 = m2(x2)
             y2.backward(gradient=y_grad)
 
-            print(
-                f"bias = {bias}, activation = {activation}"
-            )
             print("y1 = ", y1)
             print("y2 = ", y2)
             assert torch.allclose(y1, y2, atol=0.02)
@@ -963,6 +942,5 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
     torch.set_num_interop_threads(1)
-    _test_swash_deriv()
     _test_activation_and_linear()
     _test_orthogonal_linear()

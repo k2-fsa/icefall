@@ -11,31 +11,41 @@ class VariableCombinedLRScheduler(object):
     batch and the epoch; in this version the expected number of batches can be different
     for different epochs.
 
+    This is also specialized for use with BatchedRubik that allows you to have a separate
+    "physical learning rate" and "logical learning rate"; the distinction relates to
+    accumulation of data over multiple batches.  The "logical learning rate" is the
+    learning rate "per unit of data", so if it is 100 times smaller than the physical
+    learning reate, we would aim to accumulate sqrt(100) = 10 units of data before
+    doing a physical update.  E.g. a "unit of data" might be a second of speech, or
+    one word of text.  The amount of units of data per batch
 
          base_batches = 3100
          multiples =  [ 1, 1, 1, 2, 2, 2, 3, 3, 3 ]
          batches_per_epoch = [ m * base_batches for m in multiples ]
+         def to_logical_factor(progress):
+            return (1 - progress)
+         def to_physical_factor(progress):  # no schedule on this
+            return 1.0
 
-         scheduler = InterpCosineLRScheduler(optimizer, batches_per_epoch=batches_per_epoch)
+         scheduler = LambdaLRScheduler(optimizer, batches_per_epoch=batches_per_epoch,
+                                       logical_func=to_logical_factor, physical_func=to_physical_factor)
          for epoch in range(len(multiples)):
              scheduler.set_epoch(epoch+1)  # caution: one-based epoch count
              train_dl = f(multiples[epoch])  # num batches propto multiples.
              for batch_idx, batch in enumerate(train_dl):  # train_dl expected
                  scheduler.set_batch_idx(batch_idx)
+                 ...
+                 optimizer.step(data=world_size * seconds_per_batch)  # for example.  "data" is amount of units of data per batch.
 
     Args:
        optimizer:   optimizer that we will set the learning rates in; the initial learning rate(s) in
             the optimizer is/are the base LRs and we set the LR as a fraction of those.
    batches_per_epoch: the estimated number of batches per epoch; use your best guess.
           num_epochs: the total number of epochs you will train for
-    max_accum_steps: the maximum number of accumulation steps; it will adjust the LR factor upward
-          as long as it does not exceed 1, by increasing the number of accumulation steps up to this
-          limit, adjusting the LR by a factor of (num_accum_steps**0.5).
     """
     def __init__(self,
                  optimizer: Optimizer,
                  batches_per_epoch: List[int],
-                 max_accum_steps: int = 16,
                  verbose: bool = False):
         # Attach optimizer
         if not isinstance(optimizer, Optimizer):
