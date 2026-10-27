@@ -762,7 +762,7 @@ class Swash(torch.nn.Module):
         super().__init__()
         self.func = torch_compile(swash)
     def forward(self, x: Tensor) -> Tensor:
-        """Return Swash-R activation, which is the same as SwooshR but with a factor of 4
+        """Return Swash activation, which is the same as SwooshR but with a factor of 4
         on the input and 0.25 on the output.."""
         if torch.jit.is_scripting() or torch.jit.is_tracing():
             return swash(x)
