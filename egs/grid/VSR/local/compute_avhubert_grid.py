@@ -638,6 +638,7 @@ def process_worker(args: tuple) -> list:
     def flush(writer):
         if not pending:
             return
+        feats_list = None
         try:
             feats_list = extract_features_batch(
                 [f for _, _, f in pending],
@@ -647,12 +648,17 @@ def process_worker(args: tuple) -> list:
                 _worker_globals["autocast"],
             )
         except Exception as e:
-            # Retry one clip at a time, so only a clip that fails alone is lost.
             logging.error(
                 f"Worker {worker_id} - error extracting "
                 f"{[r.id for r, _, _ in pending]}: {e}; retrying one by one",
                 exc_info=True,
             )
+        if feats_list is None:
+            # Retry one clip at a time, so only a clip that fails alone is
+            # lost. This runs after the handler, once the exception and the
+            # tensors its traceback held (e.g. after a CUDA OOM) are freed.
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             kept, feats_list = [], []
             for recording, supervision, frames in pending:
                 try:
