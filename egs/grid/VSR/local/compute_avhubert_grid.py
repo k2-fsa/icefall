@@ -567,6 +567,9 @@ def _worker_init(args: argparse.Namespace) -> None:
     _worker_globals["batch_size"] = getattr(args, "batch_size", 1)
     _worker_globals["storage"] = getattr(args, "storage", "kaldi8")
     _worker_globals["autocast"] = getattr(args, "autocast", False)
+    _worker_globals["mouth_w"] = getattr(args, "mouth_w", 64)
+    _worker_globals["mouth_h"] = getattr(args, "mouth_h", 64)
+    _worker_globals["detect_every"] = getattr(args, "detect_every", 1)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s",
@@ -691,6 +694,9 @@ def process_worker(args: tuple) -> list:
                     detector,
                     predictor,
                     transform,
+                    mouth_w=_worker_globals["mouth_w"],
+                    mouth_h=_worker_globals["mouth_h"],
+                    detect_every=_worker_globals["detect_every"],
                     roi_mode=roi_mode,
                 )
                 if frames is None:
