@@ -647,13 +647,26 @@ def process_worker(args: tuple) -> list:
                 _worker_globals["autocast"],
             )
         except Exception as e:
+            # Retry one clip at a time, so only a clip that fails alone is lost.
             logging.error(
                 f"Worker {worker_id} - error extracting "
-                f"{[r.id for r, _, _ in pending]}: {e}",
+                f"{[r.id for r, _, _ in pending]}: {e}; retrying one by one",
                 exc_info=True,
             )
-            pending.clear()
-            return
+            kept, feats_list = [], []
+            for recording, supervision, frames in pending:
+                try:
+                    feats_list += extract_features_batch(
+                        [frames], device, model, layer, _worker_globals["autocast"]
+                    )
+                    kept.append((recording, supervision, frames))
+                except Exception as clip_error:
+                    logging.error(
+                        f"Worker {worker_id} - error extracting "
+                        f"{recording.id}: {clip_error}",
+                        exc_info=True,
+                    )
+            pending[:] = kept
         for (recording, supervision, _), feats in zip(pending, feats_list):
             if feats.shape[0] == EXPECTED_FRAMES - 1:
                 feats = np.vstack([feats[[0]], feats])
