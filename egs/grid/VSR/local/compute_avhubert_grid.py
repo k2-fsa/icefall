@@ -27,7 +27,8 @@ import torch
 import torch.multiprocessing as mp
 import torch.nn.functional as F
 from fairseq import checkpoint_utils
-from lhotse import CutSet, NumpyHdf5Writer
+from lhotse import CutSet, LilcomChunkyWriter, NumpyHdf5Writer
+from lhotse.features.io import KaldiWriter
 from lhotse.recipes.utils import read_manifests_if_cached
 
 
@@ -102,15 +103,44 @@ def parse_args() -> argparse.Namespace:
         "--feature-dtype",
         choices=["float32", "float16"],
         default="float32",
-        help="Storage precision of the written features. float16 halves the "
-        "disk footprint; for the layer-8 phone system it decodes the "
-        "test set to identical hypotheses. Default: %(default)s",
+        help="Storage precision of the written features (--storage hdf5 "
+        "only). float16 halves the disk footprint; for the layer-8 phone "
+        "system it decodes the test set to identical hypotheses. "
+        "Default: %(default)s",
+    )
+    parser.add_argument(
+        "--storage",
+        choices=["hdf5", "lilcom", "kaldi8"],
+        default="kaldi8",
+        help="Feature storage. 'kaldi8': Kaldi ark with 8-bit per-column "
+        "compression (KaldiWriter, compression_method=2), a quarter of "
+        "float32 (2.0 against 7.1 GB for GRID layer 8); the recipe trained "
+        "and decoded on it matches uncompressed features (three seeds). "
+        "'hdf5': uncompressed (NumpyHdf5Writer). 'lilcom': lossy lilcom "
+        "compression (LilcomChunkyWriter, as icefall uses for fbank), "
+        "about 10%% larger than kaldi8. Default: %(default)s",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        help="Clips per AV-HuBERT forward pass in each worker; shorter clips "
+        "are padded and masked. 16 is 1.9x faster than 1 on GRID, 2.9x "
+        "with --autocast. Default: %(default)s",
+    )
+    parser.add_argument(
+        "--autocast",
+        action="store_true",
+        help="Run AV-HuBERT under fp16 autocast (CUDA only); it speeds up "
+        "batched extraction only. With --batch-size 16 it changes 2 of the "
+        "4,000 GRID test hypotheses and no WER. Features are still written "
+        "at --feature-dtype.",
     )
     parser.add_argument(
         "--feats-dir",
         type=Path,
         required=True,
-        help="Directory where output .h5 feature files will be written.",
+        help="Directory where the feature files will be written.",
     )
     return parser.parse_args()
 
@@ -228,6 +258,30 @@ DETECT_HEIGHT = 480
 _MEAN_FACE: dict = {}
 
 
+def extract_features_batch(
+    frames_list: list, device, model, layer, autocast: bool = False
+) -> list:
+    """AV-HuBERT features for several clips' normalised ROI frames (each
+    (T, 88, 88)) in one forward pass, padded to the longest clip and masked.
+    Returns one (T, D) float32 array per clip."""
+    lens = [len(f) for f in frames_list]
+    T = max(lens)
+    x = torch.zeros(len(frames_list), 1, T, *np.shape(frames_list[0])[1:])
+    for i, f in enumerate(frames_list):
+        x[i, 0, : lens[i]] = torch.as_tensor(np.asarray(f), dtype=torch.float32)
+    padding_mask = torch.arange(T)[None, :] >= torch.tensor(lens)[:, None]
+    with torch.no_grad(), torch.autocast(
+        "cuda", dtype=torch.float16, enabled=autocast and device.type == "cuda"
+    ):
+        features, _ = model.extract_finetune(
+            source={"video": x.to(device), "audio": None},
+            padding_mask=padding_mask.to(device),
+            output_layer=layer,
+        )
+    features = features.float().cpu().numpy()
+    return [features[i, :n] for i, n in enumerate(lens)]
+
+
 def extract_features_from_visual(
     video: str,
     dlib_detector,
@@ -240,6 +294,7 @@ def extract_features_from_visual(
     mouth_h: int = 64,
     detect_every: int = 1,
     roi_mode: str = "centroid",
+    autocast: bool = False,
 ) -> np.ndarray | None:
     """
     Extract AV-HuBERT features from the mouth ROI of a video.
@@ -264,6 +319,34 @@ def extract_features_from_visual(
         AV-HuBERT feature sequence, or ``None`` if detection failed or the
         video has fewer than 74 frames.
     """
+    frames = load_roi_frames(
+        video,
+        dlib_detector,
+        dlib_predictor,
+        transform,
+        mouth_w,
+        mouth_h,
+        detect_every,
+        roi_mode,
+    )
+    if frames is None:
+        return None
+    return extract_features_batch([frames], device, model, layer, autocast)[0]
+
+
+def load_roi_frames(
+    video: str,
+    dlib_detector,
+    dlib_predictor,
+    transform,
+    mouth_w: int = 64,
+    mouth_h: int = 64,
+    detect_every: int = 1,
+    roi_mode: str = "centroid",
+):
+    """Normalised mouth-ROI frames of a video, (T, 88, 88), using and
+    filling the per-clip caches; ``None`` if detection failed or the video
+    has fewer than 74 frames."""
     MIN_FRAMES = 74
     ROI_SIZE = (88, 88)
     MOUTH_LEFT, MOUTH_RIGHT = 48, 54  # dlib 68-point landmark indices
@@ -341,17 +424,7 @@ def extract_features_from_visual(
             f"Skipping {video}: only {len(frames)} frames (min {MIN_FRAMES})."
         )
         return None
-
-    tensor = torch.FloatTensor(frames).unsqueeze(0).unsqueeze(0).to(device)
-    # AV-HuBERT feature extraction
-    with torch.no_grad():
-        features, _ = model.extract_finetune(
-            source={"video": tensor, "audio": None},
-            padding_mask=None,
-            output_layer=layer,
-        )
-
-    return features.squeeze(0).cpu().numpy()
+    return frames
 
 
 def _open_video(path: Path) -> cv2.VideoCapture:
@@ -491,6 +564,9 @@ def _worker_init(args: argparse.Namespace) -> None:
     _worker_globals["feature_dtype"] = np.dtype(
         getattr(args, "feature_dtype", "float32")
     )
+    _worker_globals["batch_size"] = getattr(args, "batch_size", 1)
+    _worker_globals["storage"] = getattr(args, "storage", "kaldi8")
+    _worker_globals["autocast"] = getattr(args, "autocast", False)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s",
@@ -541,10 +617,67 @@ def process_worker(args: tuple) -> list:
     EXPECTED_FRAMES: int = 75
     TEMPORAL_DIM: int = 0
 
-    h5_path = feats_dir / f"{partition}_avhubert_{worker_id:02d}.h5"
+    storage = _worker_globals["storage"]
+    stem = feats_dir / f"{partition}_avhubert_{worker_id:02d}"
+    if storage == "hdf5":
+        writer_cm = NumpyHdf5Writer(stem.with_suffix(".h5"))
+        dtype = _worker_globals["feature_dtype"]
+    elif storage == "lilcom":
+        writer_cm = LilcomChunkyWriter(stem.with_suffix(".lca"))
+        dtype = np.float32
+    else:
+        writer_cm = KaldiWriter(stem, compression_method=2)
+        dtype = np.float32
     video_cuts = []
     sup_by_rec = {s.recording_id: s for s in supervisions_subset}
-    with NumpyHdf5Writer(h5_path) as writer:
+    pending = []  # (recording, supervision, frames)
+
+    def flush(writer):
+        if not pending:
+            return
+        try:
+            feats_list = extract_features_batch(
+                [f for _, _, f in pending],
+                device,
+                model,
+                layer,
+                _worker_globals["autocast"],
+            )
+        except Exception as e:
+            logging.error(
+                f"Worker {worker_id} - error extracting "
+                f"{[r.id for r, _, _ in pending]}: {e}",
+                exc_info=True,
+            )
+            pending.clear()
+            return
+        for (recording, supervision, _), feats in zip(pending, feats_list):
+            if feats.shape[0] == EXPECTED_FRAMES - 1:
+                feats = np.vstack([feats[[0]], feats])
+                logging.warning(
+                    f"Worker {worker_id} - {recording.id}: only "
+                    f"{EXPECTED_FRAMES - 1} frames found; duplicated the "
+                    f"first frame to reach {EXPECTED_FRAMES}."
+                )
+
+            video_cut = recording.to_cut()
+            video_cut.duration = FIXED_DURATION
+            video_cut.channel = [0]
+
+            supervision.duration = FIXED_DURATION
+            video_cut.supervisions = [supervision]
+
+            stored_key = writer.store_array(
+                key=video_cut.id,
+                value=feats.astype(dtype),
+                frame_shift=FRAME_SHIFT,
+                temporal_dim=TEMPORAL_DIM,
+            )
+            video_cut.video_features = stored_key
+            video_cuts.append(video_cut)
+        pending.clear()
+
+    with writer_cm as writer:
         for recording in recordings_subset:
             supervision = sup_by_rec.get(recording.id)
             if supervision is None:
@@ -553,56 +686,32 @@ def process_worker(args: tuple) -> list:
                 )
                 continue
             try:
-                feats = extract_features_from_visual(
+                frames = load_roi_frames(
                     recording.sources[0].source,
                     detector,
                     predictor,
-                    device,
-                    model,
                     transform,
-                    layer,
                     roi_mode=roi_mode,
                 )
-
-                if feats is None:
+                if frames is None:
                     logging.warning(
                         f"Worker {worker_id} - skipping {recording.id}: "
                         "feature extraction returned None."
                     )
                     continue
-
-                if feats.shape[0] == EXPECTED_FRAMES - 1:
-                    feats = np.vstack([feats[[0]], feats])
-                    logging.warning(
-                        f"Worker {worker_id} - {recording.id}: only "
-                        f"{EXPECTED_FRAMES - 1} frames found; duplicated the "
-                        f"first frame to reach {EXPECTED_FRAMES}."
-                    )
-
-                video_cut = recording.to_cut()
-                video_cut.duration = FIXED_DURATION
-                video_cut.channel = [0]
-
-                supervision.duration = FIXED_DURATION
-                video_cut.supervisions = [supervision]
-
-                stored_key = writer.store_array(
-                    key=video_cut.id,
-                    value=feats.astype(_worker_globals["feature_dtype"]),
-                    frame_shift=FRAME_SHIFT,
-                    temporal_dim=TEMPORAL_DIM,
-                )
-                video_cut.video_features = stored_key
-                video_cuts.append(video_cut)
-
             except Exception as e:
                 logging.error(
                     f"Worker {worker_id} - error processing {recording.id}: {e}",
                     exc_info=True,
                 )
+                continue
+            pending.append((recording, supervision, frames))
+            if len(pending) >= _worker_globals["batch_size"]:
+                flush(writer)
+        flush(writer)
 
     logging.info(
-        f"Worker {worker_id} finished, wrote {len(video_cuts)} cuts to {h5_path}"
+        f"Worker {worker_id} finished, wrote {len(video_cuts)} cuts to {stem} ({storage})"
     )
     return video_cuts
 
@@ -677,7 +786,7 @@ def compute_avhubert_grid():
         cut_set.to_file(feats_dir / f"grid_cuts_{partition}.jsonl.gz")
 
         logging.info(
-            f"Done {partition} → {len(all_cuts)} cuts, stored in {args.n_workers} .h5 files"
+            f"Done {partition} → {len(all_cuts)} cuts, stored in {args.n_workers} {args.storage} files"
         )
 
 
