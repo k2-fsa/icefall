@@ -41,7 +41,6 @@ export CUDA_VISIBLE_DEVICES="0"
 
 
 import argparse
-import copy
 import logging
 import os
 import sys
@@ -62,7 +61,6 @@ from asr_datamodule import (
 )
 from ft_model import FTConformer
 from lhotse import CutSet
-from lhotse.cut import Cut
 from lhotse.dataset import K2SpeechRecognitionDataset, SimpleCutSampler
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
