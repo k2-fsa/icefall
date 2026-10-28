@@ -106,6 +106,9 @@ jobs:
               cd ../zipformer
               pytest -v -s
 
+              cd ../zapformer
+              pytest -v -s
+
       - uses: actions/upload-artifact@v4
         if: matrix.torch-version == '2.13.0'
         with:

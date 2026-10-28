@@ -1,5 +1,42 @@
 ## Results
 
+### zapformer (zapformer + pruned-transducer w/ CTC)
+
+Note: --num-real-epochs 32 takes about the same time as 16 epochs with the zipformer CR-CTC recipe.
+(in both cases, each epoch is really 3 epochs due to speed-perturb).  So the number of instances
+of the training data we train on will be about time for training will be roughly 32%
+of the old zipformer recipe (16 / 50).  The time improvement will be less than that because the
+model has more FLOPs (e.g. the central stack is run at a higher frequency, plus we tend to use more
+parameters than before).
+
+The "--epoch 10" reported below is the last epoch (the number of epochs is computed from
+the --num-real-epochs, --min-copies and --max-copies options.)
+Later epochs take more real computation time because they make multiple different SpecAug
+copies of the data.)  You might get slightly better results than these with --num-real-epochs 40.
+
+# (non-streaming)
+
+This should give almost the exact same results if run with fewer than 4 jobs, and quite close to the same
+results if run with more.
+```bash
+ ./zapformer/train.py --world-size 4 --min-copies 1 --max-copies 8 --num-real-epochs 32 \
+        --physical-lr=0.035 --logical-lr=4.2e-04 --batches-per-epoch 2400 --start-epoch 1 \
+        --use-fp16 1 --exp-dir zapformer/exp1 --use-ctc 1 --use-transducer 1 --base-dim 64 \
+        --ctc-loss-scale 0.2 --full-libri 1 --max-duration 1200 --master-port 43111 &>> zapformer/exp1_log.txt &
+```
+
+
+(Note from Dan: the results given are for my local branch 3680, this is not quite the same as the current version, will
+update the numbers soon.)
+
+
+| decoding method                      | test-clean | test-other | comment             |
+|--------------------------------------|------------|------------|---------------------|
+| greedy_search                        | 1.82       | 3.83       | --epoch 10 --avg 2  |
+
+Note on other results: dev-clean=1.71,dev-other,3.58, giga test=16.77 giga dev=17.33. (i.e. on the model trained with Libri only).
+
+
 ### zipformer (zipformer + pruned-transducer w/ CR-CTC)
 
 See <https://github.com/k2-fsa/icefall/pull/1766> for more details.
