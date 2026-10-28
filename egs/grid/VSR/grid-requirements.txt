@@ -1,5 +1,6 @@
 torch>=2.4.0
 torchaudio
+torchvision
 numpy==1.23.5
 hydra-core==1.0.7
 omegaconf==2.0.6
@@ -9,3 +10,7 @@ zenodo_get
 python_speech_features
 scipy
 h5py
+# Kaldi ark feature storage (local/compute_avhubert_grid.py --storage kaldi8)
+kaldi_native_io
+# optional face-detection fallback in conformer_ctc2/lipreader.py
+mediapipe==0.10.35
