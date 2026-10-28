@@ -827,6 +827,8 @@ def main():
     params.eos_id = eos_id
 
     if params.method == "ctc-decoding" or params.method == "ctc-greedy-search":
+        if "lang_bpe" not in str(params.lang_dir):
+            raise ValueError(f"--method {params.method} needs a BPE --lang-dir")
         HLG = None
         H = k2.ctc_topo(
             max_token=max_token_id,

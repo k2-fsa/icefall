@@ -959,6 +959,8 @@ def run(rank, world_size, args):
     """
     params = get_params()
     params.update(vars(args))
+    if params.att_rate != 0.0 and params.num_decoder_layers == 0:
+        raise ValueError("--att-rate must be 0 when --num-decoder-layers is 0")
 
     fix_random_seed(params.seed)
     if world_size > 1:
