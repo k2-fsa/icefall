@@ -57,11 +57,11 @@ except Exception:  # missing dir/deps: run without the fallback
 # This file's own directory, so that a symlink to it from another project
 # still finds the recipe modules next to it.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from cmn import apply_cmn
+from cmn import apply_cmn  # noqa: E402
 from conformer import Conformer  # noqa: E402
 
-from icefall.checkpoint import load_checkpoint
-from icefall.utils import str2bool
+from icefall.checkpoint import load_checkpoint  # noqa: E402
+from icefall.utils import str2bool  # noqa: E402
 
 # `compute_avhubert_grid` lives in the recipe's local/ dir, which is not on
 # sys.path when running conformer_ctc2/lipreader.py; add it before importing.
@@ -76,7 +76,7 @@ from compute_avhubert_grid import (  # noqa: E402
 # Mouth-ROI extraction constants (same values used in feature precomputation).
 ROI_SIZE = (88, 88)
 MOUTH_LEFT, MOUTH_RIGHT = 48, 54  # dlib 68-point landmark indices
-MOUTH_W = MOUTH_H = 64
+MOUTH_W = 64
 BLANK_ID = 0  # icefall CTC blank
 TARGET_FPS = 25.0  # GRID / AV-HuBERT frame rate; other rates are resampled
 # Frames taller than this are downscaled for face *detection* only (dlib's
@@ -98,6 +98,12 @@ DURATION_TOL_S = 0.1
 # face gets the training crop.
 GRID_IOD_REF = 48.4
 CROP_PER_IOD = MOUTH_W / GRID_IOD_REF  # ~1.322
+
+# HLG lattice-decoding hyper-parameters (from decode.py get_params()).
+SEARCH_BEAM = 20
+OUTPUT_BEAM = 4
+MIN_ACTIVE_STATES = 30
+MAX_ACTIVE_STATES = 10000
 
 
 def _degrade_roi(roi: np.ndarray, noise_sigma: float, blur_sigma: float) -> np.ndarray:
@@ -162,13 +168,6 @@ def _median_iod(landmarks: np.ndarray) -> float:
     reye = lm[:, 36:42].mean(axis=1)  # right-eye centre per frame
     leye = lm[:, 42:48].mean(axis=1)  # left-eye centre per frame
     return float(np.median(np.linalg.norm(leye - reye, axis=1)))
-
-
-# HLG lattice-decoding hyper-parameters (from decode.py get_params()).
-SEARCH_BEAM = 20
-OUTPUT_BEAM = 4
-MIN_ACTIVE_STATES = 30
-MAX_ACTIVE_STATES = 10000
 
 
 def load_tokens(path: Path):
@@ -237,12 +236,12 @@ class LipReader:
         self.device = g["device"]
         self.layer = args.layer
         self.normalize_head = args.normalize_head
+        # Feature mean normalisation; must match the checkpoint's training.
+        self.cmn = getattr(args, "cmn", "none")
         # Mouth-ROI geometry. "meanface" aligns every frame to a reference face
         # before cropping (see local/meanface_roi.py) and must match whatever
         # the loaded checkpoint was trained on; a model trained on one
         # geometry decodes the other poorly.
-        # Feature mean normalisation; must match the checkpoint's training.
-        self.cmn = getattr(args, "cmn", "none")
         self.roi_mode = getattr(args, "roi_mode", "centroid")
         self.mean_face = None
         if self.roi_mode == "meanface":
@@ -357,11 +356,9 @@ class LipReader:
         # size (via IOD) so the mouth-to-head ratio matches GRID regardless of
         # how big the face is in the frame. On GRID this yields ~64px (no-op).
         if self.normalize_head:
-            crop = max(16, round(CROP_PER_IOD * _median_iod(landmarks)))
-            logging.info(
-                f"Head-normalized mouth crop: {crop}px "
-                f"(IOD {_median_iod(landmarks):.1f}px)"
-            )
+            iod = _median_iod(landmarks)
+            crop = max(16, round(CROP_PER_IOD * iod))
+            logging.info(f"Head-normalized mouth crop: {crop}px (IOD {iod:.1f}px)")
         else:
             crop = MOUTH_W
         raw = _extract_mouth_frames(
@@ -420,10 +417,6 @@ class LipReader:
         err = _duration_error(video, MAX_DURATION_WEBCAM_S)
         if err:
             raise ValueError(err)
-        return self._infer(video, noise_sigma, blur_sigma)
-
-    def _infer(self, video: str, noise_sigma: float, blur_sigma: float):
-        """One inference on `self.device`: (text, ROI frames)."""
         roi, feats = self._roi_and_features(video, noise_sigma, blur_sigma)
         feature = feats.unsqueeze(0).to(self.device)  # (1, T, 768)
         # Must match the --cmn the checkpoint was trained with.
@@ -620,14 +613,13 @@ def add_model_args(p: argparse.ArgumentParser) -> None:
         "'meanface': warp each frame onto a reference face "
         "first (AV-HuBERT's own preprocessing), which also "
         "corrects pose and in-plane rotation. Must match the "
-        "geometry --checkpoint was trained on. "
-        "Default: %(default)s",
+        "geometry --checkpoint was trained on.",
     )
     p.add_argument(
         "--mean-face",
         type=Path,
         default=Path("download/20words_mean_face.npy"),
-        help="Reference landmarks for --roi-mode meanface. " "Default: %(default)s",
+        help="Reference landmarks for --roi-mode meanface.",
     )
     p.add_argument(
         "--normalize-head",
@@ -635,7 +627,7 @@ def add_model_args(p: argparse.ArgumentParser) -> None:
         default=True,
         help="Scale the mouth crop to the detected face size (IOD) so "
         "the mouth-to-head ratio matches GRID for arbitrary "
-        "videos. No-op for GRID-sized faces. Default: %(default)s",
+        "videos. No-op for GRID-sized faces.",
     )
     p.add_argument(
         "--mediapipe-fallback",
@@ -643,7 +635,7 @@ def add_model_args(p: argparse.ArgumentParser) -> None:
         default=True,
         help="When dlib's HOG detector finds no face in a frame, "
         "fall back to MediaPipe face detection (fast, robust "
-        "to glasses/tight framing). Default: %(default)s",
+        "to glasses/tight framing).",
     )
     # Model geometry; must match the trained checkpoint.
     p.add_argument("--encoder-dim", type=int, default=128)
@@ -687,9 +679,9 @@ def main():
         format="%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s",
     )
     args = get_args()
-    reader = LipReader(args)
     if args.video is None:
         raise SystemExit("Provide a video path.")
+    reader = LipReader(args)
     noise = args.noise or [0.0]
     blur = args.blur or [0.0]
     n = max(len(noise), len(blur))
