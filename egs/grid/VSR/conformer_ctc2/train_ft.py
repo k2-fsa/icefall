@@ -28,7 +28,7 @@ extractor, the input layer_norm, pos_conv and post_extract_proj stay frozen,
 so this fine-tunes the transformer stack, not the whole front-end. See
 ft_model.py.
 
-Trains from cached mean-face ROI frames (prepare.sh stage 2); the defaults
+Trains from cached mean-face ROI frames (prepare.sh stage 3); the defaults
 are the published run (8 epochs, dropout 0.4, 30 s batches accumulated over
 13 steps, i.e. 390 s per update).
 
@@ -284,7 +284,7 @@ def get_parser():
         "--save-every-n",
         type=int,
         default=8000,
-        help="""Save checkpoint after processing this number of batches"
+        help="""Save checkpoint after processing this number of batches
         periodically. We save checkpoint to exp-dir/ whenever
         params.batch_idx_train % save_every_n == 0. The checkpoint filename
         has the form: f'exp-dir/checkpoint-{params.batch_idx_train}.pt'
@@ -372,14 +372,11 @@ def get_params() -> AttributeDict:
 
         - valid_interval:  Run validation if batch_idx % valid_interval is 0
 
-        - feature_dim: The model input dim. It has to match the one used
-                       in computing features.
-
         - subsampling_factor:  The subsampling factor for the model.
 
         - encoder_dim: Hidden dim for multi-head attention model.
 
-        - num_decoder_layers: Number of decoder layer of transformer decoder.
+        - nhead, dim_feedforward, num_encoder_layers: Conformer head sizes.
 
         - beam_size: It is used in k2.ctc_loss
 
@@ -387,7 +384,8 @@ def get_params() -> AttributeDict:
 
         - use_double_scores: It is used in k2.ctc_loss
 
-        - warm_step: The warm_step for Noam optimizer.
+        - model_warm_step: Updates over which the Conformer's warmup rises
+                           to 1.0.
     """
     params = AttributeDict(
         {
@@ -400,8 +398,7 @@ def get_params() -> AttributeDict:
             "reset_interval": 200,
             "valid_interval": 100,
             # parameters for conformer (input comes from the trainable
-            # 768-dim AV-HuBERT frontend, not precomputed features)
-            "feature_dim": 768,
+            # AV-HuBERT frontend, not precomputed features)
             "subsampling_factor": 1,
             "encoder_dim": 128,
             "nhead": 8,
@@ -411,7 +408,7 @@ def get_params() -> AttributeDict:
             "beam_size": 10,
             "reduction": "sum",
             "use_double_scores": True,
-            # parameters for Noam
+            # Conformer warmup
             "model_warm_step": 1000,
             "env_info": get_env_info(),
         }
@@ -606,7 +603,7 @@ def compute_loss(
       params:
         Parameters for training. See :func:`get_params`.
       model:
-        The model for training. It is an instance of Conformer in our case.
+        The model for training. It is an instance of FTConformer.
       batch:
         A batch of data. See `lhotse.dataset.K2SpeechRecognitionDataset()`
         for the content in it.
@@ -1019,21 +1016,21 @@ def run(rank, world_size, args):
     sys.path.insert(0, str(local_dir))
     from compute_avhubert_grid import load_globals_avbubert
 
-    avhubert = load_globals_avbubert(args)["model"].cpu()
-    model = FTConformer(
-        avhubert=avhubert,
-        num_classes=num_classes,
-        d_model=params.encoder_dim,
-        nhead=params.nhead,
-        dim_feedforward=1024,
-        num_encoder_layers=params.num_encoder_layers,
-        num_decoder_layers=params.num_decoder_layers,
-        subsampling_factor=params.subsampling_factor,
-        dropout=params.dropout,
-        layer_dropout=params.dropout,
-    )
+    def build_model() -> FTConformer:
+        return FTConformer(
+            avhubert=load_globals_avbubert(args)["model"].cpu(),
+            num_classes=num_classes,
+            d_model=params.encoder_dim,
+            nhead=params.nhead,
+            dim_feedforward=params.dim_feedforward,
+            num_encoder_layers=params.num_encoder_layers,
+            num_decoder_layers=params.num_decoder_layers,
+            subsampling_factor=params.subsampling_factor,
+            dropout=params.dropout,
+            layer_dropout=params.dropout,
+        )
 
-    print(model)
+    model = build_model()
     logging.info(f"Model: \n {model}")
 
     num_param = sum([p.numel() for p in model.parameters()])
@@ -1045,19 +1042,7 @@ def run(rank, world_size, args):
         # model_avg is only used with rank 0. deepcopy fails on the
         # weight-normed positional conv inside AV-HuBERT, so build a fresh
         # instance and copy weights via state_dict instead.
-        avhubert_avg = load_globals_avbubert(args)["model"].cpu()
-        model_avg = FTConformer(
-            avhubert=avhubert_avg,
-            num_classes=num_classes,
-            d_model=params.encoder_dim,
-            nhead=params.nhead,
-            dim_feedforward=1024,
-            num_encoder_layers=params.num_encoder_layers,
-            num_decoder_layers=params.num_decoder_layers,
-            subsampling_factor=params.subsampling_factor,
-            dropout=params.dropout,
-            layer_dropout=params.dropout,
-        )
+        model_avg = build_model()
         model_avg.load_state_dict(model.state_dict())
 
     assert params.start_epoch > 0, params.start_epoch
@@ -1116,8 +1101,6 @@ def run(rank, world_size, args):
     cuts = grid.train_all_cuts()
 
     train_cuts, valid_cuts = grid.split_train_valid(cuts, 0.03, seed=params.seed)
-
-    # train_dl = grid.train_dataloaders(train_cuts)
 
     valid_dl = grid.valid_dataloaders(valid_cuts)
 
@@ -1207,9 +1190,6 @@ def scan_pessimistic_batches_for_oom(
     for criterion, cuts in batches.items():
         batch = train_dl.dataset[cuts]
         try:
-            # warmup = 0.0 is so that the derivs for the pruned loss stay zero
-            # (i.e. are not remembered by the decaying-average in adam), because
-            # we want to avoid these params being subject to shrinkage in adam.
             with torch_autocast(enabled=params.use_fp16):
                 loss, _ = compute_loss(
                     params=params,
