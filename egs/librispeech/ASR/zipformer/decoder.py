@@ -132,3 +132,68 @@ class Decoder(nn.Module):
             embedding_out = self.balancer2(embedding_out)
 
         return embedding_out
+
+
+class GroupedConv1dAsMatMul(nn.Module):
+    """Inference-only replacement for the decoder's grouped Conv1d.
+
+    During inference (need_pad=False) the input of the decoder conv has
+    exactly kernel_size frames, so the conv produces a single output frame.
+    A grouped conv with one output frame is a block-diagonal linear map of
+    the flattened input, so it can be computed exactly as one MatMul:
+
+        y[n, co, 0] = sum_{i, k} W[co, i, k] * x[n, g * cin_g + i, k],
+        g = co // cout_g
+
+    which equals flatten(x)[n, :] @ W_dense[:, co] with
+    W_dense[(g * cin_g + i) * kernel_size + k, co] = W[co, i, k].
+
+    When exported to ONNX this gives Reshape -> MatMul -> Unsqueeze instead
+    of a Conv node. ONNX Runtime's CUDA Conv kernel holds a per-node mutex
+    while it (re)builds its cuDNN plan for every new input shape, so a
+    decoder session shared by several threads with varying batch sizes is
+    serialized on that Conv; the MatMul form has no such lock.
+    """
+
+    def __init__(self, conv: nn.Conv1d):
+        super().__init__()
+        assert conv.bias is None, "only bias-free convs are supported"
+        assert conv.padding in (0, (0,)), conv.padding
+        assert conv.stride in (1, (1,)), conv.stride
+        assert conv.dilation in (1, (1,)), conv.dilation
+
+        # (out_channels, in_channels // groups, kernel_size)
+        weight = conv.weight.detach()
+        out_channels, cin_g, kernel_size = weight.shape
+        groups = conv.groups
+        cout_g = out_channels // groups
+
+        blocks = []
+        for g in range(groups):
+            w = weight[g * cout_g : (g + 1) * cout_g]
+            blocks.append(w.reshape(cout_g, cin_g * kernel_size).t())
+        # (in_channels * kernel_size, out_channels), block diagonal
+        self.register_buffer("weight", torch.block_diag(*blocks).contiguous())
+        self.kernel_size = kernel_size
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+          x:
+            A 3-D tensor of shape (N, in_channels, kernel_size). Decoder.forward
+            checks the length when need_pad is False.
+        Returns:
+          Return a 3-D tensor of shape (N, out_channels, 1).
+        """
+        x = torch.flatten(x, start_dim=1)
+        return torch.matmul(x, self.weight).unsqueeze(-1)
+
+
+def replace_decoder_conv_with_matmul(decoder: Decoder) -> None:
+    """Replace decoder.conv in-place by an equivalent GroupedConv1dAsMatMul.
+
+    Only valid for inference with need_pad=False, e.g., before ONNX export.
+    Does nothing if the decoder has no conv (context_size == 1).
+    """
+    if isinstance(decoder.conv, nn.Conv1d):
+        decoder.conv = GroupedConv1dAsMatMul(decoder.conv)
