@@ -69,7 +69,7 @@ import k2
 import onnx
 import torch
 import torch.nn as nn
-from decoder import Decoder
+from decoder import Decoder, replace_decoder_conv_with_matmul
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
@@ -193,6 +193,17 @@ def get_parser():
         type=str2bool,
         default=False,
         help="Whether to export models in fp16",
+    )
+
+    parser.add_argument(
+        "--decoder-conv-as-matmul",
+        type=str2bool,
+        default=False,
+        help="""True to export the decoder's grouped Conv1d as an equivalent
+        MatMul (same outputs up to float rounding). With ONNX Runtime's CUDA
+        provider this removes the Conv kernel's per-node lock, which
+        serializes a decoder session shared by several threads when the
+        batch size changes between runs.""",
     )
 
     add_model_arguments(parser)
@@ -654,6 +665,10 @@ def main():
         encoder_embed=model.encoder_embed,
         encoder_proj=model.joiner.encoder_proj,
     )
+
+    if params.decoder_conv_as_matmul:
+        replace_decoder_conv_with_matmul(model.decoder)
+        logging.info("Export the decoder conv as MatMul")
 
     decoder = OnnxDecoder(
         decoder=model.decoder,
