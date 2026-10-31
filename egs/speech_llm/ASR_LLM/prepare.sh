@@ -37,6 +37,15 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   huggingface-cli download --repo-type dataset --local-dir data/fbank yuekai/wenetspeech_whisper_fbank_lhotse
   huggingface-cli download --repo-type dataset --local-dir data/fbank yuekai/multi_hans_zh_whisper_fbank_lhotse
   huggingface-cli download --repo-type dataset --local-dir data/fbank yuekai/alimeeting_aishell4_training_whisper_fbank_lhotse
+  mkdir data/fbank/wenetspeech
+  mv data/fbank/cuts_L_fixed.jsonl.gz      data/fbank/wenetspeech/
+  mv data/fbank/cuts_DEV_fixed.jsonl.gz    data/fbank/wenetspeech/
+  mv data/fbank/cuts_TEST_MEETING.jsonl.gz data/fbank/wenetspeech/
+  mv data/fbank/cuts_TEST_NET.jsonl.gz     data/fbank/wenetspeech/
+  mv data/fbank/L_split_100                data/fbank/wenetspeech/
+  mv data/fbank/feats_DEV.lca              data/fbank/wenetspeech/
+  mv data/fbank/feats_TEST_MEETING.lca     data/fbank/wenetspeech/
+  mv data/fbank/feats_TEST_NET.lca         data/fbank/wenetspeech/
 fi
 
 if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
@@ -46,4 +55,5 @@ if [ $stage -le 2 ] && [ $stop_stage -ge 2 ]; then
   mkdir data_speechio
   huggingface-cli download --repo-type model --local-dir data_speechio yuekai/icefall_asr_speechio
   mv data_speechio/fbank/* data/fbank
+  rm -rf data_speechio
 fi
