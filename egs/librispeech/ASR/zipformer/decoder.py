@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -197,3 +199,55 @@ def replace_decoder_conv_with_matmul(decoder: Decoder) -> None:
     """
     if isinstance(decoder.conv, nn.Conv1d):
         decoder.conv = GroupedConv1dAsMatMul(decoder.conv)
+
+
+def check_decoder_conv_as_matmul_onnx(
+    conv_filename: str,
+    matmul_filename: str,
+    vocab_size: int,
+    tolerance: float = 1e-4,
+) -> Tuple[float, str]:
+    """Run the exported decoder with the Conv (baseline) and with the MatMul on
+    the same random inputs with onnxruntime and check that the outputs agree
+    within `tolerance`. Runs on the GPU (CUDA execution provider) if
+    onnxruntime has it, else on the CPU. On the GPU TF32 is disabled for this
+    check: with TF32 even the unchanged Conv decoder differs from its CPU
+    output by about 3e-3, which would hide whether the rewrite is exact.
+
+    Returns the maximum absolute difference and the device used ("cuda" or "cpu").
+    """
+    import numpy as np
+    import onnxruntime as ort
+
+    providers = ["CPUExecutionProvider"]
+    if "CUDAExecutionProvider" in ort.get_available_providers():
+        providers.insert(0, ("CUDAExecutionProvider", {"use_tf32": 0}))
+
+    opts = ort.SessionOptions()
+    opts.log_severity_level = 3
+    conv = ort.InferenceSession(conv_filename, opts, providers=providers)
+    matmul = ort.InferenceSession(matmul_filename, opts, providers=providers)
+    used = matmul.get_providers()[0]
+    device = "cuda" if used == "CUDAExecutionProvider" else "cpu"
+
+    y_info = conv.get_inputs()[0]
+    batch, context_size = y_info.shape
+    dtype = np.int32 if "int32" in y_info.type else np.int64
+    # A fixed batch size (exported without dynamic axes) can only take that size
+    batch_sizes = [batch] if isinstance(batch, int) else [1, 7, 100, 500]
+
+    rng = np.random.default_rng(0)
+    max_diff = 0.0
+    for n in batch_sizes:
+        # -1 is used to left-pad the context at the start of an utterance
+        y = rng.integers(-1, vocab_size, size=(n, context_size)).astype(dtype)
+        expected = conv.run(None, {y_info.name: y})[0]
+        actual = matmul.run(None, {y_info.name: y})[0]
+        assert actual.shape == expected.shape, (actual.shape, expected.shape)
+        max_diff = max(max_diff, float(np.abs(actual - expected).max()))
+
+    assert max_diff < tolerance, (
+        f"The decoder with MatMul differs from the decoder with Conv on "
+        f"{device}: max abs diff {max_diff} >= {tolerance}"
+    )
+    return max_diff, device
