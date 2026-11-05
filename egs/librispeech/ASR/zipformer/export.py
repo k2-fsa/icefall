@@ -29,13 +29,17 @@ dataset, you should change the argument values according to your dataset.
 
 (1) Export to torchscript model using torch.jit.script()
 
-- For non-streaming model:
+- For non-streaming model: 
 
-./zipformer/export.py \
-  --exp-dir ./zipformer/exp \
-  --tokens data/lang_bpe_500/tokens.txt \
-  --epoch 30 \
-  --avg 9 \
+./zipformer_hat_seame/export.py \
+  --exp-dir ./zipformer_hat/exp \
+  --tokens data_seame/lang_bpe_4000/tokens.txt \
+  --epoch 20 \
+  --avg 5 \
+  --num-encoder-layers 2,2,2,2,2,2 \
+  --feedforward-dim 512,768,1024,1024,1024,768 \
+  --encoder-dim 192,256,256,256,256,256 \
+  --encoder-unmasked-dim 192,192,192,192,192,192 \
   --jit 1
 
 It will generate a file `jit_script.pt` in the given `exp_dir`. You can later
@@ -234,7 +238,7 @@ def get_parser():
     parser.add_argument(
         "--tokens",
         type=str,
-        default="data/lang_bpe_500/tokens.txt",
+        default="data_libri/lang_bpe_500/tokens.txt",
         help="Path to the tokens.txt",
     )
 
