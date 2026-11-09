@@ -16,25 +16,61 @@ copies of the data.)  You might get slightly better results than these with --nu
 
 # (non-streaming)
 
-This should give almost the exact same results if run with fewer than 4 jobs, and quite close to the same
-results if run with more.
+This should give almost the exact same results if run with fewer than 4 jobs, and very close to the same
+results if run with more; it automatically accumulates gradients over multiple batches to get the
+target amount of data (this is done inside the optimizer).
+The --num-real-epochs option dictates the total number of copies of the data used (where "the data"
+includes 3 speed-perturbed copies of Librispeech as created by `prepare.sh`).  This is 32, but
+the number of epochs is smaller, at 10, because later epochs use up to 8 differently-spec-augmented
+copies of the data on each step.
 ```bash
- ./zapformer/train.py --world-size 4 --min-copies 1 --max-copies 8 --num-real-epochs 32 \
-        --physical-lr=0.035 --logical-lr=4.5e-04 --batches-per-epoch 2400 --start-epoch 1 \
+  nohup  ./zapformer/train.py --world-size 4 --min-copies 1 --max-copies 8 --num-real-epochs 32 \
+        --physical-lr=0.032 --logical-lr=4.2e-04 --batches-per-epoch 2400 --start-epoch 1 \
         --use-fp16 1 --exp-dir zapformer/exp1 --use-ctc 1 --use-transducer 1 --base-dim 64 \
         --ctc-loss-scale 0.2 --full-libri 1 --max-duration 1200 --master-port 43111 &>> zapformer/exp1_log.txt &
 ```
+And the corresponding decoding commands are:
+```
+  ./zapformer/decode.py   --epoch 10 --avg 2 --exp-dir zapformer/exp1  --use-ctc 1 --base-dim 64 \
+      --max-duration 650  --causal 0 --giga=True --decoding-method greedy_search
+  ./zapformer/ctc_decode.py   --epoch 10 --avg 2 --exp-dir zapformer/exp1 \
+    --giga=True  --use-ctc 1 --base-dim 64 --decoding-method ctc-greedy-search \
+    --max-duration 650  --causal 0
+```
+For RNN-T decoding the WERs for Librispeech (test-clean,test-other,dev-clean,dev-other) are
+1.85\%, 3.64\%, 1.70\%, 3.62\% and for Gigaspeech test,dev are 16.74\% and 17.22\% (Gigaspeech was not trained on.)
+The corresponding numbers for CTC decoding are 2.03\%, 4.07\%, 1.89\%, 3,97\%, 17.46\% and 17.99\%.
+Note from Dan: this is my local experiment 3732.
+
+### zapformer, Librispeech+gigaspeech (zapformer + pruned-transducer w/ CTC)
+
+This is training on  (librispeech + gigaspeech)  The gigaspeech data is prepared by the script `../../gigaspeech/ASR/prepare.sh`
+following by soft-linking the directories `../../gigaspeech/ASR/data/fbank/gigaspeech_*` to `data/fbank/`.  We ran this with
+world-size 7 but the world-size will make very little difference to the results (the --batches-per-epoch option is extremely
+unimportant also, you can just leave that as-is.)  This will train on 20 copies of the data, where "the data" includes one copy
+of Gigaspeech and three speed-perturbed copies of Librispeech.  (Note from Dan: this is my local experiment 3736.)
+`zapformer/train.py` also supports the `--use-cv` option to add CommonVoice; you can link the data in a similar way to gigaspeech.
+(In that case add the --cv=True option to decode.py also.)
 
 
-(Note from Dan: the results given are for my local branch 3680, this is not quite the same as the current version, will
-update the numbers soon.)
-
-
-| decoding method                      | test-clean | test-other | comment             |
-|--------------------------------------|------------|------------|---------------------|
-| greedy_search                        | 1.82       | 3.83       | --epoch 10 --avg 2  |
-
-Note on other results: dev-clean=1.71,dev-other,3.58, giga test=16.77 giga dev=17.33. (i.e. on the model trained with Libri only).
+```bash
+   nohup ./zapformer/train.py   --use-giga=True --batches-per-epoch=12000 --world-size 7 --min-copies 1 --max-copies 4 \
+       --num-real-epochs 20 --physical-lr=0.032 --logical-lr=3.5e-04 --batches-per-epoch 2400 \
+       --start-epoch 1 --use-fp16 1 --exp-dir zapformer/exp-libri-giga \
+       --use-ctc 1 --use-transducer 1 --base-dim 72 --ctc-loss-scale 0.2 --full-libri 1 --max-duration 1200 \
+       --master-port 12345$[43039+$(date +%S|sed 's:0[89]:1:')] &>> log_libri_giga.txt &
+```
+The decoding commands for RNN-T decoding and CTC decoding respectively are:
+```
+  ./zapformer/decode.py   --epoch 10 --avg 1 --exp-dir zapformer/exp-libri-giga  --use-ctc 1 --base-dim 72 \
+      --max-duration 650  --causal 0 --giga=True --decoding-method greedy_search
+  ./zapformer/ctc_decode.py   --epoch 10 --avg 1 --exp-dir zapformer/exp-libri-giga \
+    --giga=True  --use-ctc 1 --base-dim 72 --decoding-method ctc-greedy-search \
+    --max-duration 650  --causal 0
+```
+For RNN-T decoding the WERs for libri (test-clean,test-other,dev-clean,dev-other) are 1.73\%, 3.21\%, 1.65\%, 3.21\%,
+and for Gigaspeech test,dev are 10.32\%, 10.26\%.   The corresponding numbers for CTC decoding are
+1.89\%, 3.63\%, 1.83\%, 3.58\%, 10.91\%, 10.81\%.
 
 
 ### zipformer (zipformer + pruned-transducer w/ CR-CTC)
@@ -2708,7 +2744,7 @@ The WERs are (the number in the table formatted as test-clean & test-other):
 
 The training command is:
 
-```bash
+1.```bash
 ./pruned_transducer_stateless3/train.py \
   --exp-dir pruned_transducer_stateless3/exp \
   --full-libri 1 \
