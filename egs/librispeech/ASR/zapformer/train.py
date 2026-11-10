@@ -110,11 +110,9 @@ from icefall.hooks import register_inf_check_hooks
 from icefall.utils import (
     AttributeDict,
     MetricsTracker,
-    get_parameter_groups_with_lrs,
     setup_logger,
     str2bool,
 )
-
 
 
 def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
@@ -435,7 +433,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--physical-lr", type=float, default=0.03, help="The base physical learning rate."
+        "--physical-lr", type=float, default=0.032, help="The base physical learning rate."
     )
 
     parser.add_argument(
@@ -1407,20 +1405,19 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
 
-    # the LRs will be 1.0, we'll fix them later.
-    groups = get_parameter_groups_with_lrs(model, lr=1.0, include_names=False)
-    for group in groups:
-        lr_factor = group["lr"]  # will be 1.0 for most params, 0.5 for biases, 0.6 for some projections.
+
+    optimizer = ScaledMuon(
+        model.parameters(),
+        lr=params.physical_lr,
+        beta1=0.9,
+    )
+    for group in optimizer.param_groups:
+        lr_factor = 1.0 #  this setup has all the same LR for different params.
         group["base_physical_lr"] = params.physical_lr * lr_factor
         group["base_logical_lr"] = params.logical_lr * lr_factor
         group["max_data_per_update"] = params.max_seconds_per_update
 
 
-    optimizer = ScaledMuon(
-        groups,
-        lr=params.physical_lr,
-        beta1=0.9,
-    )
 
     if True:
         # Work out copies_per_epoch

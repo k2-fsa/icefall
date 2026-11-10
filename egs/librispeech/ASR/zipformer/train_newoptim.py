@@ -75,7 +75,7 @@ from lhotse.cut import Cut
 from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from optim import Eden, ScaledAdam
+from model import AsrModel
 from scaled_muon import ScaledMuon
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
@@ -396,8 +396,19 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.032, help="The base learning rate."
+        "--physical-lr", type=float, default=0.032, help="The base learning rate, recommend not to adjust this, see --logical-lr."
     )
+
+    parser.add_argument(
+        "--logical-lr", type=float, default=4.2e-04, help="The base learning rate, this is the main thing to adjust, "
+        "but only slightly, e.g. try to reduce by 10%% or 20%% if you have much more data.  For changes in batch size "
+        "or world-size, you do not have to adjust anything."
+    )
+
+    parser.add_argument(
+        "--max-seconds-per-update", type=float, default=144000, help="The maximum duration in seconds that we allow in a single optimizer update (this is 40 hours)."
+    )
+
 
     parser.add_argument(
         "--context-size",
@@ -1333,16 +1344,22 @@ def run(rank, world_size, args):
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
     optimizer = ScaledMuon(
-        get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=False),
-        lr=params.base_lr,
+        # we don't need separate LR scales per parameter with this optimizer, so don't
+        # use get_parameter_groups_with_lrs() but just model.parameters()
+        model.parameters(),
+        lr=params.physical_lr,
         beta1=0.99,
     )
+    for group in optimizer.param_groups:
+        lr_factor = 1.0
+        group["base_physical_lr"] = params.physical_lr * lr_factor
+        group["base_logical_lr"] = params.logical_lr * lr_factor
+        group["max_data_per_update"] = params.max_seconds_per_update
 
 
     def progress_to_logical_lr_factor(progress):
         f = (1 - progress)
         return 0.2 * (f ** 0.5) + 0.4 * f + 0.4 * (f ** 3)
-
 
     def progress_to_physical_lr_factor(progress):
         # warm up from 0.9 to 1.0 over the first quarter of training.
