@@ -110,25 +110,7 @@ from variable_combined_scheduler import LambdaLRScheduler
 LRSchedulerType = Any
 
 
-def get_adjusted_batch_count(params: AttributeDict) -> float:
-    # returns the number of batches we would have used so far if we had used the reference
-    # duration.  This is for purposes of set_batch_count().
-    return (
-        params.batch_idx_train
-        * (params.max_duration * params.world_size)
-        / params.ref_duration
-    )
 
-
-def set_batch_count(model: Union[nn.Module, DDP], batch_count: float) -> None:
-    if isinstance(model, DDP):
-        # get underlying nn.Module
-        model = model.module
-    for name, module in model.named_modules():
-        if hasattr(module, "batch_count"):
-            module.batch_count = batch_count
-        if hasattr(module, "name"):
-            module.name = name
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
@@ -593,8 +575,7 @@ def get_params() -> AttributeDict:
 
         - subsampling_factor:  The subsampling factor for the model.
 
-        - warm_step: The warmup period that dictates the decay of the
-              scale on "simple" (un-pruned) loss.
+
     """
     params = AttributeDict(
         {
@@ -612,7 +593,6 @@ def get_params() -> AttributeDict:
             # parameters for attention-decoder
             "ignore_id": -1,
             "label_smoothing": 0.1,
-            "warm_step": 2000,
             "env_info": get_env_info(),
         }
     )
@@ -655,7 +635,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         num_heads=_to_int_tuple(params.num_heads),
         feedforward_dim=_to_int_tuple(params.feedforward_dim),
         cnn_module_kernel=_to_int_tuple(params.cnn_module_kernel),
-        dropout=ScheduledFloat((0.0, 0.3), (20000.0, 0.1)),
+        dropout=0.0,
         warmup_batches=4000.0,
         causal=params.causal,
         chunk_size=_to_int_tuple(params.chunk_size),
@@ -951,6 +931,7 @@ def compute_loss(
             s = params.simple_loss_scale
             # take down the scale on the simple loss from 1.0 at the start
             # to params.simple_loss scale by warm_step.
+            warm_step = 2000
             simple_loss_scale = (
                 s
                 if batch_idx_train >= warm_step
@@ -1097,8 +1078,9 @@ def train_one_epoch(
         )
 
     for batch_idx, batch in enumerate(train_dl):
-        if batch_idx % 10 == 0:
-            set_batch_count(model, get_adjusted_batch_count(params))
+        # do not call set_batch_count; this will disable many of the features such as module skipping.
+        #if batch_idx % 10 == 0:
+        #    set_batch_count(model, get_adjusted_batch_count(params))
 
         params.batch_idx_train += 1
         batch_size = len(batch["supervisions"]["text"])
