@@ -636,7 +636,7 @@ def get_encoder_model(params: AttributeDict) -> nn.Module:
         feedforward_dim=_to_int_tuple(params.feedforward_dim),
         cnn_module_kernel=_to_int_tuple(params.cnn_module_kernel),
         dropout=0.0,
-        warmup_batches=4000.0,
+        warmup_batches=4000.0,   # the value will make no difference as we do not call set_batch_count()
         causal=params.causal,
         chunk_size=_to_int_tuple(params.chunk_size),
         left_context_frames=_to_int_tuple(params.left_context_frames),
@@ -889,7 +889,6 @@ def compute_loss(
     feature_lens = supervisions["num_frames"].to(device)
 
     batch_idx_train = params.batch_idx_train
-    warm_step = params.warm_step
 
     texts = batch["supervisions"]["text"]
     y = sp.encode(texts, out_type=int)
