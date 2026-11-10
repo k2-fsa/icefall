@@ -398,9 +398,11 @@ def adam_step(group, state, grad, update: bool):
 
 
 
-class BatchedRubik(BatchedOptimizer):
+class ScaledMuon(BatchedOptimizer):
     """
-     Implements a batched version of the Rubik optimizer.
+     Implements the ScaledMuon optimizer: per-tensor parameter scaling and corresponding scaling
+     of learning rates; and also for non-square parameter matrices, does Muon in a preconditioned
+     space with scaling of rows or columns, whichever is larger.
 
      Args:
           params:  The parameters or param_groups to optimize (like other Optimizer subclasses)
@@ -451,12 +453,12 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
             scale_momentum=scale_momentum,
         )
 
-        super(BatchedRubik, self).__init__(params, defaults)
+        super(ScaledMuon, self).__init__(params, defaults)
         self.cur_data = 0.0 # amount of data accumulated since last update, or "left over" since last update
 
 
     def __setstate__(self, state):
-        super(BatchedRubik, self).__setstate__(state)
+        super(ScaledMuon, self).__setstate__(state)
 
     @torch.no_grad()
     def step(self, closure=None, data: Optional[float] = None):
@@ -527,13 +529,13 @@ grad_aggregation: if None, no grad aggregation is done here (assume it is done i
 
 
 
-def _test_batched_rubik(hidden_dim: int):
+def _test_scaled_muon(hidden_dim: int):
     import timeit
 
     E = 100
     B = 4
     T = 2
-    logging.info("in test_batched_rubik")
+    logging.info("in test_scaled_muon")
     device = torch.device('cuda')
     #device = torch.device("cpu")
     dtype = torch.float32
@@ -570,7 +572,9 @@ def _test_batched_rubik(hidden_dim: int):
         base_logical_lr = 0.018  # data will be measured in batches.
         max_batches = 4
 
-        optim = BatchedRubik(m.parameters(), lr=physical_lr, beta1=0.995)
+        # this very large beta1 is unusual, and specific to this rather unique test task which achieves
+        # a very loss.  Normally between 0.85 and 0.95 is suitable.
+        optim = ScaledMuon(m.parameters(), lr=physical_lr, beta1=0.995)
 
         num_epochs = 180
 
@@ -630,7 +634,7 @@ def _test_batched_rubik(hidden_dim: int):
                         f"Epoch {epoch}, batch {n}, avg_loss {avg_loss:.4g}, logical_lr={logical_lr:.4e}, lr={optim.param_groups[0]['lr']}, data_per_update={optim.param_groups[0]['data_per_update']},  norms={norm1,norm2,norm3}, bias_norms={bias_norm1,bias_norm2,bias_norm3}"
                     )
                 loss.log().backward()
-                optim.step(data=1.0)
+                optim.step(data=1.0)  # normally "data" will be some measure of how much data you are using per step.
                 optim.zero_grad()
 
         # diagnostic.print_diagnostics()
@@ -699,4 +703,4 @@ if __name__ == "__main__":
 
     _test_attenuate_topsv()
     _test_polar_express()
-    _test_batched_rubik(hidden_dim)
+    _test_scaled_muon(hidden_dim)

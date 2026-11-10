@@ -6,18 +6,29 @@ import math
 import logging
 
 class VariableCombinedLRScheduler(object):
-    """
-    Base-class for learning rate schedulers where the learning-rate depends on both the
+    """Base-class for learning rate schedulers where the learning-rate depends on both the
     batch and the epoch; in this version the expected number of batches can be different
     for different epochs.
 
-    This is also specialized for use with BatchedRubik that allows you to have a separate
+    This is also specialized for use with ScaledMuon that allows you to have a separate
     "physical learning rate" and "logical learning rate"; the distinction relates to
-    accumulation of data over multiple batches.  The "logical learning rate" is the
-    learning rate "per unit of data", so if it is 100 times smaller than the physical
-    learning reate, we would aim to accumulate sqrt(100) = 10 units of data before
-    doing a physical update.  E.g. a "unit of data" might be a second of speech, or
-    one word of text.  The amount of units of data per batch
+    accumulation of data over multiple batches.  NOTE: you probably don't need this class
+    if you are using it outside of icefall, because you can juse a small piece of code
+    like the inner function set_batches_and_lr() in scaled_muon.py.
+
+    The "logical learning rate" is the learning rate "per unit of data", so if it is
+    100 times smaller than the physical learning reate, we would aim to accumulate
+    sqrt(100) = 10 units of data before doing a physical update.  E.g. a "unit of data"
+    might be a second of speech, or one word of text.
+
+    The batches_per_epoch epoch describe the expected amount of data per epoch
+    (not necessarily all the same), so we can estimate the "progress" (between 0
+    and 1) as accurately as possible based on the epoch and step.  This class
+    asumes that the supplied batches_per_epoch may be wrong by a constant factor,
+    since this is a common error; search for "adjust_factor" in the log to see
+    what was done.
+
+    The code to use this class will be something like the following:
 
          base_batches = 3100
          multiples =  [ 1, 1, 1, 2, 2, 2, 3, 3, 3 ]
@@ -41,7 +52,6 @@ class VariableCombinedLRScheduler(object):
        optimizer:   optimizer that we will set the learning rates in; the initial learning rate(s) in
             the optimizer is/are the base LRs and we set the LR as a fraction of those.
    batches_per_epoch: the estimated number of batches per epoch; use your best guess.
-          num_epochs: the total number of epochs you will train for
     """
     def __init__(self,
                  optimizer: Optimizer,
@@ -150,7 +160,7 @@ class VariableCombinedLRScheduler(object):
             physical_lr = logical_lr * (data_per_update ** 0.5)  # unless we hit max_batches, will equal target_physical_lr
             group["logical_lr"] = logical_lr  # just for diagnostics etc .
             group["lr"] = physical_lr
-            group["data_per_update"] = data_per_update  # this is interpreted by the rubik optimizer, it causes it to skip steps.
+            group["data_per_update"] = data_per_update  # this is interpreted by the ScaledMuon optimizer, it causes it to skip steps.
             if self.verbose:
                 logging.warning(
                     f"Epoch={self.epoch}, batch={self.batch}, (logical,physical) LR for group is {logical_lr}, {physical_lr}, data_per_update={data_per_update}"

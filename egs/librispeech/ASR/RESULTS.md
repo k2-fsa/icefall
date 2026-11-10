@@ -70,7 +70,7 @@ The decoding commands for RNN-T decoding and CTC decoding respectively are:
 ```
 For RNN-T decoding the WERs for libri (test-clean,test-other,dev-clean,dev-other) are 1.73\%, 3.21\%, 1.65\%, 3.21\%,
 and for Gigaspeech test,dev are 10.32\%, 10.26\%.   The corresponding numbers for CTC decoding are
-1.89\%, 3.63\%, 1.83\%, 3.58\%, 10.91\%, 10.81\%.
+1.89\%, 3.63\%, 1.83\%, 3.58\% and 10.91\%, 10.81\%.
 
 
 ### zipformer (zipformer + pruned-transducer w/ CR-CTC)

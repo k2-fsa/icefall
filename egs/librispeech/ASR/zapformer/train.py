@@ -73,14 +73,7 @@ from lhotse.cut import Cut, CutSet
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
 from model import AsrModel
-# the try-pass blocks around imports are to reduce the chance of failures when running multiple code
-# versions in parallel; later, these can be removed.
-try:
-    from batched_rubik import BatchedRubik
-    # could also have done:
-    # from rubik import Rubik
-except ImportError:
-    pass
+from scaled_muon import ScaledMuon
 
 
 from variable_combined_scheduler import VariableCombinedLRScheduler
@@ -1423,7 +1416,7 @@ def run(rank, world_size, args):
         group["max_data_per_update"] = params.max_seconds_per_update
 
 
-    optimizer = BatchedRubik(
+    optimizer = ScaledMuon(
         groups,
         lr=params.physical_lr,
         beta1=0.9,

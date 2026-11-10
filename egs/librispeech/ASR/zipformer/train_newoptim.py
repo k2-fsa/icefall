@@ -75,9 +75,8 @@ from lhotse.cut import Cut
 from lhotse.dataset import SpecAugment
 from lhotse.dataset.sampling.base import CutSampler
 from lhotse.utils import fix_random_seed
-from model import AsrModel
 from optim import Eden, ScaledAdam
-from batched_rubik import BatchedRubik
+from scaled_muon import ScaledMuon
 from scaling import ScheduledFloat
 from subsampling import Conv2dSubsampling
 from torch import Tensor
@@ -106,12 +105,9 @@ from icefall.utils import (
     torch_autocast,
 )
 
+from variable_combined_scheduler import LambdaLRScheduler
 
-from combined_scheduler import CombinedLRScheduler
-from combined_scheduler import InterpCosineLRScheduler
-
-
-LRSchedulerType = Union[torch.optim.lr_scheduler._LRScheduler, optim.LRScheduler, CombinedLRScheduler]
+LRSchedulerType = Any
 
 
 def get_adjusted_batch_count(params: AttributeDict) -> float:
@@ -400,16 +396,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--base-lr", type=float, default=0.02, help="The base learning rate."
-    )
-
-
-    parser.add_argument(
-        "--ref-duration",
-        type=float,
-        default=600,
-        help="Reference batch duration for purposes of adjusting batch counts for setting various "
-        "schedules inside the model",
+        "--base-lr", type=float, default=0.032, help="The base learning rate."
     )
 
     parser.add_argument(
@@ -1123,7 +1110,9 @@ def train_one_epoch(
             scaler.scale(loss).backward()
             scheduler.set_batch(batch_idx)
 
-            scaler.step(optimizer)
+            # the "data=" tells the optimizer how many batches to accumulate for, based on
+            # the specified logical learning rate.
+            scaler.step(optimizer, data=params.max_duration * params.world_size)
             scaler.update()
             optimizer.zero_grad()
         except Exception as e:
@@ -1343,21 +1332,30 @@ def run(rank, world_size, args):
         logging.info("Using DDP")
         model = DDP(model, device_ids=[rank], find_unused_parameters=True)
 
-    optimizer = BatchedRubik(
+    optimizer = ScaledMuon(
         get_parameter_groups_with_lrs(model, lr=params.base_lr, include_names=False),
         lr=params.base_lr,
         beta1=0.99,
     )
 
 
-    # this InterpCosineLRScheduler inherits from VariableCombinedLRScheduler.
-    # this configuration is halfway between a linear function (1 to 0) and the conventional
-    # cosine LR scheduler.  It decays to a minimum of 0.025.
-    scheduler = InterpCosineLRScheduler(optimizer,
-                                        min_factor=0.025,
-                                        linear_scale=0.5,
-                                        batches_per_epoch=params.batches_per_epoch,
-                                        num_epochs=params.num_epochs)
+    def progress_to_logical_lr_factor(progress):
+        f = (1 - progress)
+        return 0.2 * (f ** 0.5) + 0.4 * f + 0.4 * (f ** 3)
+
+
+    def progress_to_physical_lr_factor(progress):
+        # warm up from 0.9 to 1.0 over the first quarter of training.
+        if progress < 0.25:
+            return 0.9 + 0.1 * progress / 0.25
+        else:
+            return 1.0
+
+    scheduler = LambdaLRScheduler(optimizer,
+                                  logical_func=progress_to_logical_lr_factor,
+                                  physical_func=progress_to_physical_lr_factor,
+                                  batches_per_epoch=[params.batches_per_epoch for _ in range(params.num_epochs)])
+
 
     if checkpoints and "optimizer" in checkpoints:
         logging.info("Loading optimizer state dict")
