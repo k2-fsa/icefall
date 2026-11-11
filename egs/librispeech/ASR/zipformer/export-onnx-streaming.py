@@ -65,7 +65,9 @@ See ./onnx_pretrained-streaming.py for how to use the exported ONNX models.
 """
 
 import argparse
+import copy
 import logging
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -73,7 +75,11 @@ import k2
 import onnx
 import torch
 import torch.nn as nn
-from decoder import Decoder
+from decoder import (
+    Decoder,
+    check_decoder_conv_as_matmul_onnx,
+    replace_decoder_conv_with_matmul,
+)
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
@@ -190,6 +196,17 @@ def get_parser():
         type=str2bool,
         default=False,
         help="True to use whisper features. Must match the one used in training",
+    )
+
+    parser.add_argument(
+        "--decoder-conv-as-matmul",
+        type=str2bool,
+        default=False,
+        help="""True to export the decoder's grouped Conv1d as an equivalent
+        MatMul (same outputs up to float rounding). With ONNX Runtime's CUDA
+        provider this removes the Conv kernel's per-node lock, which
+        serializes a decoder session shared by several threads when the
+        batch size changes between runs.""",
     )
 
     parser.add_argument(
@@ -893,6 +910,15 @@ def main():
         encoder_proj=model.joiner.encoder_proj,
     )
 
+    if params.decoder_conv_as_matmul:
+        # keep the original decoder to check the exported model against it
+        conv_decoder = OnnxDecoder(
+            decoder=copy.deepcopy(model.decoder),
+            decoder_proj=copy.deepcopy(model.joiner.decoder_proj),
+        )
+        replace_decoder_conv_with_matmul(model.decoder)
+        logging.info("Export the decoder conv as MatMul")
+
     decoder = OnnxDecoder(
         decoder=model.decoder,
         decoder_proj=model.joiner.decoder_proj,
@@ -947,6 +973,26 @@ def main():
         use_int32_inputs=params.use_int32_inputs,
     )
     logging.info(f"Exported decoder to {decoder_filename}")
+
+    if params.decoder_conv_as_matmul:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            conv_filename = f"{tmp_dir}/decoder-conv.onnx"
+            export_decoder_model_onnx(
+                conv_decoder,
+                conv_filename,
+        opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
+        use_int32_inputs=params.use_int32_inputs,
+            )
+            max_diff, device = check_decoder_conv_as_matmul_onnx(
+                conv_filename,
+                str(decoder_filename),
+                vocab_size=model.decoder.vocab_size,
+            )
+        logging.info(
+            "Checked the decoder with MatMul against the decoder with Conv "
+            f"(onnxruntime on {device}): max abs diff {max_diff:.2e}"
+        )
 
     logging.info("Exporting joiner")
     joiner_filename = params.exp_dir / f"joiner-{suffix}.onnx"

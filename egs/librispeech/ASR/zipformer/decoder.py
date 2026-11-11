@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -132,3 +134,120 @@ class Decoder(nn.Module):
             embedding_out = self.balancer2(embedding_out)
 
         return embedding_out
+
+
+class GroupedConv1dAsMatMul(nn.Module):
+    """Inference-only replacement for the decoder's grouped Conv1d.
+
+    During inference (need_pad=False) the input of the decoder conv has
+    exactly kernel_size frames, so the conv produces a single output frame.
+    A grouped conv with one output frame is a block-diagonal linear map of
+    the flattened input, so it can be computed exactly as one MatMul:
+
+        y[n, co, 0] = sum_{i, k} W[co, i, k] * x[n, g * cin_g + i, k],
+        g = co // cout_g
+
+    which equals flatten(x)[n, :] @ W_dense[:, co] with
+    W_dense[(g * cin_g + i) * kernel_size + k, co] = W[co, i, k].
+
+    When exported to ONNX this gives Reshape -> MatMul -> Unsqueeze instead
+    of a Conv node. ONNX Runtime's CUDA Conv kernel holds a per-node mutex
+    while it (re)builds its cuDNN plan for every new input shape, so a
+    decoder session shared by several threads with varying batch sizes is
+    serialized on that Conv; the MatMul form has no such lock.
+    """
+
+    def __init__(self, conv: nn.Conv1d):
+        super().__init__()
+        assert conv.bias is None, "only bias-free convs are supported"
+        assert conv.padding in (0, (0,)), conv.padding
+        assert conv.stride in (1, (1,)), conv.stride
+        assert conv.dilation in (1, (1,)), conv.dilation
+
+        # (out_channels, in_channels // groups, kernel_size)
+        weight = conv.weight.detach()
+        out_channels, cin_g, kernel_size = weight.shape
+        groups = conv.groups
+        cout_g = out_channels // groups
+
+        blocks = []
+        for g in range(groups):
+            w = weight[g * cout_g : (g + 1) * cout_g]
+            blocks.append(w.reshape(cout_g, cin_g * kernel_size).t())
+        # (in_channels * kernel_size, out_channels), block diagonal
+        self.register_buffer("weight", torch.block_diag(*blocks).contiguous())
+        self.kernel_size = kernel_size
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+          x:
+            A 3-D tensor of shape (N, in_channels, kernel_size). Decoder.forward
+            checks the length when need_pad is False.
+        Returns:
+          Return a 3-D tensor of shape (N, out_channels, 1).
+        """
+        x = torch.flatten(x, start_dim=1)
+        return torch.matmul(x, self.weight).unsqueeze(-1)
+
+
+def replace_decoder_conv_with_matmul(decoder: Decoder) -> None:
+    """Replace decoder.conv in-place by an equivalent GroupedConv1dAsMatMul.
+
+    Only valid for inference with need_pad=False, e.g., before ONNX export.
+    Does nothing if the decoder has no conv (context_size == 1).
+    """
+    if isinstance(decoder.conv, nn.Conv1d):
+        decoder.conv = GroupedConv1dAsMatMul(decoder.conv)
+
+
+def check_decoder_conv_as_matmul_onnx(
+    conv_filename: str,
+    matmul_filename: str,
+    vocab_size: int,
+    tolerance: float = 1e-4,
+) -> Tuple[float, str]:
+    """Run the exported decoder with the Conv (baseline) and with the MatMul on
+    the same random inputs with onnxruntime and check that the outputs agree
+    within `tolerance`. Runs on the GPU (CUDA execution provider) if
+    onnxruntime has it, else on the CPU. On the GPU TF32 is disabled for this
+    check: with TF32 even the unchanged Conv decoder differs from its CPU
+    output by about 3e-3, which would hide whether the rewrite is exact.
+
+    Returns the maximum absolute difference and the device used ("cuda" or "cpu").
+    """
+    import numpy as np
+    import onnxruntime as ort
+
+    providers = ["CPUExecutionProvider"]
+    if "CUDAExecutionProvider" in ort.get_available_providers():
+        providers.insert(0, ("CUDAExecutionProvider", {"use_tf32": 0}))
+
+    opts = ort.SessionOptions()
+    opts.log_severity_level = 3
+    conv = ort.InferenceSession(conv_filename, opts, providers=providers)
+    matmul = ort.InferenceSession(matmul_filename, opts, providers=providers)
+    used = matmul.get_providers()[0]
+    device = "cuda" if used == "CUDAExecutionProvider" else "cpu"
+
+    y_info = conv.get_inputs()[0]
+    batch, context_size = y_info.shape
+    dtype = np.int32 if "int32" in y_info.type else np.int64
+    # A fixed batch size (exported without dynamic axes) can only take that size
+    batch_sizes = [batch] if isinstance(batch, int) else [1, 7, 100, 500]
+
+    rng = np.random.default_rng(0)
+    max_diff = 0.0
+    for n in batch_sizes:
+        # -1 is used to left-pad the context at the start of an utterance
+        y = rng.integers(-1, vocab_size, size=(n, context_size)).astype(dtype)
+        expected = conv.run(None, {y_info.name: y})[0]
+        actual = matmul.run(None, {y_info.name: y})[0]
+        assert actual.shape == expected.shape, (actual.shape, expected.shape)
+        max_diff = max(max_diff, float(np.abs(actual - expected).max()))
+
+    assert max_diff < tolerance, (
+        f"The decoder with MatMul differs from the decoder with Conv on "
+        f"{device}: max abs diff {max_diff} >= {tolerance}"
+    )
+    return max_diff, device
