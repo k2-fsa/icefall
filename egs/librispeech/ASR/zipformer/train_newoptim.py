@@ -1202,6 +1202,10 @@ def train_one_epoch(
                 scaler.update(cur_grad_scale * 2.0)
 
         if batch_idx % params.log_interval == 0:
+            logical_lr = max([ group["logical_lr"] for group in optimizer.param_groups ])
+            physical_lr = max([ group["lr"] for group in optimizer.param_groups ])
+            accum_steps = optimizer.param_groups[0]["data_per_update"] / (params.max_duration * params.world_size)
+
             cur_lr = max(scheduler.get_last_lr())
             cur_grad_scale = scaler._scale.item() if params.use_autocast else 1.0
 
@@ -1209,23 +1213,18 @@ def train_one_epoch(
                 f"Epoch {params.cur_epoch}, "
                 f"batch {batch_idx}, loss[{loss_info}], "
                 f"tot_loss[{tot_loss}], batch size: {batch_size}, "
-                f"lr: {cur_lr:.2e}, "
+                f"physical_lr: {cur_lr:.3e}, logical_lr: {logical_lr:.3e}, accum_steps: {accum_steps:.3e}, "
                 + (f"grad_scale: {scaler._scale.item()}" if params.use_autocast else "")
             )
 
             if tb_writer is not None:
-                tb_writer.add_scalar(
-                    "train/learning_rate", cur_lr, params.batch_idx_train
-                )
-
-                loss_info.write_summary(
-                    tb_writer, "train/current_", params.batch_idx_train
-                )
+                tb_writer.add_scalar("train/learning_rate", cur_lr, params.batch_idx_train)
+                tb_writer.add_scalar("train/logical_learning_rate", logical_lr, params.batch_idx_train)
+                tb_writer.add_scalar("train/accum_steps", accum_steps, params.batch_idx_train)
+                loss_info.write_summary(tb_writer, "train/current_", params.batch_idx_train)
                 tot_loss.write_summary(tb_writer, "train/tot_", params.batch_idx_train)
                 if params.use_autocast:
-                    tb_writer.add_scalar(
-                        "train/grad_scale", cur_grad_scale, params.batch_idx_train
-                    )
+                    tb_writer.add_scalar("train/grad_scale", cur_grad_scale, params.batch_idx_train)
 
         if batch_idx % params.valid_interval == 0 and not params.print_diagnostics:
             logging.info("Computing validation loss")
