@@ -98,6 +98,12 @@ def get_git_branch_name():
 
 def get_env_info() -> Dict[str, Any]:
     """Get the environment information."""
+    hostname = socket.gethostname()
+    try:
+        ip_address = socket.gethostbyname(hostname)
+    except socket.gaierror:
+        # Hostname lookup is not always configured in local/offline runtimes.
+        ip_address = "unavailable"
     return {
         "k2-version": k2.version.__version__,
         "k2-build-type": k2.version.__build_type__,
@@ -115,6 +121,6 @@ def get_env_info() -> Dict[str, Any]:
         "icefall-path": str(Path(__file__).resolve().parent.parent),
         "k2-path": str(Path(k2.__file__).resolve()),
         "lhotse-path": str(Path(lhotse.__file__).resolve()),
-        "hostname": socket.gethostname(),
-        "IP address": socket.gethostbyname(socket.gethostname()),
+        "hostname": hostname,
+        "IP address": ip_address,
     }
