@@ -90,6 +90,10 @@ jobs:
           ls -lh *rk*.tar.bz2 || true
 
       - name: Release to GitHub
+        # Secrets are not available to pull_request runs (especially from
+        # forks), so skip this step there; push/workflow_dispatch have the
+        # UPLOAD_GH_SHERPA_ONNX_TOKEN secret.
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
         uses: svenstaro/upload-release-action@v2
         with:
           file_glob: true
