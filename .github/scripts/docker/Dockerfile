@@ -1,4 +1,4 @@
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_VERSION=3.11
 FROM python:${PYTHON_VERSION}
 
 ARG TORCHAUDIO_VERSION="2.10.0"
@@ -30,7 +30,12 @@ LABEL kaldifeat_version=${_KALDIFEAT_VERSION}
 LABEL github_repo="https://github.com/k2-fsa/icefall"
 
 # Install dependencies
-RUN pip install --no-cache-dir \
+# torch < 2.3.0 requires numpy < 2
+RUN case "${TORCH_VERSION}" in \
+      1.*|2.0.*|2.1.*|2.2.*) NUMPY_SPEC="numpy<2" ;; \
+      *) NUMPY_SPEC="numpy" ;; \
+    esac && \
+    pip install --no-cache-dir \
       torch==${TORCH_VERSION}+cpu -f https://download.pytorch.org/whl/torch \
       torchaudio==${TORCHAUDIO_VERSION}+cpu -f https://download.pytorch.org/whl/torchaudio \
       k2==${_K2_VERSION} -f https://k2-fsa.github.io/k2/cpu.html \
@@ -53,7 +58,7 @@ RUN pip install --no-cache-dir \
       "matplotlib<=3.9.4" \
       multi_quantization \
       numba \
-      numpy \
+      "${NUMPY_SPEC}" \
       onnxoptimizer \
       onnxscript \
       onnxsim \
