@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../../../_static/doctools.js?v=888ff710"></script>
-      <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -105,7 +105,7 @@
            <div itemprop="articleBody">
              
   <section id="finetune-from-a-supervised-pre-trained-zipformer-model">
-<h1>Finetune from a supervised pre-trained Zipformer model<a class="headerlink" href="#finetune-from-a-supervised-pre-trained-zipformer-model" title="Permalink to this heading"></a></h1>
+<h1>Finetune from a supervised pre-trained Zipformer model<a class="headerlink" href="#finetune-from-a-supervised-pre-trained-zipformer-model" title="Link to this heading"></a></h1>
 <p>This tutorial shows you how to fine-tune a supervised pre-trained <strong>Zipformer</strong>
 transducer model on a new dataset.</p>
 <div class="admonition hint">
@@ -121,17 +121,17 @@ the environment for <code class="docutils literal notranslate"><span class="pre"
 pre-trained on <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> on the small subset of <a class="reference external" href="https://github.com/SpeechColab/GigaSpeech">GigaSpeech</a>. You could use your
 own data for fine-tuning if you create a manifest for your new dataset.</p>
 <section id="data-preparation">
-<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
 <p>Please follow the instructions in the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/gigaspeech/ASR">GigaSpeech recipe</a>
 to prepare the fine-tune data used in this tutorial. We only require the small subset in GigaSpeech for this tutorial.</p>
 </section>
 <section id="model-preparation">
-<h2>Model preparation<a class="headerlink" href="#model-preparation" title="Permalink to this heading"></a></h2>
+<h2>Model preparation<a class="headerlink" href="#model-preparation" title="Link to this heading"></a></h2>
 <p>We are using the Zipformer model trained on full LibriSpeech (960 hours) as the intialization. The
 checkpoint of the model can be downloaded via the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-zipformer-2023-05-15/exp
-$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"pretrained.pt"</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../data/lang_bpe_500
 $<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span>bpe.model
@@ -159,7 +159,7 @@ decoding on the GigaSpeech test sets:</p>
 </div>
 </section>
 <section id="fine-tune">
-<h2>Fine-tune<a class="headerlink" href="#fine-tune" title="Permalink to this heading"></a></h2>
+<h2>Fine-tune<a class="headerlink" href="#fine-tune" title="Link to this heading"></a></h2>
 <p>Since LibriSpeech and GigaSpeech are both English dataset, we can initialize the whole
 Zipformer model with the checkpoint downloaded in the previous step (otherwise we should consider
 initializing the stateless decoder and joiner from scratch due to the mismatch of the output

@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../../../_static/doctools.js?v=888ff710"></script>
-      <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -107,7 +107,7 @@
            <div itemprop="articleBody">
              
   <section id="tdnn-ligru-ctc">
-<h1>TDNN-LiGRU-CTC<a class="headerlink" href="#tdnn-ligru-ctc" title="Permalink to this heading"></a></h1>
+<h1>TDNN-LiGRU-CTC<a class="headerlink" href="#tdnn-ligru-ctc" title="Link to this heading"></a></h1>
 <p>This tutorial shows you how to run a TDNN-LiGRU-CTC model with the <a class="reference external" href="https://data.deepai.org/timit.zip">TIMIT</a> dataset.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -115,7 +115,7 @@
 the environment for <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
 </div>
 <section id="data-preparation">
-<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
 $<span class="w"> </span>./prepare.sh
 </pre></div>
@@ -143,7 +143,7 @@ $<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class=
 </div>
 </section>
 <section id="training">
-<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<h2>Training<a class="headerlink" href="#training" title="Link to this heading"></a></h2>
 <p>Now describing the training of TDNN-LiGRU-CTC model, contained in
 the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/timit/ASR/tdnn_ligru_ctc">tdnn_ligru_ctc</a>
 folder.</p>
@@ -153,7 +153,7 @@ folder.</p>
 </div>
 <p>The command to run the training part is:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
-$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0&quot;</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"0"</span>
 $<span class="w"> </span>./tdnn_ligru_ctc/train.py
 </pre></div>
 </div>
@@ -176,7 +176,7 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tdnn_ligru_ctc/exp/tensorboard
-$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;TDNN ligru training for timit with icefall&quot;</span>
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">"TDNN ligru training for timit with icefall"</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -198,11 +198,11 @@ Normally, you don’t need to change them. You can change them by modifying the 
 you want.</p>
 </section>
 <section id="decoding">
-<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<h2>Decoding<a class="headerlink" href="#decoding" title="Link to this heading"></a></h2>
 <p>The decoding part uses checkpoints saved by the training part, so you have
 to run the training part first.</p>
 <p>The command for decoding is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"0"</span>
 $<span class="w"> </span>./tdnn_ligru_ctc/decode.py
 </pre></div>
 </div>
@@ -245,19 +245,19 @@ See <a class="reference internal" href="#tdnn-ligru-ctc-use-a-pre-trained-model"
 </div></blockquote>
 </section>
 <section id="pre-trained-model">
-<span id="tdnn-ligru-ctc-use-a-pre-trained-model"></span><h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Permalink to this heading"></a></h2>
+<span id="tdnn-ligru-ctc-use-a-pre-trained-model"></span><h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Link to this heading"></a></h2>
 <p>We have uploaded the pre-trained model to
 <a class="reference external" href="https://huggingface.co/luomingshuang/icefall_asr_timit_tdnn_ligru_ctc">https://huggingface.co/luomingshuang/icefall_asr_timit_tdnn_ligru_ctc</a>.</p>
 <p>The following shows you how to use the pre-trained model.</p>
 <section id="install-kaldifeat">
-<h3>Install kaldifeat<a class="headerlink" href="#install-kaldifeat" title="Permalink to this heading"></a></h3>
+<h3>Install kaldifeat<a class="headerlink" href="#install-kaldifeat" title="Link to this heading"></a></h3>
 <p><a class="reference external" href="https://github.com/csukuangfj/kaldifeat">kaldifeat</a> is used to
 extract features for a single sound file or multiple sound files
 at the same time.</p>
 <p>Please refer to <a class="reference external" href="https://github.com/csukuangfj/kaldifeat">https://github.com/csukuangfj/kaldifeat</a> for installation.</p>
 </section>
 <section id="download-the-pre-trained-model">
-<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h3>
+<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
 $<span class="w"> </span>mkdir<span class="w"> </span>tmp-ligru
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tmp-ligru
@@ -344,7 +344,7 @@ Note: We have removed optimizer <code class="docutils literal notranslate"><span
 <p>The information of the test sound files is listed below:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ffprobe<span class="w"> </span>-show_format<span class="w"> </span>tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV
 
-Input<span class="w"> </span><span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV&#39;:</span>
+Input<span class="w"> </span><span class="c1">#0, nistsphere, from 'tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV':</span>
 Metadata:
 <span class="w">  </span>database_id<span class="w">     </span>:<span class="w"> </span>TIMIT
 <span class="w">  </span>database_version:<span class="w"> </span><span class="m">1</span>.0
@@ -356,7 +356,7 @@ Duration:<span class="w"> </span><span class="m">00</span>:00:03.40,<span class=
 
 $<span class="w"> </span>ffprobe<span class="w"> </span>-show_format<span class="w"> </span>tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV
 
-Input<span class="w"> </span><span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV&#39;:</span>
+Input<span class="w"> </span><span class="c1">#0, nistsphere, from 'tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV':</span>
 Metadata:
 <span class="w">  </span>database_id<span class="w">     </span>:<span class="w"> </span>TIMIT
 <span class="w">  </span>database_version:<span class="w"> </span><span class="m">1</span>.0
@@ -368,7 +368,7 @@ Duration:<span class="w"> </span><span class="m">00</span>:00:04.19,<span class=
 
 $<span class="w"> </span>ffprobe<span class="w"> </span>-show_format<span class="w"> </span>tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV
 
-Input<span class="w"> </span><span class="c1">#0, nistsphere, from &#39;tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV&#39;:</span>
+Input<span class="w"> </span><span class="c1">#0, nistsphere, from 'tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV':</span>
 Metadata:
 <span class="w">  </span>database_id<span class="w">     </span>:<span class="w"> </span>TIMIT
 <span class="w">  </span>database_version:<span class="w"> </span><span class="m">1</span>.0
@@ -381,7 +381,7 @@ Duration:<span class="w"> </span><span class="m">00</span>:00:04.44,<span class=
 </div>
 </section>
 <section id="inference-with-a-pre-trained-model">
-<h3>Inference with a pre-trained model<a class="headerlink" href="#inference-with-a-pre-trained-model" title="Permalink to this heading"></a></h3>
+<h3>Inference with a pre-trained model<a class="headerlink" href="#inference-with-a-pre-trained-model" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/timit/ASR
 $<span class="w"> </span>./tdnn_ligru_ctc/pretrained.py<span class="w"> </span>--help
 </pre></div>
@@ -403,7 +403,7 @@ $<span class="w"> </span>./tdnn_ligru_ctc/pretrained.py<span class="w"> </span>-
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">33</span><span class="p">,</span><span class="mi">660</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">171</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">model</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">680</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">183</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">-</span><span class="n">ligru</span><span class="o">/</span><span class="n">icefall_asr_timit_tdnn_ligru_ctc</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">695</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">200</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
-<span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">697</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">210</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">697</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">210</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">'./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV'</span><span class="p">,</span> <span class="s1">'./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV'</span><span class="p">,</span> <span class="s1">'./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV'</span><span class="p">]</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">38</span><span class="p">,</span><span class="mi">704</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">216</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">39</span><span class="p">,</span><span class="mi">819</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">246</span><span class="p">]</span> <span class="n">Use</span> <span class="n">HLG</span> <span class="n">decoding</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">41</span><span class="p">:</span><span class="mi">39</span><span class="p">,</span><span class="mi">829</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">267</span><span class="p">]</span>
@@ -439,7 +439,7 @@ $<span class="w"> </span>./tdnn_ligru_ctc/pretrained.py<span class="w"> </span>-
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">37</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="mi">693</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">183</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">-</span><span class="n">ligru</span><span class="o">/</span><span class="n">icefall_asr_timit_tdnn_ligru_ctc</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">37</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="mi">705</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">191</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">G</span> <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">-</span><span class="n">ligru</span><span class="o">/</span><span class="n">icefall_asr_timit_tdnn_ligru_ctc</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lm</span><span class="o">/</span><span class="n">G_4_gram</span><span class="o">.</span><span class="n">pt</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">37</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="mi">714</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">200</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
-<span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">37</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="mi">715</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">210</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">37</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="mi">715</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">210</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">'./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FDHC0_SI1559.WAV'</span><span class="p">,</span> <span class="s1">'./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FELC0_SI756.WAV'</span><span class="p">,</span> <span class="s1">'./tmp-ligru/icefall_asr_timit_tdnn_ligru_ctc/test_waves/FMGD0_SI1564.WAV'</span><span class="p">]</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">37</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="mi">720</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">216</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">37</span><span class="p">:</span><span class="mi">55</span><span class="p">,</span><span class="mi">808</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">251</span><span class="p">]</span> <span class="n">Use</span> <span class="n">HLG</span> <span class="n">decoding</span> <span class="o">+</span> <span class="n">LM</span> <span class="n">rescoring</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">11</span><span class="o">-</span><span class="mi">08</span> <span class="mi">20</span><span class="p">:</span><span class="mi">37</span><span class="p">:</span><span class="mi">56</span><span class="p">,</span><span class="mi">348</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">267</span><span class="p">]</span>
@@ -459,7 +459,7 @@ $<span class="w"> </span>./tdnn_ligru_ctc/pretrained.py<span class="w"> </span>-
 </section>
 </section>
 <section id="colab-notebook">
-<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Permalink to this heading"></a></h2>
+<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Link to this heading"></a></h2>
 <p>We provide a colab notebook for decoding with pre-trained model.</p>
 <p><a class="reference external" href="https://colab.research.google.com/drive/11IT-k4HQIgQngXz1uvWsEYktjqQt7Tmb"><img alt="timit tdnn_ligru_ctc colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
 <p><strong>Congratulations!</strong> You have finished the TDNN-LiGRU-CTC recipe on timit in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>

@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="./">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="_static/doctools.js?v=888ff710"></script>
-      <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="_static/documentation_options.js?v=2709fde1"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -92,11 +92,11 @@
            <div itemprop="articleBody">
              
   <section id="frequently-asked-questions-faqs">
-<h1>Frequently Asked Questions (FAQs)<a class="headerlink" href="#frequently-asked-questions-faqs" title="Permalink to this heading"></a></h1>
+<h1>Frequently Asked Questions (FAQs)<a class="headerlink" href="#frequently-asked-questions-faqs" title="Link to this heading"></a></h1>
 <p>In this section, we collect issues reported by users and post the corresponding
 solutions.</p>
 <section id="oserror-libtorch-hip-so-cannot-open-shared-object-file-no-such-file-or-directory">
-<h2>OSError: libtorch_hip.so: cannot open shared object file: no such file or directory<a class="headerlink" href="#oserror-libtorch-hip-so-cannot-open-shared-object-file-no-such-file-or-directory" title="Permalink to this heading"></a></h2>
+<h2>OSError: libtorch_hip.so: cannot open shared object file: no such file or directory<a class="headerlink" href="#oserror-libtorch-hip-so-cannot-open-shared-object-file-no-such-file-or-directory" title="Link to this heading"></a></h2>
 <p>One user is using the following code to install <code class="docutils literal notranslate"><span class="pre">torch</span></code> and <code class="docutils literal notranslate"><span class="pre">torchaudio</span></code>:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span><span class="nv">torch</span><span class="o">==</span><span class="m">1</span>.10.0+cu111<span class="w"> </span><span class="se">\</span>
@@ -121,22 +121,22 @@ the correct command is:</p>
 </div>
 </section>
 <section id="attributeerror-module-distutils-has-no-attribute-version">
-<h2>AttributeError: module ‘distutils’ has no attribute ‘version’<a class="headerlink" href="#attributeerror-module-distutils-has-no-attribute-version" title="Permalink to this heading"></a></h2>
+<h2>AttributeError: module ‘distutils’ has no attribute ‘version’<a class="headerlink" href="#attributeerror-module-distutils-has-no-attribute-version" title="Link to this heading"></a></h2>
 <p>The error log is:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Traceback</span> <span class="p">(</span><span class="n">most</span> <span class="n">recent</span> <span class="n">call</span> <span class="n">last</span><span class="p">):</span>
-  <span class="n">File</span> <span class="s2">&quot;./tdnn/train.py&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">14</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+  <span class="n">File</span> <span class="s2">"./tdnn/train.py"</span><span class="p">,</span> <span class="n">line</span> <span class="mi">14</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">asr_datamodule</span><span class="w"> </span><span class="kn">import</span> <span class="n">YesNoAsrDataModule</span>
-  <span class="n">File</span> <span class="s2">&quot;/home/xxx/code/next-gen-kaldi/icefall/egs/yesno/ASR/tdnn/asr_datamodule.py&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">34</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+  <span class="n">File</span> <span class="s2">"/home/xxx/code/next-gen-kaldi/icefall/egs/yesno/ASR/tdnn/asr_datamodule.py"</span><span class="p">,</span> <span class="n">line</span> <span class="mi">34</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">icefall.dataset.datamodule</span><span class="w"> </span><span class="kn">import</span> <span class="n">DataModule</span>
-  <span class="n">File</span> <span class="s2">&quot;/home/xxx/code/next-gen-kaldi/icefall/icefall/__init__.py&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">3</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+  <span class="n">File</span> <span class="s2">"/home/xxx/code/next-gen-kaldi/icefall/icefall/__init__.py"</span><span class="p">,</span> <span class="n">line</span> <span class="mi">3</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-  <span class="n">File</span> <span class="s2">&quot;/home/xxx/code/next-gen-kaldi/icefall/icefall/decode.py&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">23</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+  <span class="n">File</span> <span class="s2">"/home/xxx/code/next-gen-kaldi/icefall/icefall/decode.py"</span><span class="p">,</span> <span class="n">line</span> <span class="mi">23</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">icefall.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_eos</span><span class="p">,</span> <span class="n">add_sos</span><span class="p">,</span> <span class="n">get_texts</span>
-  <span class="n">File</span> <span class="s2">&quot;/home/xxx/code/next-gen-kaldi/icefall/icefall/utils.py&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">39</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+  <span class="n">File</span> <span class="s2">"/home/xxx/code/next-gen-kaldi/icefall/icefall/utils.py"</span><span class="p">,</span> <span class="n">line</span> <span class="mi">39</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">torch.utils.tensorboard</span><span class="w"> </span><span class="kn">import</span> <span class="n">SummaryWriter</span>
-  <span class="n">File</span> <span class="s2">&quot;/home/xxx/tool/miniconda3/envs/yyy/lib/python3.8/site-packages/torch/utils/tensorboard/__init__.py&quot;</span><span class="p">,</span> <span class="n">line</span> <span class="mi">4</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
+  <span class="n">File</span> <span class="s2">"/home/xxx/tool/miniconda3/envs/yyy/lib/python3.8/site-packages/torch/utils/tensorboard/__init__.py"</span><span class="p">,</span> <span class="n">line</span> <span class="mi">4</span><span class="p">,</span> <span class="ow">in</span> <span class="o">&lt;</span><span class="n">module</span><span class="o">&gt;</span>
     <span class="n">LooseVersion</span> <span class="o">=</span> <span class="n">distutils</span><span class="o">.</span><span class="n">version</span><span class="o">.</span><span class="n">LooseVersion</span>
-<span class="ne">AttributeError</span><span class="p">:</span> <span class="n">module</span> <span class="s1">&#39;distutils&#39;</span> <span class="n">has</span> <span class="n">no</span> <span class="n">attribute</span> <span class="s1">&#39;version&#39;</span>
+<span class="ne">AttributeError</span><span class="p">:</span> <span class="n">module</span> <span class="s1">'distutils'</span> <span class="n">has</span> <span class="n">no</span> <span class="n">attribute</span> <span class="s1">'version'</span>
 </pre></div>
 </div>
 <p>The fix is:</p>
@@ -147,22 +147,22 @@ pip<span class="w"> </span>install<span class="w"> </span><span class="nv">setup
 </div>
 </section>
 <section id="importerror-libpython3-10-so-1-0-cannot-open-shared-object-file-no-such-file-or-directory">
-<h2>ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory<a class="headerlink" href="#importerror-libpython3-10-so-1-0-cannot-open-shared-object-file-no-such-file-or-directory" title="Permalink to this heading"></a></h2>
+<h2>ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory<a class="headerlink" href="#importerror-libpython3-10-so-1-0-cannot-open-shared-object-file-no-such-file-or-directory" title="Link to this heading"></a></h2>
 <p>If you are using <code class="docutils literal notranslate"><span class="pre">conda</span></code> and encounter the following issue:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Traceback (most recent call last):
-  File &quot;/k2-dev/yangyifan/anaconda3/envs/icefall/lib/python3.10/site-packages/k2-1.23.3.dev20230112+cuda11.6.torch1.13.1-py3.10-linux-x86_64.egg/k2/__init__.py&quot;, line 24, in &lt;module&gt;
+  File "/k2-dev/yangyifan/anaconda3/envs/icefall/lib/python3.10/site-packages/k2-1.23.3.dev20230112+cuda11.6.torch1.13.1-py3.10-linux-x86_64.egg/k2/__init__.py", line 24, in &lt;module&gt;
     from _k2 import DeterminizeWeightPushingType
 ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
 
 During handling of the above exception, another exception occurred:
 
 Traceback (most recent call last):
-  File &quot;/k2-dev/yangyifan/icefall/egs/librispeech/ASR/./pruned_transducer_stateless7_ctc_bs/decode.py&quot;, line 104, in &lt;module&gt;
+  File "/k2-dev/yangyifan/icefall/egs/librispeech/ASR/./pruned_transducer_stateless7_ctc_bs/decode.py", line 104, in &lt;module&gt;
     import k2
-  File &quot;/k2-dev/yangyifan/anaconda3/envs/icefall/lib/python3.10/site-packages/k2-1.23.3.dev20230112+cuda11.6.torch1.13.1-py3.10-linux-x86_64.egg/k2/__init__.py&quot;, line 30, in &lt;module&gt;
+  File "/k2-dev/yangyifan/anaconda3/envs/icefall/lib/python3.10/site-packages/k2-1.23.3.dev20230112+cuda11.6.torch1.13.1-py3.10-linux-x86_64.egg/k2/__init__.py", line 30, in &lt;module&gt;
     raise ImportError(
 ImportError: libpython3.10.so.1.0: cannot open shared object file: No such file or directory
-Note: If you&#39;re using anaconda and importing k2 on MacOS,
+Note: If you're using anaconda and importing k2 on MacOS,
       you can probably fix this by setting the environment variable:
   export DYLD_LIBRARY_PATH=$CONDA_PREFIX/lib/python3.10/site-packages:$DYLD_LIBRARY_PATH
 </pre></div>
@@ -170,7 +170,7 @@ Note: If you&#39;re using anaconda and importing k2 on MacOS,
 <p>Please first try to find where <code class="docutils literal notranslate"><span class="pre">libpython3.10.so.1.0</span></code> locates.</p>
 <p>For instance,</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span><span class="nv">$CONDA_PREFIX</span>/lib
-find<span class="w"> </span>.<span class="w"> </span>-name<span class="w"> </span><span class="s2">&quot;libpython*&quot;</span>
+find<span class="w"> </span>.<span class="w"> </span>-name<span class="w"> </span><span class="s2">"libpython*"</span>
 </pre></div>
 </div>
 <p>If you are able to find it inside <code class="docutils literal notranslate"><span class="pre">$CODNA_PREFIX/lib</span></code>, please set the

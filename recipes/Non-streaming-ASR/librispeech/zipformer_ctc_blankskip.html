@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../../../_static/doctools.js?v=888ff710"></script>
-      <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -111,7 +111,7 @@
            <div itemprop="articleBody">
              
   <section id="zipformer-ctc-blank-skip">
-<h1>Zipformer CTC Blank Skip<a class="headerlink" href="#zipformer-ctc-blank-skip" title="Permalink to this heading"></a></h1>
+<h1>Zipformer CTC Blank Skip<a class="headerlink" href="#zipformer-ctc-blank-skip" title="Link to this heading"></a></h1>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <p>Please scroll down to the bottom of this page to find download links
@@ -129,7 +129,7 @@ from the encoder output. To prevent information loss, we also put a convolution 
 similar to the one used in conformer (referred to as “LConv”) before the frame reduction.</p>
 </div>
 <section id="data-preparation">
-<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 $<span class="w"> </span>./prepare.sh
 </pre></div>
@@ -185,10 +185,10 @@ the following YouTube channel by <a class="reference external" href="https://www
 <iframe allowfullscreen="true" src="https://www.youtube.com/embed/ofEIoJL-mGM" style="border: 0; height: 345px; width: 560px">
 </iframe></div></section>
 <section id="training">
-<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<h2>Training<a class="headerlink" href="#training" title="Link to this heading"></a></h2>
 <p>For stability, it doesn`t use blank skip method until model warm-up.</p>
 <section id="configurable-options">
-<h3>Configurable options<a class="headerlink" href="#configurable-options" title="Permalink to this heading"></a></h3>
+<h3>Configurable options<a class="headerlink" href="#configurable-options" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 $<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/train.py<span class="w"> </span>--help
 </pre></div>
@@ -240,7 +240,7 @@ training from epoch 10, based on the state from epoch 9.</p>
 GPU 2 for training. You can do the following:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
-$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,2&quot;</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"0,2"</span>
 $<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">2</span>
 </pre></div>
 </div>
@@ -257,7 +257,7 @@ $<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/train.py<span cla
 for training. You can do the following:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
-$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;3&quot;</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"3"</span>
 $<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">1</span>
 </pre></div>
 </div>
@@ -286,7 +286,7 @@ tune it.</p>
 </div></blockquote>
 </section>
 <section id="pre-configured-options">
-<h3>Pre-configured options<a class="headerlink" href="#pre-configured-options" title="Permalink to this heading"></a></h3>
+<h3>Pre-configured options<a class="headerlink" href="#pre-configured-options" title="Link to this heading"></a></h3>
 <p>There are some training options, e.g., weight decay,
 number of warmup steps, results dir, etc,
 that are not passed from the commandline.
@@ -296,7 +296,7 @@ They are pre-configured by the function <code class="docutils literal notranslat
 them, please modify <code class="docutils literal notranslate"><span class="pre">./pruned_transducer_stateless7_ctc_bs/train.py</span></code> directly.</p>
 </section>
 <section id="training-logs">
-<h3>Training logs<a class="headerlink" href="#training-logs" title="Permalink to this heading"></a></h3>
+<h3>Training logs<a class="headerlink" href="#training-logs" title="Link to this heading"></a></h3>
 <p>Training logs and checkpoints are saved in <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/exp</span></code>.
 You will find the following files in that directory:</p>
 <blockquote>
@@ -326,14 +326,14 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>pruned_transducer_stateless7_ctc_bs/exp/tensorboard
-$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;Zipformer-CTC co-training using blank skip for LibriSpeech with icefall&quot;</span>
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">"Zipformer-CTC co-training using blank skip for LibriSpeech with icefall"</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p>It will print something like below:</p>
 <blockquote>
 <div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">TensorFlow</span> <span class="n">installation</span> <span class="ow">not</span> <span class="n">found</span> <span class="o">-</span> <span class="n">running</span> <span class="k">with</span> <span class="n">reduced</span> <span class="n">feature</span> <span class="nb">set</span><span class="o">.</span>
-<span class="n">Upload</span> <span class="n">started</span> <span class="ow">and</span> <span class="n">will</span> <span class="k">continue</span> <span class="n">reading</span> <span class="nb">any</span> <span class="n">new</span> <span class="n">data</span> <span class="k">as</span> <span class="n">it</span><span class="s1">&#39;s added to the logdir.</span>
+<span class="n">Upload</span> <span class="n">started</span> <span class="ow">and</span> <span class="n">will</span> <span class="k">continue</span> <span class="n">reading</span> <span class="nb">any</span> <span class="n">new</span> <span class="n">data</span> <span class="k">as</span> <span class="n">it</span><span class="s1">'s added to the logdir.</span>
 
 <span class="n">To</span> <span class="n">stop</span> <span class="n">uploading</span><span class="p">,</span> <span class="n">press</span> <span class="n">Ctrl</span><span class="o">-</span><span class="n">C</span><span class="o">.</span>
 
@@ -374,9 +374,9 @@ you saw printed to the console during training.</p>
 </div></blockquote>
 </section>
 <section id="usage-example">
-<h3>Usage example<a class="headerlink" href="#usage-example" title="Permalink to this heading"></a></h3>
+<h3>Usage example<a class="headerlink" href="#usage-example" title="Link to this heading"></a></h3>
 <p>You can use the following command to start the training using 4 GPUs:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,1,2,3&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"0,1,2,3"</span>
 ./pruned_transducer_stateless7_ctc_bs/train.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--world-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--num-epochs<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
@@ -390,7 +390,7 @@ you saw printed to the console during training.</p>
 </section>
 </section>
 <section id="decoding">
-<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<h2>Decoding<a class="headerlink" href="#decoding" title="Link to this heading"></a></h2>
 <p>The decoding part uses checkpoints saved by the training part, so you have
 to run the training part first.</p>
 <div class="admonition hint">
@@ -438,10 +438,10 @@ $<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/ctc_guide_decode_
 </div>
 </section>
 <section id="export-models">
-<h2>Export models<a class="headerlink" href="#export-models" title="Permalink to this heading"></a></h2>
+<h2>Export models<a class="headerlink" href="#export-models" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/pruned_transducer_stateless7_ctc_bs/export.py">pruned_transducer_stateless7_ctc_bs/export.py</a> supports exporting checkpoints from <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/exp</span></code> in the following ways.</p>
 <section id="export-model-state-dict">
-<h3>Export <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code><a class="headerlink" href="#export-model-state-dict" title="Permalink to this heading"></a></h3>
+<h3>Export <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code><a class="headerlink" href="#export-model-state-dict" title="Link to this heading"></a></h3>
 <p>Checkpoints saved by <code class="docutils literal notranslate"><span class="pre">pruned_transducer_stateless7_ctc_bs/train.py</span></code> also include
 <code class="docutils literal notranslate"><span class="pre">optimizer.state_dict()</span></code>. It is useful for resuming training. But after training,
 we are interested only in <code class="docutils literal notranslate"><span class="pre">model.state_dict()</span></code>. You can use the following
@@ -488,7 +488,7 @@ can run:</p>
 </div>
 </section>
 <section id="export-model-using-torch-jit-script">
-<h3>Export model using <code class="docutils literal notranslate"><span class="pre">torch.jit.script()</span></code><a class="headerlink" href="#export-model-using-torch-jit-script" title="Permalink to this heading"></a></h3>
+<h3>Export model using <code class="docutils literal notranslate"><span class="pre">torch.jit.script()</span></code><a class="headerlink" href="#export-model-using-torch-jit-script" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_ctc_bs/export.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--exp-dir<span class="w"> </span>./pruned_transducer_stateless7_ctc_bs/exp<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--bpe-model<span class="w"> </span>data/lang_bpe_500/bpe.model<span class="w"> </span><span class="se">\</span>
@@ -521,7 +521,7 @@ are on CPU. You can use <code class="docutils literal notranslate"><span class="
 </section>
 </section>
 <section id="download-pretrained-models">
-<h2>Download pretrained models<a class="headerlink" href="#download-pretrained-models" title="Permalink to this heading"></a></h2>
+<h2>Download pretrained models<a class="headerlink" href="#download-pretrained-models" title="Link to this heading"></a></h2>
 <p>If you don’t want to train from scratch, you can download the pretrained models
 by visiting the following links:</p>
 <blockquote>

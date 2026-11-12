@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../../../_static/doctools.js?v=888ff710"></script>
-      <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -107,7 +107,7 @@
            <div itemprop="articleBody">
              
   <section id="finetune-from-a-pre-trained-zipformer-model-with-adapters">
-<h1>Finetune from a pre-trained Zipformer model with adapters<a class="headerlink" href="#finetune-from-a-pre-trained-zipformer-model-with-adapters" title="Permalink to this heading"></a></h1>
+<h1>Finetune from a pre-trained Zipformer model with adapters<a class="headerlink" href="#finetune-from-a-pre-trained-zipformer-model-with-adapters" title="Link to this heading"></a></h1>
 <p>This tutorial shows you how to fine-tune a pre-trained <strong>Zipformer</strong>
 transducer model on a new dataset with adapters.
 Adapters are compact and efficient module that can be integrated into a pre-trained model
@@ -129,17 +129,17 @@ the environment for <code class="docutils literal notranslate"><span class="pre"
 pre-trained on <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> on the small subset of <a class="reference external" href="https://github.com/SpeechColab/GigaSpeech">GigaSpeech</a>. You could use your
 own data for fine-tuning if you create a manifest for your new dataset.</p>
 <section id="data-preparation">
-<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
 <p>Please follow the instructions in the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/gigaspeech/ASR">GigaSpeech recipe</a>
 to prepare the fine-tune data used in this tutorial. We only require the small subset in GigaSpeech for this tutorial.</p>
 </section>
 <section id="model-preparation">
-<h2>Model preparation<a class="headerlink" href="#model-preparation" title="Permalink to this heading"></a></h2>
+<h2>Model preparation<a class="headerlink" href="#model-preparation" title="Link to this heading"></a></h2>
 <p>We are using the Zipformer model trained on full LibriSpeech (960 hours) as the intialization. The
 checkpoint of the model can be downloaded via the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-zipformer-2023-05-15
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-zipformer-2023-05-15/exp
-$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"pretrained.pt"</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../data/lang_bpe_500
 $<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span>bpe.model
@@ -167,7 +167,7 @@ decoding on the GigaSpeech test sets:</p>
 </div>
 </section>
 <section id="fine-tune-with-adapter">
-<h2>Fine-tune with adapter<a class="headerlink" href="#fine-tune-with-adapter" title="Permalink to this heading"></a></h2>
+<h2>Fine-tune with adapter<a class="headerlink" href="#fine-tune-with-adapter" title="Link to this heading"></a></h2>
 <p>We insert 4 adapters with residual connection in each <code class="docutils literal notranslate"><span class="pre">Zipformer2EncoderLayer</span></code>.
 The original model parameters remain untouched during training and only the parameters of
 the adapters are updated. The following command starts a fine-tuning experiment with adapters:</p>
@@ -218,7 +218,7 @@ need to set this to False.</strong></p>
 and requires less memory than full fine-tuning.</p>
 </section>
 <section id="decoding">
-<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<h2>Decoding<a class="headerlink" href="#decoding" title="Link to this heading"></a></h2>
 <p>After training, let’s test the WERs. To test the WERs on the GigaSpeech set,
 you can execute the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">epoch</span><span class="o">=</span><span class="m">20</span>
@@ -275,7 +275,7 @@ $<span class="w"> </span><span class="nv">adapter_dim</span><span class="o">=</s
 fine-tuning is also very flexible as the same model can be used for decoding on the original and target domain.</p>
 </section>
 <section id="export-the-model">
-<h2>Export the model<a class="headerlink" href="#export-the-model" title="Permalink to this heading"></a></h2>
+<h2>Export the model<a class="headerlink" href="#export-the-model" title="Link to this heading"></a></h2>
 <p>After training, the model can be exported to <code class="docutils literal notranslate"><span class="pre">onnx</span></code> format easily using the following command:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">use_adapters</span><span class="o">=</span><span class="m">1</span>
 $<span class="w"> </span><span class="nv">adapter_dim</span><span class="o">=</span><span class="m">16</span>
@@ -288,22 +288,22 @@ $<span class="w"> </span>./zipformer_adapter/export-onnx.py<span class="w"> </sp
 <span class="w">    </span>--exp-dir<span class="w"> </span>zipformer_adapter/exp_giga_finetune_adapters<span class="si">${</span><span class="nv">use_adapters</span><span class="si">}</span>_adapter_dim<span class="si">${</span><span class="nv">adapter_dim</span><span class="si">}</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--use-adapters<span class="w"> </span><span class="nv">$use_adapters</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--adapter-dim<span class="w"> </span><span class="nv">$adapter_dim</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--num-encoder-layers<span class="w"> </span><span class="s2">&quot;2,2,3,4,3,2&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--downsampling-factor<span class="w"> </span><span class="s2">&quot;1,2,4,8,4,2&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--feedforward-dim<span class="w"> </span><span class="s2">&quot;512,768,1024,1536,1024,768&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--num-heads<span class="w"> </span><span class="s2">&quot;4,4,4,8,4,4&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--encoder-dim<span class="w"> </span><span class="s2">&quot;192,256,384,512,384,256&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-encoder-layers<span class="w"> </span><span class="s2">"2,2,3,4,3,2"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--downsampling-factor<span class="w"> </span><span class="s2">"1,2,4,8,4,2"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--feedforward-dim<span class="w"> </span><span class="s2">"512,768,1024,1536,1024,768"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-heads<span class="w"> </span><span class="s2">"4,4,4,8,4,4"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--encoder-dim<span class="w"> </span><span class="s2">"192,256,384,512,384,256"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--query-head-dim<span class="w"> </span><span class="m">32</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--value-head-dim<span class="w"> </span><span class="m">12</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--pos-head-dim<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--pos-dim<span class="w"> </span><span class="m">48</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--encoder-unmasked-dim<span class="w"> </span><span class="s2">&quot;192,192,256,256,256,192&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--cnn-module-kernel<span class="w"> </span><span class="s2">&quot;31,31,15,15,15,31&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--encoder-unmasked-dim<span class="w"> </span><span class="s2">"192,192,256,256,256,192"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--cnn-module-kernel<span class="w"> </span><span class="s2">"31,31,15,15,15,31"</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--decoder-dim<span class="w"> </span><span class="m">512</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--joiner-dim<span class="w"> </span><span class="m">512</span><span class="w"> </span><span class="se">\</span>
 <span class="w">    </span>--causal<span class="w"> </span>False<span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--chunk-size<span class="w"> </span><span class="s2">&quot;16,32,64,-1&quot;</span><span class="w"> </span><span class="se">\</span>
-<span class="w">    </span>--left-context-frames<span class="w"> </span><span class="s2">&quot;64,128,256,-1&quot;</span>
+<span class="w">    </span>--chunk-size<span class="w"> </span><span class="s2">"16,32,64,-1"</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--left-context-frames<span class="w"> </span><span class="s2">"64,128,256,-1"</span>
 </pre></div>
 </div>
 </section>

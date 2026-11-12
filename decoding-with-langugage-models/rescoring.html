@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -92,7 +92,7 @@
            <div itemprop="articleBody">
              
   <section id="lm-rescoring-for-transducer">
-<span id="rescoring"></span><h1>LM rescoring for Transducer<a class="headerlink" href="#lm-rescoring-for-transducer" title="Permalink to this heading"></a></h1>
+<span id="rescoring"></span><h1>LM rescoring for Transducer<a class="headerlink" href="#lm-rescoring-for-transducer" title="Link to this heading"></a></h1>
 <p>LM rescoring is a commonly used approach to incorporate external LM information. Unlike shallow-fusion-based
 methods (see <a class="reference internal" href="shallow-fusion.html#shallow-fusion"><span class="std std-ref">Shallow fusion for Transducer</span></a>, <a class="reference internal" href="LODR.html#lodr"><span class="std std-ref">LODR for RNN Transducer</span></a>), rescoring is usually performed to re-rank the n-best hypotheses after beam search.
 Rescoring is usually more efficient than shallow fusion since less computation is performed on the external LM.
@@ -120,7 +120,7 @@ If you want to train your model from scratch, please have a look at <a class="re
 <p>As the initial step, let’s download the pre-trained model.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
-$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"pretrained.pt"</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../data/lang_bpe_500
 $<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span>bpe.model
@@ -159,7 +159,7 @@ for training a RNN LM and this <a class="reference external" href="https://githu
 $<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
 $<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
 $<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>icefall-librispeech-rnn-lm/exp
-$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"pretrained.pt"</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
 $<span class="w"> </span><span class="nb">popd</span>
 </pre></div>
@@ -202,7 +202,7 @@ $ beam_size_4       7.6     best for test-other
 <p>Great! We made some improvements! Increasing the size of the n-best hypotheses will further boost the performance,
 see the following table:</p>
 <table class="docutils align-default" id="id1">
-<caption><span class="caption-number">Table 3 </span><span class="caption-text">WERs of LM rescoring with different beam sizes</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<caption><span class="caption-number">Table 3 </span><span class="caption-text">WERs of LM rescoring with different beam sizes</span><a class="headerlink" href="#id1" title="Link to this table"></a></caption>
 <colgroup>
 <col style="width: 33.3%" />
 <col style="width: 33.3%" />
@@ -280,7 +280,7 @@ $ beam_size_4       7.57    best for test-other
 <p>It’s slightly better than LM rescoring. If we further increase the beam size, we will see
 further improvements from LM rescoring + LODR:</p>
 <table class="docutils align-default" id="id2">
-<caption><span class="caption-number">Table 4 </span><span class="caption-text">WERs of LM rescoring + LODR with different beam sizes</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<caption><span class="caption-number">Table 4 </span><span class="caption-text">WERs of LM rescoring + LODR with different beam sizes</span><a class="headerlink" href="#id2" title="Link to this table"></a></caption>
 <colgroup>
 <col style="width: 33.3%" />
 <col style="width: 33.3%" />
@@ -310,7 +310,7 @@ further improvements from LM rescoring + LODR:</p>
 <p>As mentioned earlier, LM rescoring is usually faster than shallow-fusion based methods.
 Here, we benchmark the WERs and decoding speed of them:</p>
 <table class="docutils align-default" id="id3">
-<caption><span class="caption-number">Table 5 </span><span class="caption-text">LM-rescoring-based methods vs shallow-fusion-based methods (The numbers in each field is WER on test-clean, WER on test-other and decoding time on test-clean)</span><a class="headerlink" href="#id3" title="Permalink to this table"></a></caption>
+<caption><span class="caption-number">Table 5 </span><span class="caption-text">LM-rescoring-based methods vs shallow-fusion-based methods (The numbers in each field is WER on test-clean, WER on test-other and decoding time on test-clean)</span><a class="headerlink" href="#id3" title="Link to this table"></a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 25.0%" />

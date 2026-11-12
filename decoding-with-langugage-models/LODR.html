@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,10 +13,10 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
-      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -94,7 +94,7 @@
            <div itemprop="articleBody">
              
   <section id="lodr-for-rnn-transducer">
-<span id="lodr"></span><h1>LODR for RNN Transducer<a class="headerlink" href="#lodr-for-rnn-transducer" title="Permalink to this heading"></a></h1>
+<span id="lodr"></span><h1>LODR for RNN Transducer<a class="headerlink" href="#lodr-for-rnn-transducer" title="Link to this heading"></a></h1>
 <p>As a type of E2E model, neural transducers are usually considered as having an internal
 language model, which learns the language level information on the training corpus.
 In real-life scenario, there is often a mismatch between the training corpus and the target corpus space.
@@ -148,7 +148,7 @@ The testing scenario here is intra-domain (we decode the model trained on <a cla
 <p>As the initial step, let’s download the pre-trained model.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
-$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"pretrained.pt"</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../data/lang_bpe_500
 $<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span>bpe.model
@@ -181,7 +181,7 @@ Note that the bi-gram is estimated on the LibriSpeech 960 hours’ text.</p>
 $<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
 $<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
 $<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>icefall-librispeech-rnn-lm/exp
-$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"pretrained.pt"</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
 $<span class="w"> </span><span class="nb">popd</span>
 $
@@ -235,7 +235,7 @@ $ beam_size_4       6.74    best for test-other
 <p>Recall that the lowest WER we obtained in <a class="reference internal" href="shallow-fusion.html#shallow-fusion"><span class="std std-ref">Shallow fusion for Transducer</span></a> with beam size of 4 is <code class="docutils literal notranslate"><span class="pre">2.77/7.08</span></code>, LODR
 indeed <strong>further improves</strong> the WER. We can do even better if we increase <code class="docutils literal notranslate"><span class="pre">--beam-size</span></code>:</p>
 <table class="docutils align-default" id="id1">
-<caption><span class="caption-number">Table 2 </span><span class="caption-text">WER of LODR with different beam sizes</span><a class="headerlink" href="#id1" title="Permalink to this table"></a></caption>
+<caption><span class="caption-number">Table 2 </span><span class="caption-text">WER of LODR with different beam sizes</span><a class="headerlink" href="#id1" title="Link to this table"></a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 25.0%" />

@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../../_static/doctools.js?v=888ff710"></script>
-      <script src="../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
@@ -104,7 +104,7 @@
            <div itemprop="articleBody">
              
   <section id="introduction">
-<h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this heading"></a></h1>
+<h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h1>
 <p>This page shows you how we implement streaming <strong>X-former transducer</strong> models for ASR.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -113,7 +113,7 @@ like <a class="reference external" href="https://arxiv.org/pdf/2005.08100.pdf">C
 </div>
 <p>Currently we have implemented two types of streaming models, one uses Conformer as encoder, the other uses Emformer as encoder.</p>
 <section id="streaming-conformer">
-<h2>Streaming Conformer<a class="headerlink" href="#streaming-conformer" title="Permalink to this heading"></a></h2>
+<h2>Streaming Conformer<a class="headerlink" href="#streaming-conformer" title="Link to this heading"></a></h2>
 <p>The main idea of training a streaming model is to make the model see limited contexts
 in training time, we can achieve this by applying a mask to the output of self-attention.
 In icefall, we implement the streaming conformer the way just like what <a class="reference external" href="https://arxiv.org/pdf/2012.05481.pdf">WeNet</a> did.</p>
@@ -140,7 +140,7 @@ you have to re-train it with the extra arguments mentioned in the docs above to 
 </div>
 </section>
 <section id="streaming-emformer">
-<h2>Streaming Emformer<a class="headerlink" href="#streaming-emformer" title="Permalink to this heading"></a></h2>
+<h2>Streaming Emformer<a class="headerlink" href="#streaming-emformer" title="Link to this heading"></a></h2>
 <p>The Emformer model proposed <a class="reference external" href="https://arxiv.org/pdf/2010.10759.pdf">here</a> uses more
 complicated techniques. It has a memory bank component to memorize history information,
 what’ more, it also introduces right context in training time by hard-copying part of

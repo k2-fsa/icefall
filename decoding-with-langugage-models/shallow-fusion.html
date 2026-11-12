@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -93,7 +93,7 @@
            <div itemprop="articleBody">
              
   <section id="shallow-fusion-for-transducer">
-<span id="shallow-fusion"></span><h1>Shallow fusion for Transducer<a class="headerlink" href="#shallow-fusion-for-transducer" title="Permalink to this heading"></a></h1>
+<span id="shallow-fusion"></span><h1>Shallow fusion for Transducer<a class="headerlink" href="#shallow-fusion-for-transducer" title="Link to this heading"></a></h1>
 <p>External language models (LM) are commonly used to improve WERs for E2E ASR models.
 This tutorial shows you how to perform <code class="docutils literal notranslate"><span class="pre">shallow</span> <span class="pre">fusion</span></code> with an external LM
 to improve the word-error-rate of a transducer model.</p>
@@ -119,7 +119,7 @@ If you want to train your model from scratch, please have a look at <a class="re
 <p>As the initial step, let’s download the pre-trained model.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/Zengwei/icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>icefall-asr-librispeech-pruned-transducer-stateless7-streaming-2022-12-29/exp
-$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"pretrained.pt"</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../data/lang_bpe_500
 $<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span>bpe.model
@@ -152,7 +152,7 @@ Training a language model usually takes a long time, we can download a pre-train
 $<span class="w"> </span><span class="nv">GIT_LFS_SKIP_SMUDGE</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://huggingface.co/ezerhouni/icefall-librispeech-rnn-lm
 $<span class="w"> </span><span class="c1"># create a symbolic link so that the checkpoint can be loaded</span>
 $<span class="w"> </span><span class="nb">pushd</span><span class="w"> </span>icefall-librispeech-rnn-lm/exp
-$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;pretrained.pt&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"pretrained.pt"</span>
 $<span class="w"> </span>ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
 $<span class="w"> </span><span class="nb">popd</span>
 </pre></div>
@@ -233,7 +233,7 @@ the LM score might be dominant during decoding, leading to bad WER. A typical va
 </ul>
 <p>Here, we also show how <cite>–beam-size</cite> effect the WER and decoding time:</p>
 <table class="docutils align-default" id="id2">
-<caption><span class="caption-number">Table 1 </span><span class="caption-text">WERs and decoding time (on test-clean) of shallow fusion with different beam sizes</span><a class="headerlink" href="#id2" title="Permalink to this table"></a></caption>
+<caption><span class="caption-number">Table 1 </span><span class="caption-text">WERs and decoding time (on test-clean) of shallow fusion with different beam sizes</span><a class="headerlink" href="#id2" title="Link to this table"></a></caption>
 <colgroup>
 <col style="width: 25.0%" />
 <col style="width: 25.0%" />

@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -101,7 +101,7 @@
            <div itemprop="articleBody">
              
   <section id="environment-setup">
-<span id="dummies-tutorial-environment-setup"></span><h1>Environment setup<a class="headerlink" href="#environment-setup" title="Permalink to this heading"></a></h1>
+<span id="dummies-tutorial-environment-setup"></span><h1>Environment setup<a class="headerlink" href="#environment-setup" title="Link to this heading"></a></h1>
 <p>We will create an environment for <a class="reference external" href="https://github.com/k2-fsa">Next-gen Kaldi</a> that runs on <code class="docutils literal notranslate"><span class="pre">CPU</span></code>
 in this tutorial.</p>
 <div class="admonition note">
@@ -113,7 +113,7 @@ training data, please follow <a class="reference internal" href="../installation
 that works with <code class="docutils literal notranslate"><span class="pre">GPU</span></code>.</p>
 </div>
 <section id="create-a-virtual-environment">
-<h2>Create a virtual environment<a class="headerlink" href="#create-a-virtual-environment" title="Permalink to this heading"></a></h2>
+<h2>Create a virtual environment<a class="headerlink" href="#create-a-virtual-environment" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>virtualenv<span class="w"> </span>-p<span class="w"> </span>python3<span class="w"> </span>/tmp/icefall_env
 </pre></div>
 </div>
@@ -121,7 +121,7 @@ that works with <code class="docutils literal notranslate"><span class="pre">GPU
 You can select any directory you want.</p>
 <p>The output of the above command is given below:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>Already<span class="w"> </span>using<span class="w"> </span>interpreter<span class="w"> </span>/usr/bin/python3
-Using<span class="w"> </span>base<span class="w"> </span>prefix<span class="w"> </span><span class="s1">&#39;/usr&#39;</span>
+Using<span class="w"> </span>base<span class="w"> </span>prefix<span class="w"> </span><span class="s1">'/usr'</span>
 New<span class="w"> </span>python<span class="w"> </span>executable<span class="w"> </span><span class="k">in</span><span class="w"> </span>/tmp/icefall_env/bin/python3
 Also<span class="w"> </span>creating<span class="w"> </span>executable<span class="w"> </span><span class="k">in</span><span class="w"> </span>/tmp/icefall_env/bin/python
 Installing<span class="w"> </span>setuptools,<span class="w"> </span>pkg_resources,<span class="w"> </span>pip,<span class="w"> </span>wheel...done.
@@ -133,7 +133,7 @@ Installing<span class="w"> </span>setuptools,<span class="w"> </span>pkg_resourc
 </div>
 </section>
 <section id="install-dependencies">
-<h2>Install dependencies<a class="headerlink" href="#install-dependencies" title="Permalink to this heading"></a></h2>
+<h2>Install dependencies<a class="headerlink" href="#install-dependencies" title="Link to this heading"></a></h2>
 <div class="admonition warning">
 <p class="admonition-title">Warning</p>
 <p>Remeber to activate your virtual environment before you continue!</p>
@@ -171,7 +171,7 @@ pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com
 </div>
 </section>
 <section id="install-icefall">
-<h2>Install icefall<a class="headerlink" href="#install-icefall" title="Permalink to this heading"></a></h2>
+<h2>Install icefall<a class="headerlink" href="#install-icefall" title="Link to this heading"></a></h2>
 <p>We will put the source code of <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> into the directory <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>
 You can select any directory you want.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>/tmp
@@ -191,7 +191,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </s
 <blockquote>
 <div><p>If you get the following error during this tutorial:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ModuleNotFoundError:<span class="w"> </span>No<span class="w"> </span>module<span class="w"> </span>named<span class="w"> </span><span class="s1">&#39;icefall&#39;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ModuleNotFoundError:<span class="w"> </span>No<span class="w"> </span>module<span class="w"> </span>named<span class="w"> </span><span class="s1">'icefall'</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -201,7 +201,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </s
 <p>Congratulations! You have installed <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> successfully.</p>
 </section>
 <section id="for-the-more-curious">
-<h2>For the more curious<a class="headerlink" href="#for-the-more-curious" title="Permalink to this heading"></a></h2>
+<h2>For the more curious<a class="headerlink" href="#for-the-more-curious" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> contains a collection of Python scripts and you don’t need to
 use <code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">setup.py</span> <span class="pre">install</span></code> or <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">icefall</span></code> to install it.
 All you need to do is to download the code and set the environment variable

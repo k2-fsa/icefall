@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -105,7 +105,7 @@
            <div itemprop="articleBody">
              
   <section id="kaldi-based-forced-alignment">
-<h1>Kaldi-based forced alignment<a class="headerlink" href="#kaldi-based-forced-alignment" title="Permalink to this heading"></a></h1>
+<h1>Kaldi-based forced alignment<a class="headerlink" href="#kaldi-based-forced-alignment" title="Link to this heading"></a></h1>
 <p>This section describes in detail how to use <a class="reference external" href="https://github.com/k2-fsa/kaldi-decoder">kaldi-decoder</a>
 for <strong>FST-based</strong> <code class="docutils literal notranslate"><span class="pre">forced</span> <span class="pre">alignment</span></code> with models trained by <a class="reference external" href="https://www.cs.toronto.edu/~graves/icml_2006.pdf">CTC</a> loss.</p>
 <div class="admonition hint">
@@ -114,7 +114,7 @@ for <strong>FST-based</strong> <code class="docutils literal notranslate"><span 
 <p><a class="reference external" href="https://github.com/k2-fsa/colab/blob/master/icefall/ctc_forced_alignment_fst_based_kaldi.ipynb"><img alt="kaldi-based forced alignment colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
 </div>
 <section id="prepare-the-environment">
-<h2>Prepare the environment<a class="headerlink" href="#prepare-the-environment" title="Permalink to this heading"></a></h2>
+<h2>Prepare the environment<a class="headerlink" href="#prepare-the-environment" title="Link to this heading"></a></h2>
 <p>Before you continue, make sure you have setup <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> by following <a class="reference internal" href="../installation/index.html#install-icefall"><span class="std std-ref">Installation</span></a>.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -122,16 +122,16 @@ for <strong>FST-based</strong> <code class="docutils literal notranslate"><span 
 </div>
 </section>
 <section id="get-the-test-data">
-<h2>Get the test data<a class="headerlink" href="#get-the-test-data" title="Permalink to this heading"></a></h2>
+<h2>Get the test data<a class="headerlink" href="#get-the-test-data" title="Link to this heading"></a></h2>
 <p>We use the test wave
 from <a class="reference external" href="https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html">CTC FORCED ALIGNMENT API TUTORIAL</a></p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torchaudio</span>
 
 <span class="c1"># Download test wave</span>
-<span class="n">speech_file</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">download_asset</span><span class="p">(</span><span class="s2">&quot;tutorial-assets/Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav&quot;</span><span class="p">)</span>
+<span class="n">speech_file</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">download_asset</span><span class="p">(</span><span class="s2">"tutorial-assets/Lab41-SRI-VOiCES-src-sp0307-ch127535-sg0042.wav"</span><span class="p">)</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">speech_file</span><span class="p">)</span>
 <span class="n">waveform</span><span class="p">,</span> <span class="n">sr</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">speech_file</span><span class="p">)</span>
-<span class="n">transcript</span> <span class="o">=</span> <span class="s2">&quot;i had that curiosity beside me at this moment&quot;</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
+<span class="n">transcript</span> <span class="o">=</span> <span class="s2">"i had that curiosity beside me at this moment"</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
 <span class="nb">print</span><span class="p">(</span><span class="n">waveform</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">sr</span><span class="p">)</span>
 
 <span class="k">assert</span> <span class="n">waveform</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
@@ -167,7 +167,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 
 <span class="n">bundle</span> <span class="o">=</span> <span class="n">torchaudio</span><span class="o">.</span><span class="n">pipelines</span><span class="o">.</span><span class="n">MMS_FA</span>
 
-<span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">&quot;cpu&quot;</span><span class="p">)</span>
+<span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">"cuda"</span> <span class="k">if</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">()</span> <span class="k">else</span> <span class="s2">"cpu"</span><span class="p">)</span>
 <span class="n">model</span> <span class="o">=</span> <span class="n">bundle</span><span class="o">.</span><span class="n">get_model</span><span class="p">(</span><span class="n">with_star</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">)</span>
 </pre></div>
 </div>
@@ -177,7 +177,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 </div>
 </section>
 <section id="compute-log-probs">
-<h2>Compute log_probs<a class="headerlink" href="#compute-log-probs" title="Permalink to this heading"></a></h2>
+<h2>Compute log_probs<a class="headerlink" href="#compute-log-probs" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>with<span class="w"> </span>torch.inference_mode<span class="o">()</span>:
 <span class="w">    </span>emission,<span class="w"> </span><span class="nv">_</span><span class="w"> </span><span class="o">=</span><span class="w"> </span>model<span class="o">(</span>waveform.to<span class="o">(</span>device<span class="o">))</span>
 <span class="w">    </span>print<span class="o">(</span>emission.shape<span class="o">)</span>
@@ -189,19 +189,19 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 </div>
 </section>
 <section id="create-token2id-and-id2token">
-<h2>Create token2id and id2token<a class="headerlink" href="#create-token2id-and-id2token" title="Permalink to this heading"></a></h2>
+<h2>Create token2id and id2token<a class="headerlink" href="#create-token2id-and-id2token" title="Link to this heading"></a></h2>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">token2id</span> <span class="o">=</span> <span class="n">bundle</span><span class="o">.</span><span class="n">get_dict</span><span class="p">(</span><span class="n">star</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
 <span class="n">id2token</span> <span class="o">=</span> <span class="p">{</span><span class="n">i</span><span class="p">:</span><span class="n">t</span> <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">token2id</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
-<span class="n">token2id</span><span class="p">[</span><span class="s2">&quot;&lt;eps&gt;&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-<span class="k">del</span> <span class="n">token2id</span><span class="p">[</span><span class="s2">&quot;-&quot;</span><span class="p">]</span>
+<span class="n">token2id</span><span class="p">[</span><span class="s2">"&lt;eps&gt;"</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="k">del</span> <span class="n">token2id</span><span class="p">[</span><span class="s2">"-"</span><span class="p">]</span>
 </pre></div>
 </div>
 </section>
 <section id="create-word2id-and-id2word">
-<h2>Create word2id and id2word<a class="headerlink" href="#create-word2id-and-id2word" title="Permalink to this heading"></a></h2>
+<h2>Create word2id and id2word<a class="headerlink" href="#create-word2id-and-id2word" title="Link to this heading"></a></h2>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="n">words</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">transcript</span><span class="p">))</span>
 <span class="n">word2id</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
-<span class="n">word2id</span><span class="p">[</span><span class="s1">&#39;eps&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
+<span class="n">word2id</span><span class="p">[</span><span class="s1">'eps'</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
 <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">w</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">words</span><span class="p">):</span>
   <span class="n">word2id</span><span class="p">[</span><span class="n">w</span><span class="p">]</span> <span class="o">=</span> <span class="n">i</span> <span class="o">+</span> <span class="mi">1</span>
 
@@ -211,7 +211,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 <p>Note that we only use words from the transcript of the test wave.</p>
 </section>
 <section id="generate-lexicon-related-files">
-<h2>Generate lexicon-related files<a class="headerlink" href="#generate-lexicon-related-files" title="Permalink to this heading"></a></h2>
+<h2>Generate lexicon-related files<a class="headerlink" href="#generate-lexicon-related-files" title="Link to this heading"></a></h2>
 <p>We use the code below to generate the following 4 files:</p>
 <blockquote>
 <div><ul class="simple">
@@ -227,30 +227,30 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 </div>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">prepare_lang</span><span class="w"> </span><span class="kn">import</span> <span class="n">add_disambig_symbols</span>
 
-<span class="n">lexicon</span> <span class="o">=</span> <span class="p">[(</span><span class="n">w</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">w</span><span class="p">))</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">word2id</span> <span class="k">if</span> <span class="n">w</span> <span class="o">!=</span> <span class="s2">&quot;eps&quot;</span><span class="p">]</span>
+<span class="n">lexicon</span> <span class="o">=</span> <span class="p">[(</span><span class="n">w</span><span class="p">,</span> <span class="nb">list</span><span class="p">(</span><span class="n">w</span><span class="p">))</span> <span class="k">for</span> <span class="n">w</span> <span class="ow">in</span> <span class="n">word2id</span> <span class="k">if</span> <span class="n">w</span> <span class="o">!=</span> <span class="s2">"eps"</span><span class="p">]</span>
 <span class="n">lexicon_disambig</span><span class="p">,</span> <span class="n">max_disambig_id</span> <span class="o">=</span> <span class="n">add_disambig_symbols</span><span class="p">(</span><span class="n">lexicon</span><span class="p">)</span>
 
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;lexicon.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">'lexicon.txt'</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">'utf-8'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
   <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">tokens</span> <span class="ow">in</span> <span class="n">lexicon</span><span class="p">:</span>
-    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">' '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
 
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;lexicon_disambig.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">'lexicon_disambig.txt'</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">'utf-8'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
   <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">tokens</span> <span class="ow">in</span> <span class="n">lexicon_disambig</span><span class="p">:</span>
-    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">&#39; &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="s1">' '</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
 
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;tokens.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">'tokens.txt'</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">'utf-8'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
   <span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">token2id</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s1">&#39;-&#39;</span><span class="p">:</span>
-      <span class="n">t</span> <span class="o">=</span> <span class="s2">&quot;&lt;eps&gt;&quot;</span>
-    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">t</span> <span class="o">==</span> <span class="s1">'-'</span><span class="p">:</span>
+      <span class="n">t</span> <span class="o">=</span> <span class="s2">"&lt;eps&gt;"</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">t</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
 
   <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_disambig_id</span> <span class="o">+</span> <span class="mi">2</span><span class="p">):</span>
-    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;#</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">token2id</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">"#</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">token2id</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">k</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
 
-<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;words.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">&#39;utf-8&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">'words.txt'</span><span class="p">,</span> <span class="s1">'w'</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s1">'utf-8'</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
   <span class="k">for</span> <span class="n">w</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">word2id</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span>
-  <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;#0 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">word2id</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">w</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span><span class="p">)</span>
+  <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s1">'#0 </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">word2id</span><span class="p">)</span><span class="si">}</span><span class="se">\n</span><span class="s1">'</span><span class="p">)</span>
 </pre></div>
 </div>
 <p>To give you an idea about what the generated files look like:</p>
@@ -305,7 +305,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
 <span class="n">j</span> <span class="mi">22</span>
 <span class="n">z</span> <span class="mi">23</span>
 <span class="n">f</span> <span class="mi">24</span>
-<span class="s1">&#39; 25</span>
+<span class="s1">' 25</span>
 <span class="n">q</span> <span class="mi">26</span>
 <span class="n">x</span> <span class="mi">27</span>
 <span class="o">&lt;</span><span class="n">eps</span><span class="o">&gt;</span> <span class="mi">0</span>
@@ -333,7 +333,7 @@ modeling unit, the same code can be used without any change.</p>
 </div>
 </section>
 <section id="convert-transcript-to-an-fst-graph">
-<h2>Convert transcript to an FST graph<a class="headerlink" href="#convert-transcript-to-an-fst-graph" title="Permalink to this heading"></a></h2>
+<h2>Convert transcript to an FST graph<a class="headerlink" href="#convert-transcript-to-an-fst-graph" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>egs/librispeech/ASR/local/prepare_lang_fst.py<span class="w"> </span>--lang-dir<span class="w"> </span>./
 </pre></div>
 </div>
@@ -345,19 +345,19 @@ use <code class="docutils literal notranslate"><span class="pre">HL.fst</span></
 </div>
 </section>
 <section id="force-aligner">
-<h2>Force aligner<a class="headerlink" href="#force-aligner" title="Permalink to this heading"></a></h2>
+<h2>Force aligner<a class="headerlink" href="#force-aligner" title="Link to this heading"></a></h2>
 <p>Now, everything is ready. We can use the following code to get forced alignments.</p>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">kaldi_decoder</span><span class="w"> </span><span class="kn">import</span> <span class="n">DecodableCtc</span><span class="p">,</span> <span class="n">FasterDecoder</span><span class="p">,</span> <span class="n">FasterDecoderOptions</span>
 <span class="kn">import</span><span class="w"> </span><span class="nn">kaldifst</span>
 
 <span class="k">def</span><span class="w"> </span><span class="nf">force_align</span><span class="p">():</span>
-    <span class="n">HL</span> <span class="o">=</span> <span class="n">kaldifst</span><span class="o">.</span><span class="n">StdVectorFst</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">&quot;./HL.fst&quot;</span><span class="p">)</span>
+    <span class="n">HL</span> <span class="o">=</span> <span class="n">kaldifst</span><span class="o">.</span><span class="n">StdVectorFst</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="s2">"./HL.fst"</span><span class="p">)</span>
     <span class="n">decodable</span> <span class="o">=</span> <span class="n">DecodableCtc</span><span class="p">(</span><span class="n">emission</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">contiguous</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">())</span>
     <span class="n">decoder_opts</span> <span class="o">=</span> <span class="n">FasterDecoderOptions</span><span class="p">(</span><span class="n">max_active</span><span class="o">=</span><span class="mi">3000</span><span class="p">)</span>
     <span class="n">decoder</span> <span class="o">=</span> <span class="n">FasterDecoder</span><span class="p">(</span><span class="n">HL</span><span class="p">,</span> <span class="n">decoder_opts</span><span class="p">)</span>
     <span class="n">decoder</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="n">decodable</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">decoder</span><span class="o">.</span><span class="n">reached_final</span><span class="p">():</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;failed to decode xxx&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"failed to decode xxx"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="n">ok</span><span class="p">,</span> <span class="n">best_path</span> <span class="o">=</span> <span class="n">decoder</span><span class="o">.</span><span class="n">get_best_path</span><span class="p">()</span>
 
@@ -368,7 +368,7 @@ use <code class="docutils literal notranslate"><span class="pre">HL.fst</span></
         <span class="n">total_weight</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">=</span> <span class="n">kaldifst</span><span class="o">.</span><span class="n">get_linear_symbol_sequence</span><span class="p">(</span><span class="n">best_path</span><span class="p">)</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span><span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;failed to get linear symbol sequence for xxx&quot;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"failed to get linear symbol sequence for xxx"</span><span class="p">)</span>
         <span class="k">return</span> <span class="kc">None</span>
 
     <span class="c1"># We need to use i-1 here since we have incremented tokens during</span>
@@ -607,7 +607,7 @@ use <code class="docutils literal notranslate"><span class="pre">HL.fst</span></
 from <a class="reference external" href="https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html">https://pytorch.org/audio/main/tutorials/ctc_forced_alignment_api_tutorial.html</a>.</p>
 </section>
 <section id="segment-each-word-using-the-computed-alignments">
-<h2>Segment each word using the computed alignments<a class="headerlink" href="#segment-each-word-using-the-computed-alignments" title="Permalink to this heading"></a></h2>
+<h2>Segment each word using the computed alignments<a class="headerlink" href="#segment-each-word-using-the-computed-alignments" title="Link to this heading"></a></h2>
 <div class="highlight-python3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">unflatten</span><span class="p">(</span><span class="n">list_</span><span class="p">,</span> <span class="n">lengths</span><span class="p">):</span>
     <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">list_</span><span class="p">)</span> <span class="o">==</span> <span class="nb">sum</span><span class="p">(</span><span class="n">lengths</span><span class="p">)</span>
     <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
@@ -639,7 +639,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
     <span class="n">ratio</span> <span class="o">=</span> <span class="n">waveform</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">num_frames</span>
     <span class="n">x0</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ratio</span> <span class="o">*</span> <span class="n">spans</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">start</span><span class="p">)</span>
     <span class="n">x1</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">ratio</span> <span class="o">*</span> <span class="n">spans</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">end</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">transcript</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">x0</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">sample_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">x1</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">sample_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> sec&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">transcript</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">x0</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">sample_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> - </span><span class="si">{</span><span class="n">x1</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="n">sample_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> sec"</span><span class="p">)</span>
     <span class="n">segment</span> <span class="o">=</span> <span class="n">waveform</span><span class="p">[:,</span> <span class="n">x0</span><span class="p">:</span><span class="n">x1</span><span class="p">]</span>
     <span class="k">return</span> <span class="n">IPython</span><span class="o">.</span><span class="n">display</span><span class="o">.</span><span class="n">Audio</span><span class="p">(</span><span class="n">segment</span><span class="o">.</span><span class="n">numpy</span><span class="p">(),</span> <span class="n">rate</span><span class="o">=</span><span class="n">sample_rate</span><span class="p">)</span>
 <span class="n">num_frames</span> <span class="o">=</span> <span class="n">emission</span><span class="o">.</span><span class="n">size</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
@@ -774,7 +774,7 @@ from <a class="reference external" href="https://pytorch.org/audio/main/tutorial
   </tr>
 </table></section>
 <section id="summary">
-<h2>Summary<a class="headerlink" href="#summary" title="Permalink to this heading"></a></h2>
+<h2>Summary<a class="headerlink" href="#summary" title="Link to this heading"></a></h2>
 <p>Congratulations! You have succeeded in using the FST-based approach to
 compute alignment of a test wave.</p>
 </section>

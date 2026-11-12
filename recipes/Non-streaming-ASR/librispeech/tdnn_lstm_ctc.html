@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../../../_static/doctools.js?v=888ff710"></script>
-      <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -111,7 +111,7 @@
            <div itemprop="articleBody">
              
   <section id="tdnn-lstm-ctc">
-<h1>TDNN-LSTM-CTC<a class="headerlink" href="#tdnn-lstm-ctc" title="Permalink to this heading"></a></h1>
+<h1>TDNN-LSTM-CTC<a class="headerlink" href="#tdnn-lstm-ctc" title="Link to this heading"></a></h1>
 <p>This tutorial shows you how to run a TDNN-LSTM-CTC model with the <a class="reference external" href="https://www.openslr.org/12">LibriSpeech</a> dataset.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -119,7 +119,7 @@
 the environment for <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
 </div>
 <section id="data-preparation">
-<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 $<span class="w"> </span>./prepare.sh
 </pre></div>
@@ -158,13 +158,13 @@ the following YouTube channel by <a class="reference external" href="https://www
 <iframe allowfullscreen="true" src="https://www.youtube.com/embed/ofEIoJL-mGM" style="border: 0; height: 345px; width: 560px">
 </iframe></div></section>
 <section id="training">
-<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<h2>Training<a class="headerlink" href="#training" title="Link to this heading"></a></h2>
 <p>Now describing the training of TDNN-LSTM-CTC model, contained in
 the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/tdnn_lstm_ctc">tdnn_lstm_ctc</a>
 folder.</p>
 <p>The command to run the training part is:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
-$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0,1,2,3&quot;</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"0,1,2,3"</span>
 $<span class="w"> </span>./tdnn_lstm_ctc/train.py<span class="w"> </span>--world-size<span class="w"> </span><span class="m">4</span>
 </pre></div>
 </div>
@@ -187,7 +187,7 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tdnn_lstm_ctc/exp/tensorboard
-$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;TDNN LSTM training for librispeech with icefall&quot;</span>
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">"TDNN LSTM training for librispeech with icefall"</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -209,11 +209,11 @@ Normally, you don’t need to change them. You can change them by modifying the 
 you want.</p>
 </section>
 <section id="decoding">
-<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<h2>Decoding<a class="headerlink" href="#decoding" title="Link to this heading"></a></h2>
 <p>The decoding part uses checkpoints saved by the training part, so you have
 to run the training part first.</p>
 <p>The command for decoding is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;0&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"0"</span>
 $<span class="w"> </span>./tdnn_lstm_ctc/decode.py
 </pre></div>
 </div>
@@ -252,19 +252,19 @@ See <a class="reference internal" href="../timit/tdnn_lstm_ctc.html#tdnn-lstm-ct
 </div></blockquote>
 </section>
 <section id="pre-trained-model">
-<span id="tdnn-lstm-ctc-use-a-pre-trained-model"></span><h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Permalink to this heading"></a></h2>
+<span id="tdnn-lstm-ctc-use-a-pre-trained-model"></span><h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Link to this heading"></a></h2>
 <p>We have uploaded the pre-trained model to
 <a class="reference external" href="https://huggingface.co/pkufool/icefall_asr_librispeech_tdnn-lstm_ctc">https://huggingface.co/pkufool/icefall_asr_librispeech_tdnn-lstm_ctc</a>.</p>
 <p>The following shows you how to use the pre-trained model.</p>
 <section id="install-kaldifeat">
-<h3>Install kaldifeat<a class="headerlink" href="#install-kaldifeat" title="Permalink to this heading"></a></h3>
+<h3>Install kaldifeat<a class="headerlink" href="#install-kaldifeat" title="Link to this heading"></a></h3>
 <p><a class="reference external" href="https://github.com/csukuangfj/kaldifeat">kaldifeat</a> is used to
 extract features for a single sound file or multiple sound files
 at the same time.</p>
 <p>Please refer to <a class="reference external" href="https://github.com/csukuangfj/kaldifeat">https://github.com/csukuangfj/kaldifeat</a> for installation.</p>
 </section>
 <section id="download-the-pre-trained-model">
-<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h3>
+<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 $<span class="w"> </span>mkdir<span class="w"> </span>tmp
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tmp
@@ -351,7 +351,7 @@ Note: We have removed optimizer <code class="docutils literal notranslate"><span
 <p>The information of the test sound files is listed below:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>soxi<span class="w"> </span>tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/*.flac
 
-Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac&#39;</span>
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac'</span>
 Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
 Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
 Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
@@ -361,7 +361,7 @@ Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> <
 Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>FLAC
 
 
-Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac&#39;</span>
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac'</span>
 Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
 Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
 Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
@@ -371,7 +371,7 @@ Bit<span class="w"> </span>Rate<span class="w">       </span>:<span class="w"> <
 Sample<span class="w"> </span>Encoding:<span class="w"> </span><span class="m">16</span>-bit<span class="w"> </span>FLAC
 
 
-Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac&#39;</span>
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">'tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac'</span>
 Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
 Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">16000</span>
 Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
@@ -385,7 +385,7 @@ Total<span class="w"> </span>Duration<span class="w"> </span>of<span class="w"> 
 </div>
 </section>
 <section id="inference-with-a-pre-trained-model">
-<h3>Inference with a pre-trained model<a class="headerlink" href="#inference-with-a-pre-trained-model" title="Permalink to this heading"></a></h3>
+<h3>Inference with a pre-trained model<a class="headerlink" href="#inference-with-a-pre-trained-model" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
 $<span class="w"> </span>./tdnn_lstm_ctc/pretrained.py<span class="w"> </span>--help
 </pre></div>
@@ -406,7 +406,7 @@ $<span class="w"> </span>./tdnn_lstm_ctc/pretrained.py<span class="w"> </span>--
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">57</span><span class="p">:</span><span class="mi">13</span><span class="p">,</span><span class="mi">315</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">170</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">model</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">57</span><span class="p">:</span><span class="mi">18</span><span class="p">,</span><span class="mi">331</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">182</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_librispeech_tdnn</span><span class="o">-</span><span class="n">lstm_ctc</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">57</span><span class="p">:</span><span class="mi">27</span><span class="p">,</span><span class="mi">581</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">199</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
-<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">57</span><span class="p">:</span><span class="mi">27</span><span class="p">,</span><span class="mi">584</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">209</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">57</span><span class="p">:</span><span class="mi">27</span><span class="p">,</span><span class="mi">584</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">209</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">'./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac'</span><span class="p">,</span> <span class="s1">'./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac'</span><span class="p">,</span> <span class="s1">'./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac'</span><span class="p">]</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">57</span><span class="p">:</span><span class="mi">27</span><span class="p">,</span><span class="mi">599</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">215</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">57</span><span class="p">:</span><span class="mi">27</span><span class="p">,</span><span class="mi">791</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">245</span><span class="p">]</span> <span class="n">Use</span> <span class="n">HLG</span> <span class="n">decoding</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">57</span><span class="p">:</span><span class="mi">28</span><span class="p">,</span><span class="mi">098</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">266</span><span class="p">]</span>
@@ -442,7 +442,7 @@ $<span class="w"> </span>./tdnn_lstm_ctc/pretrained.py<span class="w"> </span>--
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">29</span><span class="p">,</span><span class="mi">403</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">182</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_librispeech_tdnn</span><span class="o">-</span><span class="n">lstm_ctc</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">40</span><span class="p">,</span><span class="mi">631</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">190</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">G</span> <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_librispeech_tdnn</span><span class="o">-</span><span class="n">lstm_ctc</span><span class="o">/</span><span class="n">data</span><span class="o">/</span><span class="n">lm</span><span class="o">/</span><span class="n">G_4_gram</span><span class="o">.</span><span class="n">pt</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">53</span><span class="p">,</span><span class="mi">098</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">199</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
-<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">53</span><span class="p">,</span><span class="mi">107</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">209</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">53</span><span class="p">,</span><span class="mi">107</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">209</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">'./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1089-134686-0001.flac'</span><span class="p">,</span> <span class="s1">'./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0001.flac'</span><span class="p">,</span> <span class="s1">'./tmp/icefall_asr_librispeech_tdnn-lstm_ctc/test_wavs/1221-135766-0002.flac'</span><span class="p">]</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">53</span><span class="p">,</span><span class="mi">121</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">215</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">53</span><span class="p">,</span><span class="mi">443</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">250</span><span class="p">]</span> <span class="n">Use</span> <span class="n">HLG</span> <span class="n">decoding</span> <span class="o">+</span> <span class="n">LM</span> <span class="n">rescoring</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">16</span><span class="p">:</span><span class="mi">39</span><span class="p">:</span><span class="mi">54</span><span class="p">,</span><span class="mi">010</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">266</span><span class="p">]</span>
@@ -462,7 +462,7 @@ $<span class="w"> </span>./tdnn_lstm_ctc/pretrained.py<span class="w"> </span>--
 </section>
 </section>
 <section id="colab-notebook">
-<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Permalink to this heading"></a></h2>
+<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Link to this heading"></a></h2>
 <p>We provide a colab notebook for decoding with pre-trained model.</p>
 <p><a class="reference external" href="https://colab.research.google.com/drive/1-iSfQMp2So-We_Uu49N4AAcMInB72u9z?usp=sharing"><img alt="librispeech tdnn_lstm_ctc colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
 <p><strong>Congratulations!</strong> You have finished the TDNN-LSTM-CTC recipe on librispeech in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>

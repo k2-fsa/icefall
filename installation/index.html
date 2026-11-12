@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -110,7 +110,7 @@
            <div itemprop="articleBody">
              
   <section id="installation">
-<span id="install-icefall"></span><h1>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h1>
+<span id="install-icefall"></span><h1>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h1>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <p>We also provide <a class="reference internal" href="../docker/index.html#icefall-docker"><span class="std std-ref">Docker</span></a> support, which has already setup
@@ -146,13 +146,13 @@ the environment for you.</p>
 <p>Installation order matters.</p>
 </div>
 <section id="install-cuda-toolkit-and-cudnn">
-<h2>(0) Install CUDA toolkit and cuDNN<a class="headerlink" href="#install-cuda-toolkit-and-cudnn" title="Permalink to this heading"></a></h2>
+<h2>(0) Install CUDA toolkit and cuDNN<a class="headerlink" href="#install-cuda-toolkit-and-cudnn" title="Link to this heading"></a></h2>
 <p>Please refer to
 <a class="reference external" href="https://k2-fsa.github.io/k2/installation/cuda-cudnn.html">https://k2-fsa.github.io/k2/installation/cuda-cudnn.html</a>
 to install CUDA and cuDNN.</p>
 </section>
 <section id="install-torch-and-torchaudio">
-<h2>(1) Install torch and torchaudio<a class="headerlink" href="#install-torch-and-torchaudio" title="Permalink to this heading"></a></h2>
+<h2>(1) Install torch and torchaudio<a class="headerlink" href="#install-torch-and-torchaudio" title="Link to this heading"></a></h2>
 <p>Please refer <a class="reference external" href="https://pytorch.org/">https://pytorch.org/</a> to install <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a> and <a class="reference external" href="https://github.com/pytorch/audio">torchaudio</a>.</p>
 <div class="admonition caution">
 <p class="admonition-title">Caution</p>
@@ -160,7 +160,7 @@ to install CUDA and cuDNN.</p>
 </div>
 </section>
 <section id="install-k2">
-<h2>(2) Install k2<a class="headerlink" href="#install-k2" title="Permalink to this heading"></a></h2>
+<h2>(2) Install k2<a class="headerlink" href="#install-k2" title="Link to this heading"></a></h2>
 <p>Please refer to <a class="reference external" href="https://k2-fsa.github.io/k2/installation/index.html">https://k2-fsa.github.io/k2/installation/index.html</a>
 to install <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a>.</p>
 <div class="admonition caution">
@@ -178,7 +178,7 @@ to install <a class="reference external" href="https://github.com/k2-fsa/k2">k2<
 </div>
 </section>
 <section id="install-lhotse">
-<h2>(3) Install lhotse<a class="headerlink" href="#install-lhotse" title="Permalink to this heading"></a></h2>
+<h2>(3) Install lhotse<a class="headerlink" href="#install-lhotse" title="Link to this heading"></a></h2>
 <p>Please refer to <a class="reference external" href="https://lhotse.readthedocs.io/en/latest/getting-started.html#installation">https://lhotse.readthedocs.io/en/latest/getting-started.html#installation</a>
 to install <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
 <div class="admonition hint">
@@ -191,7 +191,7 @@ to install <a class="reference external" href="https://github.com/lhotse-speech/
 </div>
 </section>
 <section id="download-icefall">
-<h2>(4) Download icefall<a class="headerlink" href="#download-icefall" title="Permalink to this heading"></a></h2>
+<h2>(4) Download icefall<a class="headerlink" href="#download-icefall" title="Link to this heading"></a></h2>
 <p><a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> is a collection of Python scripts; what you need is to download it
 and set the environment variable <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> to point to it.</p>
 <p>Assume you want to place <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a> in the folder <code class="docutils literal notranslate"><span class="pre">/tmp</span></code>. The
@@ -211,10 +211,10 @@ to point to the version you want.</p>
 </div>
 </section>
 <section id="installation-example">
-<h2>Installation example<a class="headerlink" href="#installation-example" title="Permalink to this heading"></a></h2>
+<h2>Installation example<a class="headerlink" href="#installation-example" title="Link to this heading"></a></h2>
 <p>The following shows an example about setting up the environment.</p>
 <section id="create-a-virtual-environment">
-<h3>(1) Create a virtual environment<a class="headerlink" href="#create-a-virtual-environment" title="Permalink to this heading"></a></h3>
+<h3>(1) Create a virtual environment<a class="headerlink" href="#create-a-virtual-environment" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>kuangfangjun:~$<span class="w"> </span>virtualenv<span class="w"> </span>-p<span class="w"> </span>python3.8<span class="w"> </span>test-icefall
 created<span class="w"> </span>virtual<span class="w"> </span>environment<span class="w"> </span>CPython3.8.0.final.0-64<span class="w"> </span><span class="k">in</span><span class="w"> </span>9422ms
 <span class="w">  </span>creator<span class="w"> </span>CPython3Posix<span class="o">(</span><span class="nv">dest</span><span class="o">=</span>/star-fj/fangjun/test-icefall,<span class="w"> </span><span class="nv">clear</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">no_vcs_ignore</span><span class="o">=</span>False,<span class="w"> </span><span class="nv">global</span><span class="o">=</span>False<span class="o">)</span>
@@ -229,7 +229,7 @@ kuangfangjun:~$<span class="w"> </span><span class="nb">source</span><span class
 </div>
 </section>
 <section id="id1">
-<h3>(2) Install CUDA toolkit and cuDNN<a class="headerlink" href="#id1" title="Permalink to this heading"></a></h3>
+<h3>(2) Install CUDA toolkit and cuDNN<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
 <p>You need to determine the version of CUDA toolkit to install.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>nvidia-smi<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-n<span class="w"> </span><span class="m">4</span>
 
@@ -255,7 +255,7 @@ Cuda<span class="w"> </span>compilation<span class="w"> </span>tools,<span class
 </div>
 </section>
 <section id="id2">
-<h3>(3) Install torch and torchaudio<a class="headerlink" href="#id2" title="Permalink to this heading"></a></h3>
+<h3>(3) Install torch and torchaudio<a class="headerlink" href="#id2" title="Link to this heading"></a></h3>
 <p>Since we have selected CUDA toolkit <code class="docutils literal notranslate"><span class="pre">11.6</span></code>, we have to install a version of <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a>
 that is compiled against CUDA <code class="docutils literal notranslate"><span class="pre">11.6</span></code>. We select <code class="docutils literal notranslate"><span class="pre">torch</span> <span class="pre">1.13.0+cu116</span></code> in this
 example.</p>
@@ -279,18 +279,18 @@ Successfully<span class="w"> </span>installed<span class="w"> </span>torch-1.13.
 </pre></div>
 </div>
 <p>Verify that <a class="reference external" href="https://github.com/pytorch/pytorch">torch</a> and <a class="reference external" href="https://github.com/pytorch/audio">torchaudio</a> are successfully installed:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import torch; print(torch.__version__)&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import torch; print(torch.__version__)"</span>
 
 <span class="m">1</span>.13.0+cu116
 
-<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import torchaudio; print(torchaudio.__version__)&quot;</span>
+<span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import torchaudio; print(torchaudio.__version__)"</span>
 
 <span class="m">0</span>.13.0+cu116
 </pre></div>
 </div>
 </section>
 <section id="id3">
-<h3>(4) Install k2<a class="headerlink" href="#id3" title="Permalink to this heading"></a></h3>
+<h3>(4) Install k2<a class="headerlink" href="#id3" title="Link to this heading"></a></h3>
 <p>We will install <a class="reference external" href="https://github.com/k2-fsa/k2">k2</a> from pre-compiled wheels by following
 <a class="reference external" href="https://k2-fsa.github.io/k2/installation/from_wheels.html">https://k2-fsa.github.io/k2/installation/from_wheels.html</a></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="nv">k2</span><span class="o">==</span><span class="m">1</span>.24.3.dev20230725+cuda11.6.torch1.13.0<span class="w"> </span>-f<span class="w"> </span>https://k2-fsa.github.io/k2/cuda.html
@@ -348,7 +348,7 @@ _k2.__file__:<span class="w"> </span>/star-fj/fangjun/test-icefall/lib/python3.8
 </div>
 </section>
 <section id="id5">
-<h3>(5) Install lhotse<a class="headerlink" href="#id5" title="Permalink to this heading"></a></h3>
+<h3>(5) Install lhotse<a class="headerlink" href="#id5" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>git+https://github.com/lhotse-speech/lhotse
 
 Collecting<span class="w"> </span>git+https://github.com/lhotse-speech/lhotse
@@ -426,19 +426,19 @@ Successfully<span class="w"> </span>installed<span class="w"> </span>SoundFile-0
 </pre></div>
 </div>
 <p>Verify that <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a> has been installed successfully:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import lhotse; print(lhotse.__version__)&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">"import lhotse; print(lhotse.__version__)"</span>
 
 <span class="m">1</span>.16.0.dev+git.7640d66.clean
 </pre></div>
 </div>
 </section>
 <section id="id6">
-<h3>(6) Download icefall<a class="headerlink" href="#id6" title="Permalink to this heading"></a></h3>
+<h3>(6) Download icefall<a class="headerlink" href="#id6" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:~$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/
 
 <span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:tmp$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/k2-fsa/icefall
 
-Cloning<span class="w"> </span>into<span class="w"> </span><span class="s1">&#39;icefall&#39;</span>...
+Cloning<span class="w"> </span>into<span class="w"> </span><span class="s1">'icefall'</span>...
 remote:<span class="w"> </span>Enumerating<span class="w"> </span>objects:<span class="w"> </span><span class="m">12942</span>,<span class="w"> </span><span class="k">done</span>.
 remote:<span class="w"> </span>Counting<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">67</span>/67<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
 remote:<span class="w"> </span>Compressing<span class="w"> </span>objects:<span class="w"> </span><span class="m">100</span>%<span class="w"> </span><span class="o">(</span><span class="m">56</span>/56<span class="o">)</span>,<span class="w"> </span><span class="k">done</span>.
@@ -454,12 +454,12 @@ Resolving<span class="w"> </span>deltas:<span class="w"> </span><span class="m">
 </section>
 </section>
 <section id="test-your-installation">
-<h2>Test Your Installation<a class="headerlink" href="#test-your-installation" title="Permalink to this heading"></a></h2>
+<h2>Test Your Installation<a class="headerlink" href="#test-your-installation" title="Link to this heading"></a></h2>
 <p>To test that your installation is successful, let us run
 the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/yesno/ASR">yesno recipe</a>
 on <code class="docutils literal notranslate"><span class="pre">CPU</span></code>.</p>
 <section id="data-preparation">
-<h3>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h3>
+<h3>Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:icefall$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span>/tmp/icefall:<span class="nv">$PYTHONPATH</span>
 
 <span class="o">(</span>test-icefall<span class="o">)</span><span class="w"> </span>kuangfangjun:icefall$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/tmp/icefall
@@ -494,9 +494,9 @@ Extracting and storing features: 100%|__________________________________________
 2023-07-27 12:42:07,323 INFO [compile_hlg.py:64] LG shape: (4, None)
 2023-07-27 12:42:07,323 INFO [compile_hlg.py:66] Connecting LG
 2023-07-27 12:42:07,323 INFO [compile_hlg.py:68] LG shape after k2.connect: (4, None)
-2023-07-27 12:42:07,323 INFO [compile_hlg.py:70] &lt;class &#39;torch.Tensor&#39;&gt;
+2023-07-27 12:42:07,323 INFO [compile_hlg.py:70] &lt;class 'torch.Tensor'&gt;
 2023-07-27 12:42:07,323 INFO [compile_hlg.py:71] Determinizing LG
-2023-07-27 12:42:07,341 INFO [compile_hlg.py:74] &lt;class &#39;_k2.ragged.RaggedTensor&#39;&gt;
+2023-07-27 12:42:07,341 INFO [compile_hlg.py:74] &lt;class '_k2.ragged.RaggedTensor'&gt;
 2023-07-27 12:42:07,341 INFO [compile_hlg.py:76] Connecting LG after k2.determinize
 2023-07-27 12:42:07,341 INFO [compile_hlg.py:79] Removing disambiguation symbols on LG
 2023-07-27 12:42:07,354 INFO [compile_hlg.py:91] LG shape after k2.remove_epsilon: (6, None)
@@ -510,9 +510,9 @@ Extracting and storing features: 100%|__________________________________________
 </div>
 </section>
 <section id="training">
-<h3>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h3>
+<h3>Training<a class="headerlink" href="#training" title="Link to this heading"></a></h3>
 <p>Now let us run the training part:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>(test-icefall) kuangfangjun:ASR$ export CUDA_VISIBLE_DEVICES=&quot;&quot;
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>(test-icefall) kuangfangjun:ASR$ export CUDA_VISIBLE_DEVICES=""
 
 (test-icefall) kuangfangjun:ASR$ ./tdnn/train.py
 </pre></div>
@@ -535,7 +535,7 @@ interested.</p>
 </div>
 <p>The training log is given below:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>2023-07-27 12:50:51,936 INFO [train.py:481] Training started
-2023-07-27 12:50:51,936 INFO [train.py:482] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lr&#39;: 0.01, &#39;feature_dim&#39;: 23, &#39;weight_decay&#39;: 1e-06, &#39;start_epoch&#39;: 0, &#39;best_train_loss&#39;: inf, &#39;best_valid_loss&#39;: inf, &#39;best_train_epoch&#39;: -1, &#39;best_valid_epoch&#39;: -1, &#39;batch_idx_train&#39;: 0, &#39;log_interval&#39;: 10, &#39;reset_interval&#39;: 20, &#39;valid_interval&#39;: 10, &#39;beam_size&#39;: 10, &#39;reduction&#39;: &#39;sum&#39;, &#39;use_double_scores&#39;: True, &#39;world_size&#39;: 1, &#39;master_port&#39;: 12354, &#39;tensorboard&#39;: True, &#39;num_epochs&#39;: 15, &#39;seed&#39;: 42, &#39;feature_dir&#39;: PosixPath(&#39;data/fbank&#39;), &#39;max_duration&#39;: 30.0, &#39;bucketing_sampler&#39;: False, &#39;num_buckets&#39;: 10, &#39;concatenate_cuts&#39;: False, &#39;duration_factor&#39;: 1.0, &#39;gap&#39;: 1.0, &#39;on_the_fly_feats&#39;: False, &#39;shuffle&#39;: False, &#39;return_cuts&#39;: True, &#39;num_workers&#39;: 2, &#39;env_info&#39;: {&#39;k2-version&#39;: &#39;1.24.3&#39;, &#39;k2-build-type&#39;: &#39;Release&#39;, &#39;k2-with-cuda&#39;: True, &#39;k2-git-sha1&#39;: &#39;4c05309499a08454997adf500b56dcc629e35ae5&#39;, &#39;k2-git-date&#39;: &#39;Tue Jul 25 16:23:36 2023&#39;, &#39;lhotse-version&#39;: &#39;1.16.0.dev+git.7640d66.clean&#39;, &#39;torch-version&#39;: &#39;1.13.0+cu116&#39;, &#39;torch-cuda-available&#39;: False, &#39;torch-cuda-version&#39;: &#39;11.6&#39;, &#39;python-version&#39;: &#39;3.8&#39;, &#39;icefall-git-branch&#39;: &#39;master&#39;, &#39;icefall-git-sha1&#39;: &#39;3fb0a43-clean&#39;, &#39;icefall-git-date&#39;: &#39;Thu Jul 27 12:36:05 2023&#39;, &#39;icefall-path&#39;: &#39;/tmp/icefall&#39;, &#39;k2-path&#39;: &#39;/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/k2/__init__.py&#39;, &#39;lhotse-path&#39;: &#39;/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/lhotse/__init__.py&#39;, &#39;hostname&#39;: &#39;de-74279-k2-train-1-1220091118-57c4d55446-sph26&#39;, &#39;IP address&#39;: &#39;10.177.77.20&#39;}}
+2023-07-27 12:50:51,936 INFO [train.py:482] {'exp_dir': PosixPath('tdnn/exp'), 'lang_dir': PosixPath('data/lang_phone'), 'lr': 0.01, 'feature_dim': 23, 'weight_decay': 1e-06, 'start_epoch': 0, 'best_train_loss': inf, 'best_valid_loss': inf, 'best_train_epoch': -1, 'best_valid_epoch': -1, 'batch_idx_train': 0, 'log_interval': 10, 'reset_interval': 20, 'valid_interval': 10, 'beam_size': 10, 'reduction': 'sum', 'use_double_scores': True, 'world_size': 1, 'master_port': 12354, 'tensorboard': True, 'num_epochs': 15, 'seed': 42, 'feature_dir': PosixPath('data/fbank'), 'max_duration': 30.0, 'bucketing_sampler': False, 'num_buckets': 10, 'concatenate_cuts': False, 'duration_factor': 1.0, 'gap': 1.0, 'on_the_fly_feats': False, 'shuffle': False, 'return_cuts': True, 'num_workers': 2, 'env_info': {'k2-version': '1.24.3', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '4c05309499a08454997adf500b56dcc629e35ae5', 'k2-git-date': 'Tue Jul 25 16:23:36 2023', 'lhotse-version': '1.16.0.dev+git.7640d66.clean', 'torch-version': '1.13.0+cu116', 'torch-cuda-available': False, 'torch-cuda-version': '11.6', 'python-version': '3.8', 'icefall-git-branch': 'master', 'icefall-git-sha1': '3fb0a43-clean', 'icefall-git-date': 'Thu Jul 27 12:36:05 2023', 'icefall-path': '/tmp/icefall', 'k2-path': '/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/k2/__init__.py', 'lhotse-path': '/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/lhotse/__init__.py', 'hostname': 'de-74279-k2-train-1-1220091118-57c4d55446-sph26', 'IP address': '10.177.77.20'}}
 2023-07-27 12:50:51,941 INFO [lexicon.py:168] Loading pre-compiled data/lang_phone/Linv.pt
 2023-07-27 12:50:51,949 INFO [train.py:495] device: cpu
 2023-07-27 12:50:51,965 INFO [asr_datamodule.py:146] About to get train cuts
@@ -584,15 +584,15 @@ interested.</p>
 </div>
 </section>
 <section id="decoding">
-<h3>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h3>
+<h3>Decoding<a class="headerlink" href="#decoding" title="Link to this heading"></a></h3>
 <p>Let us use the trained model to decode the test set:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>(test-icefall) kuangfangjun:ASR$ ./tdnn/decode.py
 
 2023-07-27 12:55:12,840 INFO [decode.py:263] Decoding started
-2023-07-27 12:55:12,840 INFO [decode.py:264] {&#39;exp_dir&#39;: PosixPath(&#39;tdnn/exp&#39;), &#39;lang_dir&#39;: PosixPath(&#39;data/lang_phone&#39;), &#39;lm_dir&#39;: PosixPath(&#39;data/lm&#39;), &#39;feature_dim&#39;: 23, &#39;search_beam&#39;: 20, &#39;output_beam&#39;: 8, &#39;min_active_states&#39;: 30, &#39;max_active_states&#39;: 10000, &#39;use_double_scores&#39;: True, &#39;epoch&#39;: 14, &#39;avg&#39;: 2, &#39;export&#39;: False, &#39;feature_dir&#39;: PosixPath(&#39;data/fbank&#39;), &#39;max_duration&#39;: 30.0, &#39;bucketing_sampler&#39;: False, &#39;num_buckets&#39;: 10, &#39;concatenate_cuts&#39;: False, &#39;duration_factor&#39;: 1.0, &#39;gap&#39;: 1.0, &#39;on_the_fly_feats&#39;: False, &#39;shuffle&#39;: False, &#39;return_cuts&#39;: True, &#39;num_workers&#39;: 2, &#39;env_info&#39;: {&#39;k2-version&#39;: &#39;1.24.3&#39;, &#39;k2-build-type&#39;: &#39;Release&#39;, &#39;k2-with-cuda&#39;: True, &#39;k2-git-sha1&#39;: &#39;4c05309499a08454997adf500b56dcc629e35ae5&#39;, &#39;k2-git-date&#39;: &#39;Tue Jul 25 16:23:36 2023&#39;, &#39;lhotse-version&#39;: &#39;1.16.0.dev+git.7640d66.clean&#39;, &#39;torch-version&#39;: &#39;1.13.0+cu116&#39;, &#39;torch-cuda-available&#39;: False, &#39;torch-cuda-version&#39;: &#39;11.6&#39;, &#39;python-version&#39;: &#39;3.8&#39;, &#39;icefall-git-branch&#39;: &#39;master&#39;, &#39;icefall-git-sha1&#39;: &#39;3fb0a43-clean&#39;, &#39;icefall-git-date&#39;: &#39;Thu Jul 27 12:36:05 2023&#39;, &#39;icefall-path&#39;: &#39;/tmp/icefall&#39;, &#39;k2-path&#39;: &#39;/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/k2/__init__.py&#39;, &#39;lhotse-path&#39;: &#39;/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/lhotse/__init__.py&#39;, &#39;hostname&#39;: &#39;de-74279-k2-train-1-1220091118-57c4d55446-sph26&#39;, &#39;IP address&#39;: &#39;10.177.77.20&#39;}}
+2023-07-27 12:55:12,840 INFO [decode.py:264] {'exp_dir': PosixPath('tdnn/exp'), 'lang_dir': PosixPath('data/lang_phone'), 'lm_dir': PosixPath('data/lm'), 'feature_dim': 23, 'search_beam': 20, 'output_beam': 8, 'min_active_states': 30, 'max_active_states': 10000, 'use_double_scores': True, 'epoch': 14, 'avg': 2, 'export': False, 'feature_dir': PosixPath('data/fbank'), 'max_duration': 30.0, 'bucketing_sampler': False, 'num_buckets': 10, 'concatenate_cuts': False, 'duration_factor': 1.0, 'gap': 1.0, 'on_the_fly_feats': False, 'shuffle': False, 'return_cuts': True, 'num_workers': 2, 'env_info': {'k2-version': '1.24.3', 'k2-build-type': 'Release', 'k2-with-cuda': True, 'k2-git-sha1': '4c05309499a08454997adf500b56dcc629e35ae5', 'k2-git-date': 'Tue Jul 25 16:23:36 2023', 'lhotse-version': '1.16.0.dev+git.7640d66.clean', 'torch-version': '1.13.0+cu116', 'torch-cuda-available': False, 'torch-cuda-version': '11.6', 'python-version': '3.8', 'icefall-git-branch': 'master', 'icefall-git-sha1': '3fb0a43-clean', 'icefall-git-date': 'Thu Jul 27 12:36:05 2023', 'icefall-path': '/tmp/icefall', 'k2-path': '/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/k2/__init__.py', 'lhotse-path': '/star-fj/fangjun/test-icefall/lib/python3.8/site-packages/lhotse/__init__.py', 'hostname': 'de-74279-k2-train-1-1220091118-57c4d55446-sph26', 'IP address': '10.177.77.20'}}
 2023-07-27 12:55:12,841 INFO [lexicon.py:168] Loading pre-compiled data/lang_phone/Linv.pt
 2023-07-27 12:55:12,855 INFO [decode.py:273] device: cpu
-2023-07-27 12:55:12,868 INFO [decode.py:291] averaging [&#39;tdnn/exp/epoch-13.pt&#39;, &#39;tdnn/exp/epoch-14.pt&#39;]
+2023-07-27 12:55:12,868 INFO [decode.py:291] averaging ['tdnn/exp/epoch-13.pt', 'tdnn/exp/epoch-14.pt']
 2023-07-27 12:55:12,882 INFO [asr_datamodule.py:218] About to get test cuts
 2023-07-27 12:55:12,883 INFO [asr_datamodule.py:252] About to get test cuts
 2023-07-27 12:55:13,157 INFO [decode.py:204] batch 0/?, cuts processed until now is 4
@@ -607,7 +607,7 @@ interested.</p>
 </section>
 </section>
 <section id="youtube-video">
-<h2>YouTube Video<a class="headerlink" href="#youtube-video" title="Permalink to this heading"></a></h2>
+<h2>YouTube Video<a class="headerlink" href="#youtube-video" title="Link to this heading"></a></h2>
 <p>We provide the following YouTube video showing how to install <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.
 It also shows how to debug various problems that you may encounter while
 using <a class="reference external" href="https://github.com/k2-fsa/icefall">icefall</a>.</p>

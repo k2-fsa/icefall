@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -102,7 +102,7 @@
            <div itemprop="articleBody">
              
   <section id="export-to-onnx">
-<h1>Export to ONNX<a class="headerlink" href="#export-to-onnx" title="Permalink to this heading"></a></h1>
+<h1>Export to ONNX<a class="headerlink" href="#export-to-onnx" title="Link to this heading"></a></h1>
 <p>In this section, we describe how to export models to <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a>.</p>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
@@ -118,7 +118,7 @@ to export trained models to <a class="reference external" href="https://github.c
 <p>There is also a file named <code class="docutils literal notranslate"><span class="pre">onnx_pretrained.py</span></code>, which you can use
 the exported <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a> model in Python with <a class="reference external" href="https://github.com/microsoft/onnxruntime">onnxruntime</a> to decode sound files.</p>
 <section id="sherpa-onnx">
-<h2>sherpa-onnx<a class="headerlink" href="#sherpa-onnx" title="Permalink to this heading"></a></h2>
+<h2>sherpa-onnx<a class="headerlink" href="#sherpa-onnx" title="Link to this heading"></a></h2>
 <p>We have a separate repository <a class="reference external" href="https://github.com/k2-fsa/sherpa-onnx">sherpa-onnx</a> for deploying your exported models
 on various platforms such as:</p>
 <blockquote>
@@ -135,14 +135,14 @@ on various platforms such as:</p>
 </div></blockquote>
 </section>
 <section id="example">
-<h2>Example<a class="headerlink" href="#example" title="Permalink to this heading"></a></h2>
+<h2>Example<a class="headerlink" href="#example" title="Link to this heading"></a></h2>
 <p>In the following, we demonstrate how to export a streaming Zipformer pre-trained
 model from
 <a class="reference external" href="https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11">https://huggingface.co/csukuangfj/icefall-asr-librispeech-pruned-transducer-stateless7-2022-11-11</a>
 to <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a>.</p>
 </section>
 <section id="download-the-pre-trained-model">
-<h2>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h2>
+<h2>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Link to this heading"></a></h2>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <p>We assume you have installed <a class="reference external" href="https://git-lfs.com/">git-lfs</a>.</p>
@@ -154,8 +154,8 @@ to <a class="reference external" href="https://github.com/onnx/onnx">ONNX</a>.</
 <span class="nv">repo</span><span class="o">=</span><span class="k">$(</span>basename<span class="w"> </span><span class="nv">$repo_url</span><span class="k">)</span>
 
 <span class="nb">pushd</span><span class="w"> </span><span class="nv">$repo</span>
-git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;data/lang_bpe_500/bpe.model&quot;</span>
-git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">&quot;exp/pretrained.pt&quot;</span>
+git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"data/lang_bpe_500/bpe.model"</span>
+git<span class="w"> </span>lfs<span class="w"> </span>pull<span class="w"> </span>--include<span class="w"> </span><span class="s2">"exp/pretrained.pt"</span>
 <span class="nb">cd</span><span class="w"> </span>exp
 ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"> </span>epoch-99.pt
 <span class="nb">popd</span>
@@ -163,7 +163,7 @@ ln<span class="w"> </span>-s<span class="w"> </span>pretrained.pt<span class="w"
 </div>
 </section>
 <section id="export-the-model-to-onnx">
-<h2>Export the model to ONNX<a class="headerlink" href="#export-the-model-to-onnx" title="Permalink to this heading"></a></h2>
+<h2>Export the model to ONNX<a class="headerlink" href="#export-the-model-to-onnx" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/export-onnx.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--tokens<span class="w"> </span><span class="nv">$repo</span>/data/lang_bpe_500/tokens.txt<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--use-averaged-model<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="se">\</span>
@@ -189,7 +189,7 @@ streaming Zipformer. Other models won’t have such an option.</p>
 </div></blockquote>
 </section>
 <section id="decode-sound-files-with-exported-onnx-models">
-<h2>Decode sound files with exported ONNX models<a class="headerlink" href="#decode-sound-files-with-exported-onnx-models" title="Permalink to this heading"></a></h2>
+<h2>Decode sound files with exported ONNX models<a class="headerlink" href="#decode-sound-files-with-exported-onnx-models" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>./pruned_transducer_stateless7_streaming/onnx_pretrained.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--encoder-model-filename<span class="w"> </span><span class="nv">$repo</span>/exp/encoder-epoch-99-avg-1.onnx<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--decoder-model-filename<span class="w"> </span><span class="nv">$repo</span>/exp/decoder-epoch-99-avg-1.onnx<span class="w"> </span><span class="se">\</span>

@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -100,11 +100,11 @@
            <div itemprop="articleBody">
              
   <section id="export-model-with-torch-jit-trace">
-<span id="id1"></span><h1>Export model with torch.jit.trace()<a class="headerlink" href="#export-model-with-torch-jit-trace" title="Permalink to this heading"></a></h1>
+<span id="id1"></span><h1>Export model with torch.jit.trace()<a class="headerlink" href="#export-model-with-torch-jit-trace" title="Link to this heading"></a></h1>
 <p>In this section, we describe how to export a model via
 <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code>.</p>
 <section id="when-to-use-it">
-<h2>When to use it<a class="headerlink" href="#when-to-use-it" title="Permalink to this heading"></a></h2>
+<h2>When to use it<a class="headerlink" href="#when-to-use-it" title="Link to this heading"></a></h2>
 <p>If we want to use our trained model with torchscript,
 we can use <code class="docutils literal notranslate"><span class="pre">torch.jit.trace()</span></code>.</p>
 <div class="admonition hint">
@@ -114,7 +114,7 @@ if you want to use <code class="docutils literal notranslate"><span class="pre">
 </div>
 </section>
 <section id="how-to-export">
-<h2>How to export<a class="headerlink" href="#how-to-export" title="Permalink to this heading"></a></h2>
+<h2>How to export<a class="headerlink" href="#how-to-export" title="Link to this heading"></a></h2>
 <p>We use
 <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/lstm_transducer_stateless2">https://github.com/k2-fsa/icefall/tree/master/egs/librispeech/ASR/lstm_transducer_stateless2</a>
 as an example in the following.</p>
@@ -155,7 +155,7 @@ to decode sound files with the following commands:</p>
 </div>
 </section>
 <section id="how-to-use-the-exported-models">
-<h2>How to use the exported models<a class="headerlink" href="#how-to-use-the-exported-models" title="Permalink to this heading"></a></h2>
+<h2>How to use the exported models<a class="headerlink" href="#how-to-use-the-exported-models" title="Link to this heading"></a></h2>
 <p>Please refer to
 <a class="reference external" href="https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html">https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html</a>
 for its usage in <a class="reference external" href="https://k2-fsa.github.io/sherpa/python/streaming_asr/lstm/index.html">sherpa</a>.

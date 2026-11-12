@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../_static/doctools.js?v=888ff710"></script>
-      <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -99,7 +99,7 @@
            <div itemprop="articleBody">
              
   <section id="how-to-create-a-recipe">
-<h1>How to create a recipe<a class="headerlink" href="#how-to-create-a-recipe" title="Permalink to this heading"></a></h1>
+<h1>How to create a recipe<a class="headerlink" href="#how-to-create-a-recipe" title="Link to this heading"></a></h1>
 <div class="admonition hint">
 <p class="admonition-title">Hint</p>
 <p>Please read <a class="reference internal" href="code-style.html#follow-the-code-style"><span class="std std-ref">Follow the code style</span></a> to adjust your code style.</p>
@@ -110,7 +110,7 @@
 Python in your recipe if possible.</p>
 </div>
 <section id="data-preparation">
-<h2>Data Preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<h2>Data Preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
 <p>We recommend you to prepare your training/test/validate dataset
 with <a class="reference external" href="https://github.com/lhotse-speech/lhotse">lhotse</a>.</p>
 <p>Please refer to <a class="reference external" href="https://lhotse.readthedocs.io/en/latest/index.html">https://lhotse.readthedocs.io/en/latest/index.html</a>
@@ -138,7 +138,7 @@ Otherwise, please refer to
 to prepare your data.</p>
 </section>
 <section id="training">
-<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<h2>Training<a class="headerlink" href="#training" title="Link to this heading"></a></h2>
 <p>Assume you have a fancy model, called <code class="docutils literal notranslate"><span class="pre">bar</span></code> for the <code class="docutils literal notranslate"><span class="pre">foo</span></code> recipe, you can
 organize your files in the following way:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$ cd egs/foo/ASR
@@ -209,7 +209,7 @@ $ ./bar/train.py --help
 </div></blockquote>
 </section>
 <section id="decoding">
-<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<h2>Decoding<a class="headerlink" href="#decoding" title="Link to this heading"></a></h2>
 <p>Please refer to</p>
 <blockquote>
 <div><ul>
@@ -234,7 +234,7 @@ $ ./bar/decode.py --help
 </div></blockquote>
 </section>
 <section id="pre-trained-model">
-<h2>Pre-trained model<a class="headerlink" href="#pre-trained-model" title="Permalink to this heading"></a></h2>
+<h2>Pre-trained model<a class="headerlink" href="#pre-trained-model" title="Link to this heading"></a></h2>
 <p>Please demonstrate how to use your model for inference in <code class="docutils literal notranslate"><span class="pre">egs/foo/ASR/bar/pretrained.py</span></code>.
 If possible, please consider creating a Colab notebook to show that.</p>
 </section>

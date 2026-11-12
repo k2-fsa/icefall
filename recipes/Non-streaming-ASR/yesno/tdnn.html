@@ -1,7 +1,7 @@
 
 
 <!DOCTYPE html>
-<html class="writer-html5" lang="en">
+<html class="writer-html5" lang="en" data-content_root="../../../">
 <head>
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -13,9 +13,9 @@
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=e031e9a9"></script>
-      <script src="../../../_static/doctools.js?v=888ff710"></script>
-      <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+      <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../../../genindex.html" />
     <link rel="search" title="Search" href="../../../search.html" />
@@ -106,7 +106,7 @@
            <div itemprop="articleBody">
              
   <section id="tdnn-ctc">
-<h1>TDNN-CTC<a class="headerlink" href="#tdnn-ctc" title="Permalink to this heading"></a></h1>
+<h1>TDNN-CTC<a class="headerlink" href="#tdnn-ctc" title="Link to this heading"></a></h1>
 <p>This page shows you how to run the <a class="reference external" href="https://www.openslr.org/1">yesno</a> recipe. It contains:</p>
 <blockquote>
 <div><ul>
@@ -216,7 +216,7 @@ the following WER at the end:</p>
 </div>
 </div>
 <section id="data-preparation">
-<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Permalink to this heading"></a></h2>
+<h2>Data preparation<a class="headerlink" href="#data-preparation" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
 $<span class="w"> </span>./prepare.sh
 </pre></div>
@@ -244,13 +244,13 @@ $<span class="w"> </span>./prepare.sh<span class="w"> </span>--stage<span class=
 </div>
 </section>
 <section id="training">
-<h2>Training<a class="headerlink" href="#training" title="Permalink to this heading"></a></h2>
+<h2>Training<a class="headerlink" href="#training" title="Link to this heading"></a></h2>
 <p>We provide only a TDNN model, contained in
 the <a class="reference external" href="https://github.com/k2-fsa/icefall/tree/master/egs/yesno/ASR/tdnn">tdnn</a>
 folder, for <code class="docutils literal notranslate"><span class="pre">yesno</span></code>.</p>
 <p>The command to run the training part is:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
-$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">""</span>
 $<span class="w"> </span>./tdnn/train.py
 </pre></div>
 </div>
@@ -273,14 +273,14 @@ To resume training from some checkpoint, say <code class="docutils literal notra
 rate, etc, are recorded in these logs. You can visualize them by:</p>
 <blockquote>
 <div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tdnn/exp/tensorboard
-$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">&quot;TDNN training for yesno with icefall&quot;</span>
+$<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> </span>upload<span class="w"> </span>--logdir<span class="w"> </span>.<span class="w"> </span>--description<span class="w"> </span><span class="s2">"TDNN training for yesno with icefall"</span>
 </pre></div>
 </div>
 </div></blockquote>
 <p>It will print something like below:</p>
 <blockquote>
 <div><div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">TensorFlow</span> <span class="n">installation</span> <span class="ow">not</span> <span class="n">found</span> <span class="o">-</span> <span class="n">running</span> <span class="k">with</span> <span class="n">reduced</span> <span class="n">feature</span> <span class="nb">set</span><span class="o">.</span>
-<span class="n">Upload</span> <span class="n">started</span> <span class="ow">and</span> <span class="n">will</span> <span class="k">continue</span> <span class="n">reading</span> <span class="nb">any</span> <span class="n">new</span> <span class="n">data</span> <span class="k">as</span> <span class="n">it</span><span class="s1">&#39;s added to the logdir.</span>
+<span class="n">Upload</span> <span class="n">started</span> <span class="ow">and</span> <span class="n">will</span> <span class="k">continue</span> <span class="n">reading</span> <span class="nb">any</span> <span class="n">new</span> <span class="n">data</span> <span class="k">as</span> <span class="n">it</span><span class="s1">'s added to the logdir.</span>
 
 <span class="n">To</span> <span class="n">stop</span> <span class="n">uploading</span><span class="p">,</span> <span class="n">press</span> <span class="n">Ctrl</span><span class="o">-</span><span class="n">C</span><span class="o">.</span>
 
@@ -296,9 +296,10 @@ $<span class="w"> </span>tensorboard<span class="w"> </span>dev<span class="w"> 
 the following screenshot:</p>
 <blockquote>
 <div><figure class="align-center" id="id2">
-<a class="reference external image-reference" href="https://tensorboard.dev/experiment/yKUbhb5wRmOSXYkId1z9eg/"><img alt="TensorBoard screenshot" src="../../../_images/tdnn-tensorboard-log.png" style="width: 600px;" /></a>
+<a class="reference external image-reference" href="https://tensorboard.dev/experiment/yKUbhb5wRmOSXYkId1z9eg/"><img alt="TensorBoard screenshot" src="../../../_images/tdnn-tensorboard-log.png" width="600" />
+</a>
 <figcaption>
-<p><span class="caption-number">Fig. 8 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id2" title="Permalink to this image"></a></p>
+<p><span class="caption-number">Fig. 8 </span><span class="caption-text">TensorBoard screenshot.</span><a class="headerlink" href="#id2" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 </div></blockquote>
@@ -315,7 +316,7 @@ you saw printed to the console during training.</p>
 If you have two GPUs, say, GPU 0 and GPU 1, and you want to use GPU 1 for
 training, you can run:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;1&quot;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"1"</span>
 $<span class="w"> </span>./tdnn/train.py
 </pre></div>
 </div>
@@ -323,7 +324,7 @@ $<span class="w"> </span>./tdnn/train.py
 <p>Since the <code class="docutils literal notranslate"><span class="pre">yesno</span></code> dataset is very small, containing only 30 sound files
 for training, and the model in use is also very small, we use:</p>
 <blockquote>
-<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+<div><div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">""</span>
 </pre></div>
 </div>
 </div></blockquote>
@@ -342,11 +343,11 @@ Normally, you don’t need to change them. You can change them by modifying the 
 you want.</p>
 </section>
 <section id="decoding">
-<h2>Decoding<a class="headerlink" href="#decoding" title="Permalink to this heading"></a></h2>
+<h2>Decoding<a class="headerlink" href="#decoding" title="Link to this heading"></a></h2>
 <p>The decoding part uses checkpoints saved by the training part, so you have
 to run the training part first.</p>
 <p>The command for decoding is:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">&quot;&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">""</span>
 $<span class="w"> </span>./tdnn/decode.py
 </pre></div>
 </div>
@@ -385,12 +386,12 @@ See <a class="reference internal" href="#yesno-use-a-pre-trained-model"><span cl
 </div></blockquote>
 </section>
 <section id="pre-trained-model">
-<span id="yesno-use-a-pre-trained-model"></span><h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Permalink to this heading"></a></h2>
+<span id="yesno-use-a-pre-trained-model"></span><h2>Pre-trained Model<a class="headerlink" href="#pre-trained-model" title="Link to this heading"></a></h2>
 <p>We have uploaded the pre-trained model to
 <a class="reference external" href="https://huggingface.co/csukuangfj/icefall_asr_yesno_tdnn">https://huggingface.co/csukuangfj/icefall_asr_yesno_tdnn</a>.</p>
 <p>The following shows you how to use the pre-trained model.</p>
 <section id="download-the-pre-trained-model">
-<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Permalink to this heading"></a></h3>
+<h3>Download the pre-trained model<a class="headerlink" href="#download-the-pre-trained-model" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
 $<span class="w"> </span>mkdir<span class="w"> </span>tmp
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>tmp
@@ -460,7 +461,7 @@ $<span class="w"> </span>tree<span class="w"> </span>tmp
 </div>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>soxi<span class="w"> </span>tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav
 
-Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">&#39;tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span>
+Input<span class="w"> </span>File<span class="w">     </span>:<span class="w"> </span><span class="s1">'tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav'</span>
 Channels<span class="w">       </span>:<span class="w"> </span><span class="m">1</span>
 Sample<span class="w"> </span>Rate<span class="w">    </span>:<span class="w"> </span><span class="m">8000</span>
 Precision<span class="w">      </span>:<span class="w"> </span><span class="m">16</span>-bit
@@ -481,13 +482,13 @@ So this file contains <code class="docutils literal notranslate"><span class="pr
 </ul>
 </section>
 <section id="download-kaldifeat">
-<h3>Download kaldifeat<a class="headerlink" href="#download-kaldifeat" title="Permalink to this heading"></a></h3>
+<h3>Download kaldifeat<a class="headerlink" href="#download-kaldifeat" title="Link to this heading"></a></h3>
 <p><a class="reference external" href="https://github.com/csukuangfj/kaldifeat">kaldifeat</a> is used for extracting
 features from a single or multiple sound files. Please refer to
 <a class="reference external" href="https://github.com/csukuangfj/kaldifeat">https://github.com/csukuangfj/kaldifeat</a> to install <code class="docutils literal notranslate"><span class="pre">kaldifeat</span></code> first.</p>
 </section>
 <section id="inference-with-a-pre-trained-model">
-<h3>Inference with a pre-trained model<a class="headerlink" href="#inference-with-a-pre-trained-model" title="Permalink to this heading"></a></h3>
+<h3>Inference with a pre-trained model<a class="headerlink" href="#inference-with-a-pre-trained-model" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/yesno/ASR
 $<span class="w"> </span>./tdnn/pretrained.py<span class="w"> </span>--help
 </pre></div>
@@ -502,12 +503,12 @@ $<span class="w"> </span>./tdnn/pretrained.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>The output is:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">621</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">119</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;feature_dim&#39;</span><span class="p">:</span> <span class="mi">23</span><span class="p">,</span> <span class="s1">&#39;num_classes&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;sample_rate&#39;</span><span class="p">:</span> <span class="mi">8000</span><span class="p">,</span> <span class="s1">&#39;search_beam&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;output_beam&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;min_active_states&#39;</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s1">&#39;max_active_states&#39;</span><span class="p">:</span> <span class="mi">10000</span><span class="p">,</span> <span class="s1">&#39;use_double_scores&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;checkpoint&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/pretrained.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;words_file&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/lang_phone/words.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;HLG&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/lang_phone/HLG.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_files&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span><span class="p">]}</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">621</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">119</span><span class="p">]</span> <span class="p">{</span><span class="s1">'feature_dim'</span><span class="p">:</span> <span class="mi">23</span><span class="p">,</span> <span class="s1">'num_classes'</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">'sample_rate'</span><span class="p">:</span> <span class="mi">8000</span><span class="p">,</span> <span class="s1">'search_beam'</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">'output_beam'</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">'min_active_states'</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s1">'max_active_states'</span><span class="p">:</span> <span class="mi">10000</span><span class="p">,</span> <span class="s1">'use_double_scores'</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">'checkpoint'</span><span class="p">:</span> <span class="s1">'./tmp/icefall_asr_yesno_tdnn/pretrained.pt'</span><span class="p">,</span> <span class="s1">'words_file'</span><span class="p">:</span> <span class="s1">'./tmp/icefall_asr_yesno_tdnn/lang_phone/words.txt'</span><span class="p">,</span> <span class="s1">'HLG'</span><span class="p">:</span> <span class="s1">'./tmp/icefall_asr_yesno_tdnn/lang_phone/HLG.pt'</span><span class="p">,</span> <span class="s1">'sound_files'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav'</span><span class="p">]}</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">645</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">125</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cpu</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">645</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">127</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">model</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">650</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">139</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">651</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">143</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
-<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">652</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">153</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">652</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">153</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">'./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav'</span><span class="p">]</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">684</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">159</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">22</span><span class="p">:</span><span class="mi">51</span><span class="p">,</span><span class="mi">708</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">198</span><span class="p">]</span>
 <span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">test_waves</span><span class="o">/</span><span class="mf">0_0_1_0_1_0_0_1.</span><span class="n">wav</span><span class="p">:</span>
@@ -529,13 +530,13 @@ $<span class="w"> </span>./tdnn/pretrained.py<span class="w"> </span>--help
 </pre></div>
 </div>
 <p>The decoding output is:</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">159</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">119</span><span class="p">]</span> <span class="p">{</span><span class="s1">&#39;feature_dim&#39;</span><span class="p">:</span> <span class="mi">23</span><span class="p">,</span> <span class="s1">&#39;num_classes&#39;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">&#39;sample_rate&#39;</span><span class="p">:</span> <span class="mi">8000</span><span class="p">,</span> <span class="s1">&#39;search_beam&#39;</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">&#39;output_beam&#39;</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">&#39;min_active_states&#39;</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s1">&#39;max_active_states&#39;</span><span class="p">:</span> <span class="mi">10000</span><span class="p">,</span> <span class="s1">&#39;use_double_scores&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">&#39;checkpoint&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/pretrained.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;words_file&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/lang_phone/words.txt&#39;</span><span class="p">,</span> <span class="s1">&#39;HLG&#39;</span><span class="p">:</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/lang_phone/HLG.pt&#39;</span><span class="p">,</span> <span class="s1">&#39;sound_files&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span><span class="p">,</span> <span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/1_0_1_1_0_1_1_1.wav&#39;</span><span class="p">]}</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">159</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">119</span><span class="p">]</span> <span class="p">{</span><span class="s1">'feature_dim'</span><span class="p">:</span> <span class="mi">23</span><span class="p">,</span> <span class="s1">'num_classes'</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s1">'sample_rate'</span><span class="p">:</span> <span class="mi">8000</span><span class="p">,</span> <span class="s1">'search_beam'</span><span class="p">:</span> <span class="mi">20</span><span class="p">,</span> <span class="s1">'output_beam'</span><span class="p">:</span> <span class="mi">8</span><span class="p">,</span> <span class="s1">'min_active_states'</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s1">'max_active_states'</span><span class="p">:</span> <span class="mi">10000</span><span class="p">,</span> <span class="s1">'use_double_scores'</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="s1">'checkpoint'</span><span class="p">:</span> <span class="s1">'./tmp/icefall_asr_yesno_tdnn/pretrained.pt'</span><span class="p">,</span> <span class="s1">'words_file'</span><span class="p">:</span> <span class="s1">'./tmp/icefall_asr_yesno_tdnn/lang_phone/words.txt'</span><span class="p">,</span> <span class="s1">'HLG'</span><span class="p">:</span> <span class="s1">'./tmp/icefall_asr_yesno_tdnn/lang_phone/HLG.pt'</span><span class="p">,</span> <span class="s1">'sound_files'</span><span class="p">:</span> <span class="p">[</span><span class="s1">'./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav'</span><span class="p">,</span> <span class="s1">'./tmp/icefall_asr_yesno_tdnn/test_waves/1_0_1_1_0_1_1_1.wav'</span><span class="p">]}</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">181</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">125</span><span class="p">]</span> <span class="n">device</span><span class="p">:</span> <span class="n">cpu</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">181</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">127</span><span class="p">]</span> <span class="n">Creating</span> <span class="n">model</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">185</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">139</span><span class="p">]</span> <span class="n">Loading</span> <span class="n">HLG</span> <span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="o">/</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">lang_phone</span><span class="o">/</span><span class="n">HLG</span><span class="o">.</span><span class="n">pt</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">186</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">143</span><span class="p">]</span> <span class="n">Constructing</span> <span class="n">Fbank</span> <span class="n">computer</span>
-<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">187</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">153</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav&#39;</span><span class="p">,</span>
-<span class="s1">&#39;./tmp/icefall_asr_yesno_tdnn/test_waves/1_0_1_1_0_1_1_1.wav&#39;</span><span class="p">]</span>
+<span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">187</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">153</span><span class="p">]</span> <span class="n">Reading</span> <span class="n">sound</span> <span class="n">files</span><span class="p">:</span> <span class="p">[</span><span class="s1">'./tmp/icefall_asr_yesno_tdnn/test_waves/0_0_1_0_1_0_0_1.wav'</span><span class="p">,</span>
+<span class="s1">'./tmp/icefall_asr_yesno_tdnn/test_waves/1_0_1_1_0_1_1_1.wav'</span><span class="p">]</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">213</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">159</span><span class="p">]</span> <span class="n">Decoding</span> <span class="n">started</span>
 <span class="mi">2021</span><span class="o">-</span><span class="mi">08</span><span class="o">-</span><span class="mi">24</span> <span class="mi">12</span><span class="p">:</span><span class="mi">25</span><span class="p">:</span><span class="mi">20</span><span class="p">,</span><span class="mi">287</span> <span class="n">INFO</span> <span class="p">[</span><span class="n">pretrained</span><span class="o">.</span><span class="n">py</span><span class="p">:</span><span class="mi">198</span><span class="p">]</span>
 <span class="o">./</span><span class="n">tmp</span><span class="o">/</span><span class="n">icefall_asr_yesno_tdnn</span><span class="o">/</span><span class="n">test_waves</span><span class="o">/</span><span class="mf">0_0_1_0_1_0_0_1.</span><span class="n">wav</span><span class="p">:</span>
@@ -551,7 +552,7 @@ $<span class="w"> </span>./tdnn/pretrained.py<span class="w"> </span>--help
 </section>
 </section>
 <section id="colab-notebook">
-<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Permalink to this heading"></a></h2>
+<h2>Colab notebook<a class="headerlink" href="#colab-notebook" title="Link to this heading"></a></h2>
 <p>We do provide a colab notebook for this recipe.</p>
 <p><a class="reference external" href="https://colab.research.google.com/drive/1tIjjzaJc3IvGyKiMCDWO-TSnBgkcuN3B?usp=sharing"><img alt="yesno colab notebook" src="https://colab.research.google.com/assets/colab-badge.svg" /></a></p>
 <p><strong>Congratulations!</strong> You have finished the simplest speech recognition recipe in <code class="docutils literal notranslate"><span class="pre">icefall</span></code>.</p>
