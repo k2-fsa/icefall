@@ -16,6 +16,7 @@ import argparse
 import logging
 import math
 import os
+import unicodedata
 from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
@@ -957,6 +958,31 @@ def save_asr_output(
             logging.info(f"The transcripts are stored in {recogs_filename}")
 
 
+def remove_punctuation_from_results(
+    results: List[Tuple[str, List[str], List[str]]],
+) -> List[Tuple[str, List[str], List[str]]]:
+    """Strip punctuation symbols from the reference and the hypothesis.
+
+    ``--remove-punctuation`` is meant to score unpunctuated output against the
+    punctuated Europarl-ST references. ``icefall.utils.write_error_stats`` has
+    no such option, so the stripping happens here instead, symmetrically on
+    both sides so the alignment stays comparable. Words that are made up of
+    punctuation only are dropped.
+    """
+
+    def strip(words: List[str]) -> List[str]:
+        out = []
+        for word in words:
+            stripped = "".join(
+                c for c in word if not unicodedata.category(c).startswith("P")
+            )
+            if stripped:
+                out.append(stripped)
+        return out
+
+    return [(cut_id, strip(ref), strip(hyp)) for cut_id, ref, hyp in results]
+
+
 def asr_save_wer_results(
     params: AttributeDict,
     test_set_name: str,
@@ -967,6 +993,8 @@ def asr_save_wer_results(
     """
     test_set_wers = dict()
     for key, results in results_dict.items():
+        if params.remove_punctuation:
+            results = remove_punctuation_from_results(results)
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-asr-{test_set_name}-{params.suffix}.txt"
@@ -978,7 +1006,6 @@ def asr_save_wer_results(
                 results,
                 enable_log=True,
                 compute_CER=params.compute_cer,
-                remove_punctuation=params.remove_punctuation,
             )
             test_set_wers[key] = wer
 
@@ -1013,6 +1040,8 @@ def st_save_wer_results(
     """
     test_set_wers = dict()
     for key, results in results_dict.items():
+        if params.remove_punctuation:
+            results = remove_punctuation_from_results(results)
         # The following prints out WERs, per-word error statistics and aligned
         # ref/hyp pairs.
         errs_filename = params.res_dir / f"errs-st-{test_set_name}-{params.suffix}.txt"
@@ -1024,7 +1053,6 @@ def st_save_wer_results(
                 results,
                 enable_log=True,
                 compute_CER=params.compute_cer,
-                remove_punctuation=params.remove_punctuation,
             )
             test_set_wers[key] = wer
 
