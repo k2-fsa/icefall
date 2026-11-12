@@ -346,7 +346,7 @@ def _remove_noop_cast_nodes(model: onnx.ModelProto) -> int:
         return 0
 
     def resolve(name: str) -> str:
-        # follow chains of no-op casts
+        """Follow chains of no-op casts and return the final tensor name."""
         while name in redirect:
             name = redirect[name]
         return name
@@ -453,6 +453,18 @@ class OnnxEncoder(nn.Module):
         x: torch.Tensor,
         states: List[torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        """Encode a chunk of features given the current streaming states.
+
+        Args:
+          x:
+            A tensor of shape (N, T, feature_dim).
+          states:
+            The streaming states from the previous chunk.
+
+        Returns:
+          Return a tuple containing the encoded output of shape
+          (N, T, joiner_dim) and the updated streaming states.
+        """
         N = x.size(0)
         T = self.chunk_size * 2 + self.pad_length
         x_lens = torch.tensor([T] * N, device=x.device)
@@ -876,6 +888,7 @@ def export_joiner_model_onnx(
 
 @torch.no_grad()
 def main():
+    """Export a streaming zipformer transducer model to ONNX format."""
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -1062,7 +1075,9 @@ def main():
     if params.is_rknn_export:
         if params.use_external_data:
             logging.warning(
-                "--is-rknn-export 1 is ignored since --use-external-data is used"
+                "--is-rknn-export 1: skip removing no-op Cast nodes since "
+                "--use-external-data is used. Note its other effects (bool "
+                "masks etc.) are still applied to the exported graph."
             )
         else:
             for filename in (encoder_filename, decoder_filename, joiner_filename):
