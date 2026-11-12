@@ -98,7 +98,7 @@ def get_torchcodec_version(torch_version):
 
 
 def get_matrix(min_torch_version, specified_torch_version, specified_python_version):
-    version = "20260715"
+    version = "20261112"
 
     # torchaudio 2.5.0 does not support python 3.13
     python_version = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
