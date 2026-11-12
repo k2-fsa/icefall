@@ -123,6 +123,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--is-rknn-export",
+        type=int,
+        default=0,
+        help="""1 if the exported models will be converted by rknn-toolkit2.
+        It keeps the padding masks as bool and avoids no-op Cast nodes, which
+        rknn-toolkit2 cannot convert (it aborts with "Meet unsupported conv,
+        input tensor name: ... input type: 6"). 0 to keep the previous
+        behavior.""",
+    )
+
+    parser.add_argument(
         "--epoch",
         type=int,
         default=28,
@@ -305,6 +316,72 @@ def _fix_cast_nodes_after_fp16_conversion(model):
     return model
 
 
+def _remove_noop_cast_nodes(model: onnx.ModelProto) -> int:
+    """Remove Cast nodes that don't change the element type.
+
+    PyTorch exports redundant Cast nodes in some cases, e.g. a bool->bool
+    cast from ``mask.to(torch.bool)`` when the mask is already bool.
+    rknn-toolkit2 cannot convert such nodes: it reports
+    "E RKNN: dataconvert type -1 is unsupport in current!" and aborts
+    (core dumped), so for --is-rknn-export 1 we drop them.  Removing a
+    no-op Cast does not change model semantics.
+
+    Returns the number of removed nodes.
+    """
+    model_with_types = onnx.shape_inference.infer_shapes(model)
+    elem_types = {}
+    for vi in (
+        list(model_with_types.graph.input)
+        + list(model_with_types.graph.value_info)
+        + list(model_with_types.graph.output)
+    ):
+        if vi.type.HasField("tensor_type"):
+            elem_types[vi.name] = vi.type.tensor_type.elem_type
+
+    graph = model.graph
+    output_names = {o.name for o in graph.output}
+
+    # name of a no-op Cast output -> name of its input
+    redirect = {}
+    for node in graph.node:
+        if node.op_type != "Cast":
+            continue
+        if len(node.input) != 1 or len(node.output) != 1:
+            continue
+        if node.output[0] in output_names:
+            # keep the node so graph outputs are not renamed
+            continue
+        to = None
+        for attr in node.attribute:
+            if attr.name == "to":
+                to = attr.i
+        in_type = elem_types.get(node.input[0])
+        if to is not None and in_type is not None and to == in_type:
+            redirect[node.output[0]] = node.input[0]
+
+    if not redirect:
+        return 0
+
+    def resolve(name: str) -> str:
+        """Follow chains of no-op casts and return the final tensor name."""
+        while name in redirect:
+            name = redirect[name]
+        return name
+
+    kept = []
+    for node in graph.node:
+        if len(node.output) == 1 and node.output[0] in redirect:
+            continue
+        for i, name in enumerate(node.input):
+            if name in redirect:
+                node.input[i] = resolve(name)
+        kept.append(node)
+
+    del graph.node[:]
+    graph.node.extend(kept)
+    return len(redirect)
+
+
 def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
     import onnxmltools
 
@@ -364,7 +441,11 @@ class OnnxEncoder(nn.Module):
     """A wrapper for Zipformer and the encoder_proj from the joiner"""
 
     def __init__(
-        self, encoder: Zipformer2, encoder_embed: nn.Module, encoder_proj: nn.Linear
+        self,
+        encoder: Zipformer2,
+        encoder_embed: nn.Module,
+        encoder_proj: nn.Linear,
+        is_rknn_export: int = 0,
     ):
         """
         Args:
@@ -372,6 +453,8 @@ class OnnxEncoder(nn.Module):
             A Zipformer encoder.
           encoder_proj:
             The projection layer for encoder from the joiner.
+          is_rknn_export:
+            1 to generate a graph that rknn-toolkit2 can convert; 0 otherwise.
         """
         super().__init__()
         self.encoder = encoder
@@ -380,12 +463,25 @@ class OnnxEncoder(nn.Module):
         self.chunk_size = encoder.chunk_size[0]
         self.left_context_len = encoder.left_context_frames[0]
         self.pad_length = 7 + 2 * 3
+        self.is_rknn_export = is_rknn_export
 
     def forward(
         self,
         x: torch.Tensor,
         states: List[torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        """Encode a chunk of features given the current streaming states.
+
+        Args:
+          x:
+            A tensor of shape (N, T, feature_dim).
+          states:
+            The streaming states from the previous chunk.
+
+        Returns:
+          Return a tuple containing the encoded output of shape
+          (N, T, joiner_dim) and the updated streaming states.
+        """
         N = x.size(0)
         T = self.chunk_size * 2 + self.pad_length
         x_lens = torch.tensor([T] * N, device=x.device)
@@ -399,7 +495,16 @@ class OnnxEncoder(nn.Module):
         )
         assert x.size(1) == self.chunk_size, (x.size(1), self.chunk_size)
 
-        src_key_padding_mask = torch.zeros(N, self.chunk_size, dtype=torch.int32)
+        # For rknn export, keep the masks bool: with int32 masks rknn-toolkit2
+        # fails to convert the encoder with
+        #   E RKNN: Meet unsupported conv, input tensor name: ... input type: 6
+        # and aborts (core dumped). Otherwise keep the historical int32 masks.
+        if self.is_rknn_export:
+            mask_dtype = torch.bool
+        else:
+            mask_dtype = torch.int32
+
+        src_key_padding_mask = torch.zeros(N, self.chunk_size, dtype=mask_dtype)
 
         # processed_mask is used to mask out initial states
         processed_mask = torch.arange(left_context_len, device=x.device).expand(
@@ -407,9 +512,10 @@ class OnnxEncoder(nn.Module):
         )
         processed_lens = states[-1]  # (batch,)
         # (batch, left_context_size)
-        processed_mask = (
-            (processed_lens.unsqueeze(1) <= processed_mask).to(torch.int32).flip(1)
-        )
+        processed_mask = processed_lens.unsqueeze(1) <= processed_mask
+        if not self.is_rknn_export:
+            processed_mask = processed_mask.to(torch.int32)
+        processed_mask = processed_mask.flip(1)
         # Update processed lengths
         new_processed_lens = processed_lens + x_lens
         # (batch, left_context_size + chunk_size)
@@ -432,9 +538,15 @@ class OnnxEncoder(nn.Module):
         encoder_out = self.encoder_proj(encoder_out)
         # Now encoder_out is of shape (N, T, joiner_dim)
 
+        if self.is_rknn_export and new_processed_lens.dtype == states[-1].dtype:
+            # Skip the no-op cast: rknn-toolkit2 cannot convert it.
+            new_processed_lens_out = new_processed_lens
+        else:
+            new_processed_lens_out = new_processed_lens.to(states[-1].dtype)
+
         new_states = new_encoder_states + [
             new_cached_embed_left_pad,
-            new_processed_lens.to(states[-1].dtype),
+            new_processed_lens_out,
         ]
 
         return encoder_out, new_states
@@ -793,6 +905,7 @@ def export_joiner_model_onnx(
 
 @torch.no_grad()
 def main():
+    """Export a streaming zipformer transducer model to ONNX format."""
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -908,6 +1021,7 @@ def main():
         encoder=model.encoder,
         encoder_embed=model.encoder_embed,
         encoder_proj=model.joiner.encoder_proj,
+        is_rknn_export=params.is_rknn_export,
     )
 
     if params.decoder_conv_as_matmul:
@@ -1003,6 +1117,23 @@ def main():
         dynamic_batch=params.dynamic_batch == 1,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
+
+    if params.is_rknn_export:
+        if params.use_external_data:
+            logging.warning(
+                "--is-rknn-export 1: skip removing no-op Cast nodes since "
+                "--use-external-data is used. Note its other effects (bool "
+                "masks etc.) are still applied to the exported graph."
+            )
+        else:
+            for filename in (encoder_filename, decoder_filename, joiner_filename):
+                model = onnx.load(str(filename))
+                num_removed = _remove_noop_cast_nodes(model)
+                if num_removed > 0:
+                    onnx.save(model, str(filename))
+                logging.info(
+                    f"Removed {num_removed} no-op Cast node(s) from {filename}"
+                )
 
     if params.fp16:
         logging.info("Generate fp16 models")
