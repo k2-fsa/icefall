@@ -173,11 +173,22 @@ class AsrModel(nn.Module):
         # Compute CTC log-prob
         ctc_output = self.ctc_output(encoder_out)  # (N, T, C)
 
+
+        # the calls to .long() were added as a workaround for a problem with
+        # torch.nn.functional.ctc_loss() on newer torch versions.  Previously
+        # instead of .long() we had .cpu().  .cpu() activates the use of CUDNN
+        # because it only uses CUDNN if integer inputs are in int32 and on CPU.
+        # (https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/LossCTC.cpp#L501)
+        # But on more recent torch/cuda versions we were getting "RuntimeError: cuDNN error:
+        # CUDNN_STATUS_EXECUTION_FAILED" if we use the CUDNN implementation.
+        # We can't use (int32, CUDA) for the integer inputs because the torch implementation of ctc_loss
+        # seems to have a bug with "int32" integer arguments (it returns infinity), so we call
+        # .long() to use the torch implementation and avoid that bug.
         ctc_loss = torch.nn.functional.ctc_loss(
             log_probs=ctc_output.permute(1, 0, 2),  # (T, N, C)
-            targets=targets.cpu(),
-            input_lengths=encoder_out_lens.cpu(),
-            target_lengths=target_lengths.cpu(),
+            targets=targets.long(),
+            input_lengths=encoder_out_lens.long(),
+            target_lengths=target_lengths.long(),
             reduction="sum",
         )
         return ctc_loss
@@ -200,12 +211,22 @@ class AsrModel(nn.Module):
             to be un-padded and concatenated within 1 dimension.
         """
         # Compute CTC loss
+        # the calls to .long() were added as a workaround for a problem with
+        # torch.nn.functional.ctc_loss() on newer torch versions.  Previously
+        # instead of .long() we had .cpu().  .cpu() activates the use of CUDNN
+        # because it only uses CUDNN if integer inputs are in int32 and on CPU.
+        # (https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/LossCTC.cpp#L501)
+        # But on more recent torch/cuda versions we were getting "RuntimeError: cuDNN error:
+        # CUDNN_STATUS_EXECUTION_FAILED" if we use the CUDNN implementation.
+        # We can't use (int32, CUDA) for the integer inputs because the torch implementation of ctc_loss
+        # seems to have a bug with "int32" integer arguments (it returns infinity), so we call
+        # .long() to use the torch implementation and avoid that bug.
         ctc_output = self.ctc_output(encoder_out)  # (2 * N, T, C)
         ctc_loss = torch.nn.functional.ctc_loss(
             log_probs=ctc_output.permute(1, 0, 2),  # (T, 2 * N, C)
-            targets=targets.cpu(),
-            input_lengths=encoder_out_lens.cpu(),
-            target_lengths=target_lengths.cpu(),
+            targets=targets.long(),
+            input_lengths=encoder_out_lens.long(),
+            target_lengths=target_lengths.long(),
             reduction="sum",
         )
 

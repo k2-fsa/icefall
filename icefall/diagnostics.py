@@ -222,12 +222,17 @@ class TensorDiagnostic(object):
                     else:
                         this_dim_stats[stats_type].append(TensorAndCount(stats, count))
 
-    def print_diagnostics(self):
-        """Print diagnostics for each dimension of the tensor."""
+    def print_diagnostics(self) -> dict:
+        """Print diagnostics for each dimension of the tensor.  Returns a dict containing more specific stats, as tensors, that can be used for further
+        analysis if needed"""
         if self.stats is None:
             print(f"Warning: the stats of {self.name} is None.")
             return
+
+        ans_dict = dict()
+
         for dim, this_dim_stats in enumerate(self.stats):
+            ans_dict[dim] = dict()
             if "rms" in this_dim_stats and "value" in this_dim_stats:
                 # produce "stddev" stats, which is centered RMS.
                 rms_stats_list = this_dim_stats["rms"]
@@ -286,6 +291,8 @@ class TensorDiagnostic(object):
                     # we stored the square; after aggregation we need to take sqrt.
                     stats = stats.sqrt()
 
+                ans_dict[dim][stats_type] = stats
+
                 # if `summarize` we print percentiles of the stats; else,
                 # we print out individual elements.
                 summarize = (len(stats_list) > 1) or self.opts.dim_is_summarized(
@@ -314,6 +321,7 @@ class TensorDiagnostic(object):
                     # can be attributed to the mean of the distribution.
                     norm = (stats**2).sum().sqrt().item()
                     ans += f", norm={norm:.2g}"
+
                 mean = stats.mean().item()
                 rms = (stats**2).mean().sqrt().item()
                 ans += f", mean={mean:.3g}, rms={rms:.3g}"
@@ -331,183 +339,8 @@ class TensorDiagnostic(object):
                 print(
                     f"module={self.name},{maybe_class_name} dim={dim}, size={size_str}, {stats_type} {ans}"
                 )
+        return ans_dict
 
-
-class ScalarDiagnostic(object):
-    """This class is not directly used by the user, it is responsible for
-    collecting diagnostics for a single module (subclass of torch.nn.Module) that
-    represents some kind of nonlinearity, e.g. ReLU, sigmoid, etc.
-    """
-
-    def __init__(self, opts: TensorDiagnosticOptions, name: str):
-        self.opts = opts
-        self.name = name
-        self.class_name = None  # will assign in accumulate()
-        self.is_forward_pass = True
-
-        self.tick_scale = None
-
-        self.saved_inputs = []
-        self.is_ok = True
-
-        self.counts = None
-        self.sum_grad = None
-        self.sum_gradsq = None
-        self.sum_abs_grad = None
-
-    def accumulate_input(self, x: Tensor, class_name: Optional[str] = None):
-        """
-        Called in forward pass.
-        """
-        if not self.is_forward_pass:
-            # in case we did a forward pass without a backward pass, for some reason.
-            self.saved_inputs = []
-            self.is_forward_pass = True
-
-        if class_name is not None:
-            self.class_name = class_name
-        if not self.is_ok:
-            return
-
-        limit = 10
-        if len(self.saved_inputs) > limit:
-            print(
-                f"ERROR: forward pass called for this module over {limit} times with no backward pass. "
-                f" Will not accumulate scalar stats."
-            )
-            self.is_ok = False
-            return
-        self.saved_inputs.append(x)
-
-    def accumulate_output_grad(self, grad: Tensor):
-        if not self.is_ok:
-            return
-        if self.is_forward_pass:
-            self.is_forward_pass = False
-
-        last_shape = (
-            "n/a" if len(self.saved_inputs) == 0 else self.saved_inputs[-1].shape
-        )
-        if len(self.saved_inputs) == 0 or grad.shape != last_shape:
-            print(
-                f"ERROR: shape mismatch or no forward activation present when backward "
-                f"pass called: grad shape ={tuple(grad.shape)}, num-saved-inputs={len(self.saved_inputs)}"
-                f", shape-of-last-saved-input={last_shape}"
-            )
-            self.is_ok = False
-            return
-
-        x = self.saved_inputs.pop()
-        self.process_input_and_grad(x, grad)
-
-    def process_input_and_grad(self, x: Tensor, grad: Tensor):
-        assert x.shape == grad.shape
-        x = x.flatten()
-        grad = grad.flatten()
-
-        num_ticks_per_side = 256
-
-        if self.tick_scale is None:
-            x_abs_sorted = x.abs().sort()[0]
-            # take the 98th percentile as the largest value we count separately.
-            index = int(x.numel() * 0.98)
-            self.tick_scale = float(x_abs_sorted[index] / num_ticks_per_side)
-
-            # integerize from tick * (-num ticks_per_side ..  num_ticks_per_side - 1]
-            self.counts = torch.zeros(
-                2 * num_ticks_per_side, dtype=torch.long, device=x.device
-            )
-            self.sum_grad = torch.zeros(
-                2 * num_ticks_per_side, dtype=torch.double, device=x.device
-            )
-            # sum_gradsq is for getting error bars.
-            self.sum_gradsq = torch.zeros(
-                2 * num_ticks_per_side, dtype=torch.double, device=x.device
-            )
-            self.sum_abs_grad = torch.zeros(
-                2 * num_ticks_per_side, dtype=torch.double, device=x.device
-            )
-
-        # this will round down.
-        x = (x / self.tick_scale).to(torch.long)
-        x = x.clamp_(min=-num_ticks_per_side, max=num_ticks_per_side - 1)
-        x = x + num_ticks_per_side
-
-        self.counts.index_add_(dim=0, index=x, source=torch.ones_like(x))
-        self.sum_grad.index_add_(dim=0, index=x, source=grad.to(torch.double))
-        self.sum_gradsq.index_add_(
-            dim=0, index=x, source=(grad * grad).to(torch.double)
-        )
-        self.sum_abs_grad.index_add_(dim=0, index=x, source=grad.abs().to(torch.double))
-
-    def print_diagnostics(self):
-        """Print diagnostics."""
-        if self.is_ok is False or self.counts is None:
-            print(f"Warning: no stats accumulated for {self.name}, is_ok={self.is_ok}")
-            return
-
-        counts = self.counts.to("cpu")
-        sum_grad = self.sum_grad.to(device="cpu", dtype=torch.float32)
-        sum_gradsq = self.sum_gradsq.to(device="cpu", dtype=torch.float32)
-        sum_abs_grad = self.sum_abs_grad.to(device="cpu", dtype=torch.float32)
-
-        counts_cumsum = counts.cumsum(dim=0)
-        counts_tot = counts_cumsum[-1]
-
-        # subdivide the distribution up into `num_bins` intervals for analysis, for greater
-        # statistical significance.  each bin corresponds to multiple of the original 'tick' intervals.
-        num_bins = 20
-
-        # integer division
-        counts_per_bin = (counts_tot // num_bins) + 1
-        bin_indexes = counts_cumsum // counts_per_bin
-        bin_indexes = bin_indexes.clamp(min=0, max=num_bins).to(torch.long)
-
-        bin_counts = torch.zeros(num_bins, dtype=torch.long)
-        bin_counts.index_add_(dim=0, index=bin_indexes, source=counts)
-        bin_grad = torch.zeros(num_bins)
-        bin_grad.index_add_(dim=0, index=bin_indexes, source=sum_grad)
-        bin_gradsq = torch.zeros(num_bins)
-        bin_gradsq.index_add_(dim=0, index=bin_indexes, source=sum_gradsq)
-        bin_abs_grad = torch.zeros(num_bins)
-        bin_abs_grad.index_add_(dim=0, index=bin_indexes, source=sum_abs_grad)
-
-        avg_grad = bin_grad / bin_counts
-        avg_grad_stddev = (bin_gradsq / bin_counts).sqrt()
-
-        bin_boundary_counts = (
-            torch.arange(num_bins + 1, dtype=torch.long) * counts_per_bin
-        )
-        bin_tick_indexes = torch.searchsorted(counts_cumsum, bin_boundary_counts)
-        # boundaries are the "x" values between the bins, e.g. corresponding to the
-        # locations of percentiles of the distribution.
-        num_ticks_per_side = counts.numel() // 2
-        bin_boundaries = (bin_tick_indexes - num_ticks_per_side) * self.tick_scale
-
-        bin_grad = bin_grad / (bin_counts + 1)
-        bin_conf_interval = bin_gradsq.sqrt() / (
-            bin_counts + 1
-        )  # consider this a standard deviation.
-        # bin_grad / bin_abs_grad will give us a sense for how important in a practical sense,
-        # the gradients are.
-        bin_abs_grad = bin_abs_grad / (bin_counts + 1)
-
-        bin_rel_grad = bin_grad / (bin_abs_grad + 1.0e-20)
-        bin_conf = bin_grad / (bin_conf_interval + 1.0e-20)
-
-        def tensor_to_str(x: Tensor):
-            x = ["%.2g" % f for f in x]
-            x = "[" + " ".join(x) + "]"
-            return x
-
-        maybe_class_name = (
-            f" type={self.class_name}," if self.class_name is not None else ""
-        )
-
-        print(
-            f"module={self.name},{maybe_class_name} bin-boundaries={tensor_to_str(bin_boundaries)}, "
-            f"rel_grad={tensor_to_str(bin_rel_grad)}, grad_conf={tensor_to_str(bin_conf)}"
-        )
 
 
 class ModelDiagnostic(object):
@@ -528,15 +361,17 @@ class ModelDiagnostic(object):
         self.diagnostics = dict()
 
     def __getitem__(self, name: str):
-        T = ScalarDiagnostic if name[-7:] == ".scalar" else TensorDiagnostic
         if name not in self.diagnostics:
-            self.diagnostics[name] = T(self.opts, name)
+            self.diagnostics[name] = TensorDiagnostic(self.opts, name)
         return self.diagnostics[name]
 
-    def print_diagnostics(self):
-        """Print diagnostics for each tensor."""
+    def print_diagnostics(self) -> dict:
+        """Print diagnostics for each tensor.  Returns dict with more detailed per-dimension info
+        that could be further analyzed."""
+        ans = dict()
         for k in sorted(self.diagnostics.keys()):
-            self.diagnostics[k].print_diagnostics()
+            ans[k] = self.diagnostics[k].print_diagnostics()
+        return ans
 
 
 def get_class_name(module: nn.Module):
@@ -636,42 +471,6 @@ def attach_diagnostics(
         else:
             module.register_backward_hook(backward_hook)
 
-        if type(module).__name__ in [
-            "Sigmoid",
-            "Tanh",
-            "ReLU",
-            "TanSwish",
-            "Swish",
-            "DoubleSwish",
-            "Swoosh",
-        ]:
-            # For these specific module types, accumulate some additional diagnostics
-            # that can help us improve the activation function.  These require a lot of memory,
-            # to save the forward activations, so limit this to some select classes.
-            # Note: this will not work correctly for all model types.
-            def scalar_forward_hook(
-                _module, _input, _output, _model_diagnostic=ans, _name=name
-            ):
-                if isinstance(_input, tuple):
-                    (_input,) = _input
-                assert isinstance(_input, Tensor)
-                _model_diagnostic[f"{_name}.scalar"].accumulate_input(
-                    _input, class_name=get_class_name(_module)
-                )
-
-            def scalar_backward_hook(
-                _module, _input, _output, _model_diagnostic=ans, _name=name
-            ):
-                if isinstance(_output, tuple):
-                    (_output,) = _output
-                assert isinstance(_output, Tensor)
-                _model_diagnostic[f"{_name}.scalar"].accumulate_output_grad(_output)
-
-            module.register_forward_hook(scalar_forward_hook)
-            if hasattr(module, "register_full_backward_hook"):
-                module.register_full_backward_hook(scalar_backward_hook)
-            else:
-                module.register_backward_hook(scalar_backward_hook)
 
     for name, parameter in model.named_parameters():
 

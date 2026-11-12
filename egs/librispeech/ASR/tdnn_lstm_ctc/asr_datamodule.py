@@ -18,13 +18,21 @@
 
 import argparse
 import inspect
+import glob
 import logging
+import re
+
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import numpy as np  # to set its random seed
+
 import torch
+import lhotse
+
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
+
 from lhotse.dataset import (  # noqa F401 for PrecomputedFeatures
     CutConcatenate,
     CutMix,
@@ -497,3 +505,107 @@ class LibriSpeechAsrDataModule:
     def gigaspeech_test_cuts(self) -> CutSet:
         logging.info("About to get Gigaspeech test cuts")
         return load_manifest_lazy(self.args.manifest_dir / "cuts_TEST.jsonl.gz")
+
+
+class GigaSpeech:
+    def __init__(self, manifest_dir: str):
+        """
+        Args:
+          manifest_dir:
+            It is expected to contain the following files:
+
+                - gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz
+                - gigaspeech_cuts_L.jsonl.gz
+                - gigaspeech_cuts_M.jsonl.gz
+                - gigaspeech_cuts_S.jsonl.gz
+                - gigaspeech_cuts_XS.jsonl.gz
+                - gigaspeech_cuts_DEV.jsonl.gz
+                - gigaspeech_cuts_TEST.jsonl.gz
+        """
+        self.manifest_dir = Path(manifest_dir)
+
+    def train_XL_cuts_split(self) -> CutSet:
+        logging.info("About to get train-XL cuts")
+
+        filenames = list(
+            glob.glob(
+                f"{self.manifest_dir}/gigaspeech_XL_split_2000/gigaspeech_cuts_XL.*.jsonl.gz"  # noqa
+            )
+        )
+
+        pattern = re.compile(r"gigaspeech_cuts_XL.([0-9]+).jsonl.gz")
+        idx_filenames = [(int(pattern.search(f).group(1)), f) for f in filenames]
+        idx_filenames = sorted(idx_filenames, key=lambda x: x[0])
+
+        sorted_filenames = [f[1] for f in idx_filenames]
+
+        logging.info(f"Loading {len(sorted_filenames)} splits")
+
+        return lhotse.combine(lhotse.load_manifest_lazy(p) for p in sorted_filenames)
+
+    def train_XL_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_XL.jsonl.gz"
+        logging.info(f"About to get train-XL cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_L_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_L.jsonl.gz"
+        logging.info(f"About to get train-L cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_M_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_M.jsonl.gz"
+        logging.info(f"About to get train-M cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_S_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_S.jsonl.gz"
+        logging.info(f"About to get train-S cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def train_XS_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_XS.jsonl.gz"
+        logging.info(f"About to get train-XS cuts from {f}")
+        return CutSet.from_jsonl_lazy(f)
+
+    def test_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_TEST.jsonl.gz"
+        logging.info(f"About to get TEST cuts from {f}")
+        return load_manifest_lazy(f)
+
+    def dev_cuts(self) -> CutSet:
+        f = self.manifest_dir / "gigaspeech_cuts_DEV.jsonl.gz"
+        logging.info(f"About to get DEV cuts from {f}")
+        return load_manifest_lazy(f)
+
+
+class CommonVoice:
+    def __init__(self, manifest_dir: str):
+        """
+        Args:
+          manifest_dir:
+            It is expected to contain the following files::
+
+                - cv22-en_cuts_train.jsonl.gz
+                - cv22-en_cuts_dev.jsonl.gz
+                - cv22-en_cuts_test.jsonl.gz
+        """
+        self.manifest_dir = Path(manifest_dir)
+
+    def train_cuts(self) -> CutSet:
+        logging.info("CommonVoice: About to get train cuts")
+        return load_manifest_lazy(
+            self.manifest_dir / "cv22-en_cuts_train.jsonl.gz"
+        )
+
+    def dev_cuts(self) -> CutSet:
+        logging.info("CommonVoice: About to get dev cuts")
+        return load_manifest_lazy(
+            self.manifest_dir / "cv22-en_cuts_dev.jsonl.gz"
+        )
+
+    def test_cuts(self) -> CutSet:
+        logging.info("CommonVoice: About to get test cuts")
+        return load_manifest_lazy(
+            self.manifest_dir / "cv22-en_cuts_test.jsonl.gz"
+        )
