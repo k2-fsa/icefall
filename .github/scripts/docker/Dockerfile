@@ -53,7 +53,7 @@ RUN pip install --no-cache-dir \
       "matplotlib<=3.9.4" \
       multi_quantization \
       numba \
-      "numpy<2.0" \
+      numpy \
       onnxoptimizer \
       onnxscript \
       onnxsim \
