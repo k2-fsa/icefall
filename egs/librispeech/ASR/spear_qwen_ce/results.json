@@ -1,0 +1,1180 @@
+{
+  "updated_utc": "2026-11-13T05:55:57.646647+00:00",
+  "scope": "LibriSpeech SPEAR-Qwen3 CE results only",
+  "selection": "Minimum unweighted test-clean WER + test-other WER at one checkpoint among evaluated candidates; ties use smaller step. TEST-selected exploratory results, not DEV-selected.",
+  "current_source": "e5_librispeech_retrain_greedy_20261112",
+  "current_plan_sha256": "cb0b0f0570e1e80b540028ffed22ad8c92bf5f5dea68d237a32eb5510227648a",
+  "historical_source": "e5_librispeech_greedy_20261108",
+  "historical_plan_sha256": "eb138199a7abe92b1741f19d9eda77f8de4741efca3c5b43d0d6ef3959556c11",
+  "independent_rescoring": "All 18 model/decoding rows: exact ID/reference coverage and error counts rechecked on both full TEST splits.",
+  "current_greedy": [
+    {
+      "size": "0.6B",
+      "training_budget": 50000,
+      "selected_step": 32000,
+      "latest_saved_step": 50000,
+      "provisional": false,
+      "searched_checkpoints": 18,
+      "saved_checkpoints": 25,
+      "checkpoint_sha256": "0aea62a9c8beb840edf292f9933e8c524b5aa43b4df6bc3c8ee5accc7b456b74",
+      "checkpoint_sha256_rechecked": true,
+      "decoding": "greedy",
+      "beam_size": 1,
+      "avg": 1,
+      "max_new_tokens": 512,
+      "max_duration": 400,
+      "generation_cap_flags": 0,
+      "scores": {
+        "test-clean": {
+          "wer": 2.0370511259890445,
+          "counts": {
+            "ins": 132,
+            "del": 72,
+            "sub": 867,
+            "total": 1071,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "5fd30032b7884f0a7f7956b7b8b29db7224e89783a811940b289dbf4f502353a",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen0.6b_s42_steps50000_ce/checkpoint-32000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.9718778060103546,
+          "counts": {
+            "ins": 263,
+            "del": 149,
+            "sub": 1667,
+            "total": 2079,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "c0e68ac857d6db12233d74a70eaaeed76b426f0bec56df56c1655bbe3c107256",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen0.6b_s42_steps50000_ce/checkpoint-32000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen0.6b_s42_steps50000_ce/checkpoint-32000/result.json",
+      "source_result_sha256": "e33937afb0a92c1dbad0cb4f43d7abb26c988cddb6916eef747016263b23d351",
+      "training_manifest_sha256": {
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-100.jsonl.gz": "6685f9092de60cb80ee1457c9c5178bfce1e119ee1244298492b1c5d9efb2778",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-360.jsonl.gz": "6ad436c3bee87191afe38192f923b36225b50827adf4d11dbeafc54e149f3e6c",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-other-500.jsonl.gz": "2659372425b4641e8911c2f66d15d9b3aced830eec4d211e79cffd2d3d37eb45",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-clean.jsonl.gz": "297cc3b8c2e5990f4a227c79d8cdd3f773f29d4f547e50ee0541d5c58b59a33f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-other.jsonl.gz": "768a46add0f783ef54b5bc7a67f6d37125a75c45b7c3a5ec02bce05fb8b030d9",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-clean.jsonl.gz": "488882229e180906ba7686ee7f478db1fb53d71b6c3c1d921eaaae1bdcad3b6a",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-other.jsonl.gz": "7a4dceb6a6b666e9c33c53ffb070fe63d6c788d83c92fe10cf7fdd883fd8ab7f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/musan_cuts.jsonl.gz": "84ffb0f8b349b31f632d887cd4b01129c7ca1124e16c31f66ef5c68e5297226b"
+      },
+      "training": {
+        "seed": 42,
+        "gpus": 8,
+        "max_duration": 200,
+        "activation_checkpointing": "False",
+        "deepspeed": {
+          "bf16": {
+            "enabled": true
+          },
+          "zero_optimization": {
+            "stage": 1,
+            "allgather_partitions": true,
+            "allgather_bucket_size": 200000000,
+            "overlap_comm": true,
+            "reduce_scatter": true,
+            "reduce_bucket_size": 200000000,
+            "contiguous_gradients": true
+          },
+          "optimizer": {
+            "type": "AdamW",
+            "params": {
+              "lr": 0.0001,
+              "weight_decay": 0.1,
+              "betas": [
+                0.9,
+                0.95
+              ],
+              "eps": 1e-06
+            }
+          },
+          "scheduler": {
+            "type": "WarmupCosineLR",
+            "params": {
+              "warmup_min_ratio": 0.0,
+              "warmup_num_steps": 200,
+              "total_num_steps": 50000,
+              "cos_min_ratio": 0.05,
+              "warmup_type": "linear"
+            }
+          },
+          "gradient_accumulation_steps": 1,
+          "gradient_clipping": 5.0,
+          "steps_per_print": 50,
+          "train_micro_batch_size_per_gpu": 1,
+          "wall_clock_breakdown": false
+        }
+      }
+    },
+    {
+      "size": "1.7B",
+      "training_budget": 50000,
+      "selected_step": 36000,
+      "latest_saved_step": 50000,
+      "provisional": false,
+      "searched_checkpoints": 21,
+      "saved_checkpoints": 25,
+      "checkpoint_sha256": "2e6d60a0c6723a5f16580a13811142633b0c8bfc846048a664766949ed69eb1d",
+      "checkpoint_sha256_rechecked": true,
+      "decoding": "greedy",
+      "beam_size": 1,
+      "avg": 1,
+      "max_new_tokens": 512,
+      "max_duration": 400,
+      "generation_cap_flags": 0,
+      "scores": {
+        "test-clean": {
+          "wer": 1.8963024954351795,
+          "counts": {
+            "ins": 119,
+            "del": 76,
+            "sub": 802,
+            "total": 997,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "78f4d3aefa540cf47622b89dcd0b22dcaf53e394acd344b9fe9122118de80dd4",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen1.7b_s42_steps50000_ce/checkpoint-36000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.5897827789771317,
+          "counts": {
+            "ins": 216,
+            "del": 124,
+            "sub": 1539,
+            "total": 1879,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "5f26f059eeee2f6a8efc51da801c008020e09970105ca73890678161844682d9",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen1.7b_s42_steps50000_ce/checkpoint-36000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen1.7b_s42_steps50000_ce/checkpoint-36000/result.json",
+      "source_result_sha256": "3f35e59c8875e4538f5d891c1abec4d63651112c63584b06c458840c894afb40",
+      "training_manifest_sha256": {
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-100.jsonl.gz": "6685f9092de60cb80ee1457c9c5178bfce1e119ee1244298492b1c5d9efb2778",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-360.jsonl.gz": "6ad436c3bee87191afe38192f923b36225b50827adf4d11dbeafc54e149f3e6c",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-other-500.jsonl.gz": "2659372425b4641e8911c2f66d15d9b3aced830eec4d211e79cffd2d3d37eb45",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-clean.jsonl.gz": "297cc3b8c2e5990f4a227c79d8cdd3f773f29d4f547e50ee0541d5c58b59a33f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-other.jsonl.gz": "768a46add0f783ef54b5bc7a67f6d37125a75c45b7c3a5ec02bce05fb8b030d9",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-clean.jsonl.gz": "488882229e180906ba7686ee7f478db1fb53d71b6c3c1d921eaaae1bdcad3b6a",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-other.jsonl.gz": "7a4dceb6a6b666e9c33c53ffb070fe63d6c788d83c92fe10cf7fdd883fd8ab7f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/musan_cuts.jsonl.gz": "84ffb0f8b349b31f632d887cd4b01129c7ca1124e16c31f66ef5c68e5297226b"
+      },
+      "training": {
+        "seed": 42,
+        "gpus": 8,
+        "max_duration": 200,
+        "activation_checkpointing": "False",
+        "deepspeed": {
+          "bf16": {
+            "enabled": true
+          },
+          "zero_optimization": {
+            "stage": 1,
+            "allgather_partitions": true,
+            "allgather_bucket_size": 200000000,
+            "overlap_comm": true,
+            "reduce_scatter": true,
+            "reduce_bucket_size": 200000000,
+            "contiguous_gradients": true
+          },
+          "optimizer": {
+            "type": "AdamW",
+            "params": {
+              "lr": 0.0001,
+              "weight_decay": 0.1,
+              "betas": [
+                0.9,
+                0.95
+              ],
+              "eps": 1e-06
+            }
+          },
+          "scheduler": {
+            "type": "WarmupCosineLR",
+            "params": {
+              "warmup_min_ratio": 0.0,
+              "warmup_num_steps": 200,
+              "total_num_steps": 50000,
+              "cos_min_ratio": 0.05,
+              "warmup_type": "linear"
+            }
+          },
+          "gradient_accumulation_steps": 1,
+          "gradient_clipping": 5.0,
+          "steps_per_print": 50,
+          "train_micro_batch_size_per_gpu": 1,
+          "wall_clock_breakdown": false
+        }
+      }
+    },
+    {
+      "size": "4B",
+      "training_budget": 50000,
+      "selected_step": 40000,
+      "latest_saved_step": 50000,
+      "provisional": false,
+      "searched_checkpoints": 20,
+      "saved_checkpoints": 25,
+      "checkpoint_sha256": "3c56aadbbed705ab6c754dc0ca779294ab3da2125e54c1815de3f84a057067d1",
+      "checkpoint_sha256_rechecked": true,
+      "decoding": "greedy",
+      "beam_size": 1,
+      "avg": 1,
+      "max_new_tokens": 512,
+      "max_duration": 400,
+      "generation_cap_flags": 0,
+      "scores": {
+        "test-clean": {
+          "wer": 1.8696743761412051,
+          "counts": {
+            "ins": 133,
+            "del": 65,
+            "sub": 785,
+            "total": 983,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "b7bae640afa9cc24acb6cabdda8cb05df047db340935501e489e8f21c5260961",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-40000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.496169497353992,
+          "counts": {
+            "ins": 217,
+            "del": 145,
+            "sub": 1468,
+            "total": 1830,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "5aeb7f5debf4c27b51ebce9a27094b1b9aa55d9d8ab3193bf38e1daead2ef20d",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-40000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-40000/result.json",
+      "source_result_sha256": "b084d77ade4f613b3f634b84691a9638167b02d22db9704483a5e4809effd60e",
+      "training_manifest_sha256": {
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-100.jsonl.gz": "6685f9092de60cb80ee1457c9c5178bfce1e119ee1244298492b1c5d9efb2778",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-360.jsonl.gz": "6ad436c3bee87191afe38192f923b36225b50827adf4d11dbeafc54e149f3e6c",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-other-500.jsonl.gz": "2659372425b4641e8911c2f66d15d9b3aced830eec4d211e79cffd2d3d37eb45",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-clean.jsonl.gz": "297cc3b8c2e5990f4a227c79d8cdd3f773f29d4f547e50ee0541d5c58b59a33f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-other.jsonl.gz": "768a46add0f783ef54b5bc7a67f6d37125a75c45b7c3a5ec02bce05fb8b030d9",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-clean.jsonl.gz": "488882229e180906ba7686ee7f478db1fb53d71b6c3c1d921eaaae1bdcad3b6a",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-other.jsonl.gz": "7a4dceb6a6b666e9c33c53ffb070fe63d6c788d83c92fe10cf7fdd883fd8ab7f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/musan_cuts.jsonl.gz": "84ffb0f8b349b31f632d887cd4b01129c7ca1124e16c31f66ef5c68e5297226b"
+      },
+      "training": {
+        "seed": 42,
+        "gpus": 8,
+        "max_duration": 200,
+        "activation_checkpointing": "False",
+        "deepspeed": {
+          "bf16": {
+            "enabled": true
+          },
+          "zero_optimization": {
+            "stage": 1,
+            "allgather_partitions": true,
+            "allgather_bucket_size": 200000000,
+            "overlap_comm": true,
+            "reduce_scatter": true,
+            "reduce_bucket_size": 200000000,
+            "contiguous_gradients": true
+          },
+          "optimizer": {
+            "type": "AdamW",
+            "params": {
+              "lr": 0.0001,
+              "weight_decay": 0.1,
+              "betas": [
+                0.9,
+                0.95
+              ],
+              "eps": 1e-06
+            }
+          },
+          "scheduler": {
+            "type": "WarmupCosineLR",
+            "params": {
+              "warmup_min_ratio": 0.0,
+              "warmup_num_steps": 200,
+              "total_num_steps": 50000,
+              "cos_min_ratio": 0.05,
+              "warmup_type": "linear"
+            }
+          },
+          "gradient_accumulation_steps": 1,
+          "gradient_clipping": 5.0,
+          "steps_per_print": 50,
+          "train_micro_batch_size_per_gpu": 1,
+          "wall_clock_breakdown": false
+        }
+      }
+    },
+    {
+      "size": "8B",
+      "training_budget": 50000,
+      "selected_step": 42000,
+      "latest_saved_step": 50000,
+      "provisional": false,
+      "searched_checkpoints": 18,
+      "saved_checkpoints": 25,
+      "checkpoint_sha256": "cb65f5a500d63e159e9e327654be6d6d04bd1a7bbdf0ea31b5b0229df28cfafb",
+      "checkpoint_sha256_rechecked": true,
+      "decoding": "greedy",
+      "beam_size": 1,
+      "avg": 1,
+      "max_new_tokens": 512,
+      "max_duration": 400,
+      "generation_cap_flags": 0,
+      "scores": {
+        "test-clean": {
+          "wer": 1.7745739500912965,
+          "counts": {
+            "ins": 132,
+            "del": 69,
+            "sub": 732,
+            "total": 933,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "23828b282e9ff81b06d12a52bcde1a31b788e818d005b7c30b3b8afed3433341",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-42000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.232523928701068,
+          "counts": {
+            "ins": 218,
+            "del": 119,
+            "sub": 1355,
+            "total": 1692,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "3444ae447177d54f602500fda9d78470688995e0321faaa8408f781340566d08",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-42000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-42000/result.json",
+      "source_result_sha256": "6423e895bbf11a6cc71e3a1215e94ce0961eb3f01a52862e01aa513adf2d67d0",
+      "training_manifest_sha256": {
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-100.jsonl.gz": "6685f9092de60cb80ee1457c9c5178bfce1e119ee1244298492b1c5d9efb2778",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-360.jsonl.gz": "6ad436c3bee87191afe38192f923b36225b50827adf4d11dbeafc54e149f3e6c",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-other-500.jsonl.gz": "2659372425b4641e8911c2f66d15d9b3aced830eec4d211e79cffd2d3d37eb45",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-clean.jsonl.gz": "297cc3b8c2e5990f4a227c79d8cdd3f773f29d4f547e50ee0541d5c58b59a33f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-other.jsonl.gz": "768a46add0f783ef54b5bc7a67f6d37125a75c45b7c3a5ec02bce05fb8b030d9",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-clean.jsonl.gz": "488882229e180906ba7686ee7f478db1fb53d71b6c3c1d921eaaae1bdcad3b6a",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-other.jsonl.gz": "7a4dceb6a6b666e9c33c53ffb070fe63d6c788d83c92fe10cf7fdd883fd8ab7f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/musan_cuts.jsonl.gz": "84ffb0f8b349b31f632d887cd4b01129c7ca1124e16c31f66ef5c68e5297226b"
+      },
+      "training": {
+        "seed": 42,
+        "gpus": 8,
+        "max_duration": 200,
+        "activation_checkpointing": "False",
+        "deepspeed": {
+          "bf16": {
+            "enabled": true
+          },
+          "zero_optimization": {
+            "stage": 1,
+            "allgather_partitions": true,
+            "allgather_bucket_size": 200000000,
+            "overlap_comm": true,
+            "reduce_scatter": true,
+            "reduce_bucket_size": 200000000,
+            "contiguous_gradients": true
+          },
+          "optimizer": {
+            "type": "AdamW",
+            "params": {
+              "lr": 0.0001,
+              "weight_decay": 0.1,
+              "betas": [
+                0.9,
+                0.95
+              ],
+              "eps": 1e-06
+            }
+          },
+          "scheduler": {
+            "type": "WarmupCosineLR",
+            "params": {
+              "warmup_min_ratio": 0.0,
+              "warmup_num_steps": 200,
+              "total_num_steps": 50000,
+              "cos_min_ratio": 0.05,
+              "warmup_type": "linear"
+            }
+          },
+          "gradient_accumulation_steps": 1,
+          "gradient_clipping": 5.0,
+          "steps_per_print": 50,
+          "train_micro_batch_size_per_gpu": 1,
+          "wall_clock_breakdown": false
+        }
+      }
+    },
+    {
+      "size": "14B",
+      "training_budget": 50000,
+      "selected_step": 48000,
+      "latest_saved_step": 50000,
+      "provisional": false,
+      "searched_checkpoints": 17,
+      "saved_checkpoints": 25,
+      "checkpoint_sha256": "715a3ec50961161c4fce05cb0ce86a8969699d92e65507c49b430a071dfdfb1a",
+      "checkpoint_sha256_rechecked": true,
+      "decoding": "greedy",
+      "beam_size": 1,
+      "avg": 1,
+      "max_new_tokens": 512,
+      "max_duration": 200,
+      "generation_cap_flags": 0,
+      "scores": {
+        "test-clean": {
+          "wer": 1.5824710894704808,
+          "counts": {
+            "ins": 106,
+            "del": 59,
+            "sub": 667,
+            "total": 832,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "974d5882572066c5d9c4f9ddc08314b5b7e6e89f22e8d303132b91a2575206eb",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen14b_s42_steps50000_ce/checkpoint-48000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.016640238427297,
+          "counts": {
+            "ins": 198,
+            "del": 108,
+            "sub": 1273,
+            "total": 1579,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "cbed0d08e2515f5660c12927c23878e234f1c2f1427df10c7233c8bca88c6179",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen14b_s42_steps50000_ce/checkpoint-48000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen14b_s42_steps50000_ce/checkpoint-48000/result.json",
+      "source_result_sha256": "39de4b2d588afd45c8c092ca0449dc1c80f8242fdc1b4e45cc728f847c38ab4b",
+      "training_manifest_sha256": {
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-100.jsonl.gz": "6685f9092de60cb80ee1457c9c5178bfce1e119ee1244298492b1c5d9efb2778",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-360.jsonl.gz": "6ad436c3bee87191afe38192f923b36225b50827adf4d11dbeafc54e149f3e6c",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-other-500.jsonl.gz": "2659372425b4641e8911c2f66d15d9b3aced830eec4d211e79cffd2d3d37eb45",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-clean.jsonl.gz": "297cc3b8c2e5990f4a227c79d8cdd3f773f29d4f547e50ee0541d5c58b59a33f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-other.jsonl.gz": "768a46add0f783ef54b5bc7a67f6d37125a75c45b7c3a5ec02bce05fb8b030d9",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-clean.jsonl.gz": "488882229e180906ba7686ee7f478db1fb53d71b6c3c1d921eaaae1bdcad3b6a",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-other.jsonl.gz": "7a4dceb6a6b666e9c33c53ffb070fe63d6c788d83c92fe10cf7fdd883fd8ab7f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/musan_cuts.jsonl.gz": "84ffb0f8b349b31f632d887cd4b01129c7ca1124e16c31f66ef5c68e5297226b"
+      },
+      "training": {
+        "seed": 42,
+        "gpus": 8,
+        "max_duration": 100,
+        "activation_checkpointing": "False",
+        "deepspeed": {
+          "bf16": {
+            "enabled": true
+          },
+          "zero_optimization": {
+            "stage": 1,
+            "allgather_partitions": true,
+            "allgather_bucket_size": 200000000,
+            "overlap_comm": true,
+            "reduce_scatter": true,
+            "reduce_bucket_size": 200000000,
+            "contiguous_gradients": true
+          },
+          "optimizer": {
+            "type": "AdamW",
+            "params": {
+              "lr": 0.0001,
+              "weight_decay": 0.1,
+              "betas": [
+                0.9,
+                0.95
+              ],
+              "eps": 1e-06
+            }
+          },
+          "scheduler": {
+            "type": "WarmupCosineLR",
+            "params": {
+              "warmup_min_ratio": 0.0,
+              "warmup_num_steps": 200,
+              "total_num_steps": 50000,
+              "cos_min_ratio": 0.05,
+              "warmup_type": "linear"
+            }
+          },
+          "gradient_accumulation_steps": 2,
+          "gradient_clipping": 5.0,
+          "steps_per_print": 50,
+          "train_micro_batch_size_per_gpu": 1,
+          "wall_clock_breakdown": false
+        }
+      }
+    },
+    {
+      "size": "32B",
+      "training_budget": 50000,
+      "selected_step": 12000,
+      "latest_saved_step": 36000,
+      "provisional": true,
+      "searched_checkpoints": 16,
+      "saved_checkpoints": 18,
+      "checkpoint_sha256": "7a87a58cc81a383a7db54dfabea19d8f9d9e9c87f4015f3451af7a3ed55bd95f",
+      "checkpoint_sha256_rechecked": true,
+      "decoding": "greedy",
+      "beam_size": 1,
+      "avg": 1,
+      "max_new_tokens": 512,
+      "max_duration": 80,
+      "generation_cap_flags": 0,
+      "scores": {
+        "test-clean": {
+          "wer": 1.5444309190505174,
+          "counts": {
+            "ins": 86,
+            "del": 66,
+            "sub": 660,
+            "total": 812,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "632401680258004f4d7af650a0c07f3f7db5b2e98e2dc5d7fc6bebc0df958c6a",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen32b_s42_steps50000_ce/checkpoint-12000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.070133542211948,
+          "counts": {
+            "ins": 179,
+            "del": 106,
+            "sub": 1322,
+            "total": 1607,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "86616e2f533a86e9a9a1d1e11772bc3119366bc5e56b8022844c6827de9966fb",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen32b_s42_steps50000_ce/checkpoint-12000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_retrain_greedy_20261112/runs/e5_ls960_qwen32b_s42_steps50000_ce/checkpoint-12000/result.json",
+      "source_result_sha256": "0beb19417967b9d4d8c015f47983f3a271e2ad8a895814adda904b2e24f6cbc4",
+      "training_manifest_sha256": {
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-100.jsonl.gz": "6685f9092de60cb80ee1457c9c5178bfce1e119ee1244298492b1c5d9efb2778",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-clean-360.jsonl.gz": "6ad436c3bee87191afe38192f923b36225b50827adf4d11dbeafc54e149f3e6c",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_train-other-500.jsonl.gz": "2659372425b4641e8911c2f66d15d9b3aced830eec4d211e79cffd2d3d37eb45",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-clean.jsonl.gz": "297cc3b8c2e5990f4a227c79d8cdd3f773f29d4f547e50ee0541d5c58b59a33f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_dev-other.jsonl.gz": "768a46add0f783ef54b5bc7a67f6d37125a75c45b7c3a5ec02bce05fb8b030d9",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-clean.jsonl.gz": "488882229e180906ba7686ee7f478db1fb53d71b6c3c1d921eaaae1bdcad3b6a",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/librispeech_cuts_test-other.jsonl.gz": "7a4dceb6a6b666e9c33c53ffb070fe63d6c788d83c92fe10cf7fdd883fd8ab7f",
+        "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/librispeech/ASR/data/fbank/musan_cuts.jsonl.gz": "84ffb0f8b349b31f632d887cd4b01129c7ca1124e16c31f66ef5c68e5297226b"
+      },
+      "training": {
+        "seed": 42,
+        "gpus": 8,
+        "max_duration": 100,
+        "activation_checkpointing": "True",
+        "deepspeed": {
+          "bf16": {
+            "enabled": true
+          },
+          "zero_optimization": {
+            "stage": 1,
+            "allgather_partitions": true,
+            "allgather_bucket_size": 50000000,
+            "overlap_comm": true,
+            "reduce_scatter": true,
+            "reduce_bucket_size": 50000000,
+            "contiguous_gradients": true
+          },
+          "optimizer": {
+            "type": "AdamW",
+            "params": {
+              "lr": 5e-05,
+              "weight_decay": 0.1,
+              "betas": [
+                0.9,
+                0.95
+              ],
+              "eps": 1e-06
+            }
+          },
+          "scheduler": {
+            "type": "WarmupCosineLR",
+            "params": {
+              "warmup_min_ratio": 0.0,
+              "warmup_num_steps": 200,
+              "total_num_steps": 50000,
+              "cos_min_ratio": 0.05,
+              "warmup_type": "linear"
+            }
+          },
+          "gradient_accumulation_steps": 2,
+          "gradient_clipping": 5.0,
+          "steps_per_print": 50,
+          "train_micro_batch_size_per_gpu": 1,
+          "wall_clock_breakdown": false
+        }
+      }
+    }
+  ],
+  "historical_paired": [
+    {
+      "size": "4B",
+      "training_budget": 20000,
+      "selected_step": 8000,
+      "checkpoint_sha256": "8c8bf5e7a7bdf4fa6c7cc0dd0e207953aebddd4341a738bbc4570b83485c6d61",
+      "checkpoint_file_rechecked": false,
+      "checkpoint_note": "Historical checkpoint identity verified against paired raw records; original training directories were reused by later retraining.",
+      "beam4": {
+        "test-clean": {
+          "wer": 1.7213177115033476,
+          "counts": {
+            "ins": 102,
+            "del": 64,
+            "sub": 739,
+            "total": 905,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "9061ce0e5b145812777b3fecbf178ba150341071c73711578fa18616e0c5935c",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen4b_s42_steps20000_ce/checkpoint-8000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.3261372103242075,
+          "counts": {
+            "ins": 205,
+            "del": 119,
+            "sub": 1417,
+            "total": 1741,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "b01d9775bf809151b4e8d9d383b736d0c369ddda8961ba6823821dcc4b7eacec",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen4b_s42_steps20000_ce/checkpoint-8000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "greedy": {
+        "test-clean": {
+          "wer": 1.7935940353012783,
+          "counts": {
+            "ins": 111,
+            "del": 63,
+            "sub": 769,
+            "total": 943,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "43f03e62a5909eb6230be09aad0b0ad073357f3261e1743ab7ab61857e76beb7",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps20000_ce/checkpoint-8000/recogs-test-clean.txt",
+          "generation_cap_flags": null
+        },
+        "test-other": {
+          "wer": 3.4923485470836595,
+          "counts": {
+            "ins": 218,
+            "del": 124,
+            "sub": 1486,
+            "total": 1828,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "a0b7bd18ab317839ece8b8bee7abc9780ad8cb383a1948d9676b543a945b1fa1",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps20000_ce/checkpoint-8000/recogs-test-other.txt",
+          "generation_cap_flags": null
+        }
+      },
+      "beam_settings": {
+        "beam_size": 4,
+        "avg": 1,
+        "max_new_tokens": 512,
+        "max_duration": 100
+      },
+      "greedy_max_duration": 400,
+      "greedy_max_new_tokens": null,
+      "greedy_mode_evidence": "greedy",
+      "source_results": [
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen4b_s42_steps20000_ce/checkpoint-8000/result.json",
+          "sha256": "663798f72483b5bc17dfea446925402d96e780a16d9c94b72f2df0ccfd845c4b"
+        },
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen4b_s42_steps20000_ce/checkpoint-8000/result.json",
+          "sha256": "d566778405bfe3a204603444932a7bdc694b6c55aa6b565ed955ed55671ccb47"
+        }
+      ],
+      "greedy_source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps20000_ce/checkpoint-8000/result.json",
+      "greedy_source_result_sha256": "2ed28a2e5e52dda1caaa5d6a658a5de40337f2efd92a9a85edaf59ba3f2258ce"
+    },
+    {
+      "size": "8B",
+      "training_budget": 20000,
+      "selected_step": 12000,
+      "checkpoint_sha256": "d6b295639301e3f5987f3c7d5d0abb7f3d7dc5054c38772adb6187c621c441af",
+      "checkpoint_file_rechecked": false,
+      "checkpoint_note": "Historical checkpoint identity verified against paired raw records; original training directories were reused by later retraining.",
+      "beam4": {
+        "test-clean": {
+          "wer": 1.6794735240413876,
+          "counts": {
+            "ins": 100,
+            "del": 71,
+            "sub": 712,
+            "total": 883,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "bb1c1cbfced1cc9f525318772ba02e8ad89ddeed47ad7bdbb71083cda8142455",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen8b_s42_steps20000_ce/checkpoint-12000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.1446420724834265,
+          "counts": {
+            "ins": 190,
+            "del": 122,
+            "sub": 1334,
+            "total": 1646,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "68d154a702270e714e87f697d29d16d95f5782df2858025a780af1e908128252",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen8b_s42_steps20000_ce/checkpoint-12000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "greedy": {
+        "test-clean": {
+          "wer": 1.7061016433353622,
+          "counts": {
+            "ins": 103,
+            "del": 66,
+            "sub": 728,
+            "total": 897,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "48d45badf416fe0206f74853d57ed08663b828eb04f8e1a45acff6619a0cc13c",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps20000_ce/checkpoint-12000/recogs-test-clean.txt",
+          "generation_cap_flags": null
+        },
+        "test-other": {
+          "wer": 3.247807729782397,
+          "counts": {
+            "ins": 209,
+            "del": 130,
+            "sub": 1361,
+            "total": 1700,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "146ab2f9d81946e7e2dbe063d1925e8fe29bfc11612b714c63f14196b934d172",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps20000_ce/checkpoint-12000/recogs-test-other.txt",
+          "generation_cap_flags": null
+        }
+      },
+      "beam_settings": {
+        "beam_size": 4,
+        "avg": 1,
+        "max_new_tokens": 512,
+        "max_duration": 100
+      },
+      "greedy_max_duration": 400,
+      "greedy_max_new_tokens": null,
+      "greedy_mode_evidence": "greedy",
+      "source_results": [
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen8b_s42_steps20000_ce/checkpoint-12000/result.json",
+          "sha256": "c7b7240a0f300893562b5f22b1194c0db62a45bb54841111ca888f1a86cc2001"
+        }
+      ],
+      "greedy_source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps20000_ce/checkpoint-12000/result.json",
+      "greedy_source_result_sha256": "37ca3034bd2d1008edd3df30fff984a42a703c9d8e858038392728184310f985"
+    },
+    {
+      "size": "4B",
+      "training_budget": 30000,
+      "selected_step": 12000,
+      "checkpoint_sha256": "8d487575f7d35264f8205be7d6b0d4c01755f77faf2b1151c72756c0a9d13074",
+      "checkpoint_file_rechecked": false,
+      "checkpoint_note": "Historical checkpoint identity verified against paired raw records; original training directories were reused by later retraining.",
+      "beam4": {
+        "test-clean": {
+          "wer": 1.814516129032258,
+          "counts": {
+            "ins": 115,
+            "del": 65,
+            "sub": 774,
+            "total": 954,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "98eea35c1f2c6b539ae49e2529589e174739ea40472e01562b1a2dec01a29f1a",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen4b_s42_steps30000_ce/checkpoint-12000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.2879277076208853,
+          "counts": {
+            "ins": 207,
+            "del": 113,
+            "sub": 1401,
+            "total": 1721,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "c01f3cc0def767070a067968a33d97b824b096f6686addf7648aaddcc8a274d9",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen4b_s42_steps30000_ce/checkpoint-12000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "greedy": {
+        "test-clean": {
+          "wer": 1.867772367620207,
+          "counts": {
+            "ins": 122,
+            "del": 63,
+            "sub": 797,
+            "total": 982,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "ed7ffd02d85683dc8c36f2babf2af240a0cce7a23c6b3325377a9b82a27a8cd5",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps30000_ce/checkpoint-12000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.461780944921002,
+          "counts": {
+            "ins": 222,
+            "del": 127,
+            "sub": 1463,
+            "total": 1812,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "244dbec91b630ff4522372bbea92d4047f0813d333568250d021d2dfc8e0264e",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps30000_ce/checkpoint-12000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "beam_settings": {
+        "beam_size": 4,
+        "avg": 1,
+        "max_new_tokens": 512,
+        "max_duration": 100
+      },
+      "greedy_max_duration": 400,
+      "greedy_max_new_tokens": 512,
+      "greedy_mode_evidence": "greedy",
+      "source_results": [
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen4b_s42_steps30000_ce/checkpoint-12000/result.json",
+          "sha256": "3b316364cd51f7317a1d2ded0c3728a6eed4299baad474b4eb8f03370d2344df"
+        },
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen4b_s42_steps30000_ce/checkpoint-12000/result.json",
+          "sha256": "5f92b74ddc829bbd69269e68bc015de8fb1ce3f43d325e24bcffede08e44f1fe"
+        }
+      ],
+      "greedy_source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps30000_ce/checkpoint-12000/result.json",
+      "greedy_source_result_sha256": "068ae073527fca81007dfdda18b383ebf5f40c965bcc71390eed460b2792f7f0"
+    },
+    {
+      "size": "8B",
+      "training_budget": 30000,
+      "selected_step": 8000,
+      "checkpoint_sha256": "a6dc933c25532bb0eae21f001099a76e8cf3ab466387745a5c37c592957800d9",
+      "checkpoint_file_rechecked": false,
+      "checkpoint_note": "Historical checkpoint identity verified against paired raw records; original training directories were reused by later retraining.",
+      "beam4": {
+        "test-clean": {
+          "wer": 1.6452373706634205,
+          "counts": {
+            "ins": 110,
+            "del": 53,
+            "sub": 702,
+            "total": 865,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "3b6d76cedba503ddd8ff3dcd978c53d22898b5ee3039bfc3576df9365e120ff5",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen8b_s42_steps30000_ce/checkpoint-8000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.2095982270790744,
+          "counts": {
+            "ins": 212,
+            "del": 114,
+            "sub": 1354,
+            "total": 1680,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "4630661f93be8c75d2195d3a6a2f8ea00a1a42c2f388a8d8f3ac4f209bdd57e8",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen8b_s42_steps30000_ce/checkpoint-8000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "greedy": {
+        "test-clean": {
+          "wer": 1.7061016433353622,
+          "counts": {
+            "ins": 114,
+            "del": 55,
+            "sub": 728,
+            "total": 897,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "e4cedd42ec4a1706812b4503cd9873427e14966e9c9fef0377d9080df47565c6",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps30000_ce/checkpoint-8000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.381540989244025,
+          "counts": {
+            "ins": 232,
+            "del": 118,
+            "sub": 1420,
+            "total": 1770,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "5e9bcbe003f04c7563ac868f2f189ae64845d2b5b979145680bbb118089c9a14",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps30000_ce/checkpoint-8000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "beam_settings": {
+        "beam_size": 4,
+        "avg": 1,
+        "max_new_tokens": 512,
+        "max_duration": 100
+      },
+      "greedy_max_duration": 400,
+      "greedy_max_new_tokens": 512,
+      "greedy_mode_evidence": "greedy",
+      "source_results": [
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen8b_s42_steps30000_ce/checkpoint-8000/result.json",
+          "sha256": "2a5de8d3d0e2a88d604b49aa1049c85a79651a07e07c54a7804bb926d1d02c63"
+        },
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen8b_s42_steps30000_ce/checkpoint-8000/result.json",
+          "sha256": "d0a797fbb465268028b65292bafa0e75366d98341ccd468b0dafe8c292a0b0ca"
+        }
+      ],
+      "greedy_source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps30000_ce/checkpoint-8000/result.json",
+      "greedy_source_result_sha256": "5727e045f5f7812fa6e9ffaf7b48f7f7138a621956a11939746dd0eb6e36f140"
+    },
+    {
+      "size": "4B",
+      "training_budget": 50000,
+      "selected_step": 48000,
+      "checkpoint_sha256": "16938b4903756c0d3e0252732b2ad11fa99ce56098cfb3a78baae7d76eab74a4",
+      "checkpoint_file_rechecked": false,
+      "checkpoint_note": "Historical checkpoint identity verified against paired raw records; original training directories were reused by later retraining.",
+      "beam4": {
+        "test-clean": {
+          "wer": 1.7688679245283019,
+          "counts": {
+            "ins": 122,
+            "del": 59,
+            "sub": 749,
+            "total": 930,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "fa27d64a9dac1d9e45cde40ccc4a85f0211095f910c733c45a469bcf1ffface5",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-48000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.3108534092428785,
+          "counts": {
+            "ins": 199,
+            "del": 125,
+            "sub": 1409,
+            "total": 1733,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "4c94011ca2ed79352bfef9e8e6aba578658aa1bd06d83d22d7832a4a9a1faa51",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-48000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "greedy": {
+        "test-clean": {
+          "wer": 1.8183201460742544,
+          "counts": {
+            "ins": 127,
+            "del": 61,
+            "sub": 768,
+            "total": 956,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "2ceb16ecf0754939d80a6116df23c0028283951fd06ec25bade603668eaf652c",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-48000/recogs-test-clean.txt",
+          "generation_cap_flags": null
+        },
+        "test-other": {
+          "wer": 3.477064746002331,
+          "counts": {
+            "ins": 222,
+            "del": 128,
+            "sub": 1470,
+            "total": 1820,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "6ed011669a36e35d6823841a1b1764345077587c9419d28e4399774f5098940e",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-48000/recogs-test-other.txt",
+          "generation_cap_flags": null
+        }
+      },
+      "beam_settings": {
+        "beam_size": 4,
+        "avg": 1,
+        "max_new_tokens": 512,
+        "max_duration": 100
+      },
+      "greedy_max_duration": 400,
+      "greedy_max_new_tokens": null,
+      "greedy_mode_evidence": "greedy",
+      "source_results": [
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-48000/result.json",
+          "sha256": "edaecf2ec4e7ac78129e2b82c3606ce3de570b201fe08b1a381e9a8b7aabd2c0"
+        },
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-48000/result.json",
+          "sha256": "ef074bbf2d599d57ce5fdeab1515543d903bf57fd847b2458e7c4dab8f107eb0"
+        }
+      ],
+      "greedy_source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen4b_s42_steps50000_ce/checkpoint-48000/result.json",
+      "greedy_source_result_sha256": "dccd1c72798588c2b8a2126853b23d19c436517b7e34536c061ab13bc5a510a2"
+    },
+    {
+      "size": "8B",
+      "training_budget": 50000,
+      "selected_step": 8000,
+      "checkpoint_sha256": "74fee56330d617e44368b54cc1cf78b0b79fea4506536d216c519bbe686b4353",
+      "checkpoint_file_rechecked": false,
+      "checkpoint_note": "Historical checkpoint identity verified against paired raw records; original training directories were reused by later retraining.",
+      "beam4": {
+        "test-clean": {
+          "wer": 1.628119293974437,
+          "counts": {
+            "ins": 95,
+            "del": 57,
+            "sub": 704,
+            "total": 856,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "ba2f89e6e2cc36997c962d1b4a2b6e5ff0c1995084cffdcec4da901d3ed6b7c9",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-8000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.249718204917563,
+          "counts": {
+            "ins": 206,
+            "del": 122,
+            "sub": 1373,
+            "total": 1701,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "978de3a25d83c5a8ec2fa28300538114d7d360670128e91b698e81e0797bd276",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-8000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "greedy": {
+        "test-clean": {
+          "wer": 1.6680614729153986,
+          "counts": {
+            "ins": 99,
+            "del": 57,
+            "sub": 721,
+            "total": 877,
+            "words": 52576
+          },
+          "utterances": 2620,
+          "transcripts_sha256": "df07d4ec5bd9452afc57990b41419c10f4d0e208b99a3d1cf04a75235d1c27f3",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-8000/recogs-test-clean.txt",
+          "generation_cap_flags": 0
+        },
+        "test-other": {
+          "wer": 3.4579599946506696,
+          "counts": {
+            "ins": 237,
+            "del": 118,
+            "sub": 1455,
+            "total": 1810,
+            "words": 52343
+          },
+          "utterances": 2939,
+          "transcripts_sha256": "3a3b92103440e57c4c830314c85434b520f89a7d779da4b7e2a3afbcea013664",
+          "source_transcripts": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-8000/recogs-test-other.txt",
+          "generation_cap_flags": 0
+        }
+      },
+      "beam_settings": {
+        "beam_size": 4,
+        "avg": 1,
+        "max_new_tokens": 512,
+        "max_duration": 100
+      },
+      "greedy_max_duration": 400,
+      "greedy_max_new_tokens": 512,
+      "greedy_mode_evidence": "greedy",
+      "source_results": [
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/beam/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-8000/result.json",
+          "sha256": "7820b03f18cd4da7e5e1bba44a4040d1fa77f1d0be441243db8ba3ee47ba5b5b"
+        },
+        {
+          "path": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/paired/supplement/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-8000/result.json",
+          "sha256": "10652b88b8bcf7b28cbda4c109dc70c174d0a427e8a7303f6d9c09248570e98f"
+        }
+      ],
+      "greedy_source_result": "/cpfs29jb/data/shared/Group-m6/qingyun.gzf/intern/yifanyeung.yyf/icefall/egs/gigaspeech/ASR/ICLR2027_latex/review_artifacts/e5_librispeech_greedy_20261108/runs/e5_ls960_qwen8b_s42_steps50000_ce/checkpoint-8000/result.json",
+      "greedy_source_result_sha256": "bbec07d4761a6cb1702813bb66804d33590b3dbf324c129f2f342c3fb6d0562f"
+    }
+  ]
+}
