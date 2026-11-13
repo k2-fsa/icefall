@@ -1,5 +1,45 @@
 ## Results
 
+### SPEAR-Qwen3 CE
+
+[Recipe and commands](./spear_qwen_ce/README.md) · [Result counts and provenance](./spear_qwen_ce/results.json)
+
+LibriSpeech 960h, frozen SPEAR-XLarge v2 speech encoder, Qwen3 LoRA (rank/alpha 64/64), and a trainable projector. Training uses eight GPUs, BF16, ZeRO-1, seed 42 and a 50,000-update schedule. The recipe supports Qwen3 0.6B, 1.7B, 4B, 8B, 14B and 32B.
+
+#### Current six-size greedy results
+
+Snapshot: 2026-11-13.
+
+| Qwen3 | Checkpoint | test-clean | test-other | Evaluated / saved checkpoints | Latest saved update | Status |
+|---|---:|---:|---:|---:|---:|---|
+| 0.6B | 32,000 | 2.0371 | 3.9719 | 18/25 | 50,000 | 50k reached; search complete |
+| 1.7B | 36,000 | 1.8963 | 3.5898 | 21/25 | 50,000 | 50k reached; search complete |
+| 4B | 40,000 | 1.8697 | 3.4962 | 20/25 | 50,000 | 50k reached; search complete |
+| 8B | 42,000 | 1.7746 | 3.2325 | 18/25 | 50,000 | 50k reached; search complete |
+| 14B | 48,000 | 1.5825 | 3.0166 | 17/25 | 50,000 | 50k reached; search complete |
+| 32B | 12,000 | 1.5444 | 3.0701 | 16/18 | 36,000 | Provisional; 50k not reached |
+
+Training entry points (run one per training job):
+
+```bash
+bash spear_qwen_ce/run_0.6b_ce.sh
+bash spear_qwen_ce/run_1.7b_ce.sh
+bash spear_qwen_ce/run_4b_ce.sh
+bash spear_qwen_ce/run_8b_ce.sh
+bash spear_qwen_ce/run_14b_ce.sh
+bash spear_qwen_ce/run_32b_ce.sh
+```
+
+For example, decode the selected 14B checkpoint after placing the matching trained checkpoint under `spear_qwen_ce/exp_14b/`:
+
+```bash
+python spear_qwen_ce/decode.py \
+  --exp-dir spear_qwen_ce/exp_14b --step 48000 --avg 1 \
+  --llm-path-or-name download/Qwen3-14B \
+  --beam-size 1 --max-new-tokens 512 --max-duration 200 \
+  --dataset test-clean test-other
+```
+
 ### zipformer (zipformer + pruned-transducer w/ CR-CTC)
 
 See <https://github.com/k2-fsa/icefall/pull/1766> for more details.
