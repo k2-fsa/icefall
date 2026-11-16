@@ -1,0 +1,11 @@
+# Install this repository and a compatible torch/torchaudio/k2 stack first.
+transformers==4.57.6
+peft==0.20.0
+deepspeed==0.18.8
+accelerate==1.12.0
+# Shared prepare.sh stages 3--4 write lilcom-compressed features.
+lhotse[lilcom]==1.33.0
+soundfile
+sentencepiece
+tensorboard
+# flash-attn is optional: --use-flash-attn False uses SDPA for training.
