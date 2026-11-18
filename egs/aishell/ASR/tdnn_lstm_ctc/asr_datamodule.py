@@ -23,6 +23,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from lhotse.cut import MonoCut
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
@@ -180,7 +181,34 @@ class AishellAsrDataModule:
             help="When enabled, select noise from MUSAN and mix it"
             "with training dataset. ",
         )
+    def to_dict(self, obj):
+        """
+        Recursively convert an object and its nested objects to dictionaries.
+        """
+        if isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        elif isinstance(obj, list):
+            return [to_dict(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {key: to_dict(value) for key, value in obj.items()}
+        elif hasattr(obj, '__dict__'):
+            return {key: to_dict(value) for key, value in obj.__dict__.items()}
+        else:
+            raise TypeError(f"Unsupported type: {type(obj)}")
 
+    def my_collate_fn(self, batch):
+        """
+        Convert MonoCut to dict.
+        """
+        return_batch = []
+        for item in batch:
+            if isinstance(item, MonoCut):
+                processed_item = self.to_dict(item)
+                return_batch.append(processed_item)
+            elif isinstance(item, dict):
+                return_batch.append(item)
+        return return_batch
+    
     def train_dataloaders(
         self, cuts_train: CutSet, sampler_state_dict: Optional[Dict[str, Any]] = None
     ) -> DataLoader:
@@ -353,9 +381,10 @@ class AishellAsrDataModule:
         )
         test_dl = DataLoader(
             test,
-            batch_size=None,
+            batch_size=100, # specified to some value
             sampler=sampler,
-            num_workers=self.args.num_workers,
+            num_workers=4, # if larger, it will be more time-consuming for decoding, may stuck
+            collate_fn=self.my_collate_fn
         )
         return test_dl
 
