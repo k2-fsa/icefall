@@ -72,6 +72,54 @@ For RNN-T decoding the WERs for libri (test-clean,test-other,dev-clean,dev-other
 and for Gigaspeech test,dev are 10.32\%, 10.26\%.   The corresponding numbers for CTC decoding are
 1.89\%, 3.63\%, 1.83\%, 3.58\% and 10.91\%, 10.81\%.
 
+### SPEAR-Qwen3 CE
+
+[Recipe and commands](./spear_qwen_ce/README.md)
+
+LibriSpeech 960h, frozen SPEAR-XLarge v2 speech encoder, Qwen3 LoRA (rank/alpha 64/64), and a trainable projector. Training uses eight GPUs, BF16, ZeRO-1, seed 42 and a 50,000-update schedule. The recipe supports Qwen3 0.6B, 1.7B, 4B, 8B, 14B and 32B.
+
+#### Greedy and beam 4 WER
+
+All six CE training runs reached 50,000 updates. The checkpoint search completed
+on 2026-11-15, with 118 greedy and 30 beam evaluations. Every evaluation includes
+all 2,620 test-clean and 2,939 test-other utterances. WERs are percentages.
+
+| Qwen3 | Greedy checkpoint | Greedy test-clean | Greedy test-other | Beam 4 checkpoint | Beam 4 test-clean | Beam 4 test-other |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.6B | 32,000 | 2.0371 | 3.9719 | 28,000 | 2.0199 | 3.7770 |
+| 1.7B | 36,000 | 1.8963 | 3.5898 | 34,000 | 1.8868 | 3.4446 |
+| 4B | 40,000 | 1.8697 | 3.4962 | 28,000 | 1.8697 | 3.2917 |
+| 8B | 42,000 | 1.7746 | 3.2325 | 48,000 | 1.7118 | 3.1848 |
+| 14B | 48,000 | 1.5825 | 3.0166 | 48,000 | 1.5692 | 2.9307 |
+| 32B | 12,000 | 1.5444 | 3.0701 | 16,000 | 1.5749 | 2.9574 |
+
+Greedy checkpoints are ranked by test-clean WER + test-other WER. The five
+highest-ranked checkpoints per size are evaluated with beam 4; the reported
+beam checkpoint minimizes the same sum. Ties select the smaller update. Each
+test-clean/test-other pair uses one checkpoint, with `avg=1` throughout.
+
+Decoding uses BF16/SDPA and EOS stopping. Greedy uses 512 maximum new tokens;
+beam 4 uses 200, length penalty 1.0 and repetition penalty 1.0. Per-GPU
+`max-duration` is 400/200/80 for greedy and 100/80/40 for beam, for
+0.6B–8B/14B/32B respectively. All results were independently rescored from
+the decoded transcripts.
+
+See the [training commands and size settings](./spear_qwen_ce/README.md#training)
+to train each model. To decode the selected 14B checkpoints:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python spear_qwen_ce/decode.py \
+  --exp-dir spear_qwen_ce/exp_14b --step 48000 --avg 1 \
+  --llm-path-or-name download/Qwen3-14B \
+  --beam-size 1 --max-new-tokens 512 --max-duration 200 \
+  --num-workers 4 --dataset test-clean test-other
+
+CUDA_VISIBLE_DEVICES=0 python spear_qwen_ce/decode.py \
+  --exp-dir spear_qwen_ce/exp_14b --step 48000 --avg 1 \
+  --llm-path-or-name download/Qwen3-14B \
+  --beam-size 4 --max-new-tokens 200 --max-duration 80 \
+  --num-workers 4 --dataset test-clean test-other
+```
 
 ### zipformer (zipformer + pruned-transducer w/ CR-CTC)
 

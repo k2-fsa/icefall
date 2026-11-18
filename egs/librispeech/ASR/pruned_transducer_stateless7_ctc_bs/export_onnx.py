@@ -100,6 +100,7 @@ from icefall.checkpoint import (
     load_checkpoint,
 )
 from icefall.utils import num_tokens, str2bool
+from icefall.utils import get_onnx_export_kwargs
 
 
 def get_parser():
@@ -265,6 +266,7 @@ def export_encoder_model_onnx(
             "encoder_out": {0: "N", 1: "T"},
             "encoder_out_lens": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {encoder_filename}")
 
@@ -310,6 +312,7 @@ def export_decoder_model_onnx(
             "y": {0: "N"},
             "decoder_out": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {decoder_filename}")
 
@@ -348,6 +351,7 @@ def export_decoder_model_onnx_triton(
             "y": {0: "N"},
             "decoder_out": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {decoder_filename}")
 
@@ -412,6 +416,7 @@ def export_joiner_model_onnx(
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {joiner_filename}")
 
@@ -428,6 +433,7 @@ def export_joiner_model_onnx(
             "encoder_out": {0: "N"},
             "projected_encoder_out": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {encoder_proj_filename}")
 
@@ -444,6 +450,7 @@ def export_joiner_model_onnx(
             "decoder_out": {0: "N"},
             "projected_decoder_out": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {decoder_proj_filename}")
 
@@ -497,6 +504,7 @@ def export_joiner_model_onnx_triton(
             "decoder_out": {0: "N"},
             "logit": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {joiner_filename}")
 
@@ -513,6 +521,7 @@ def export_joiner_model_onnx_triton(
             "encoder_out": {0: "N"},
             "projected_encoder_out": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {encoder_proj_filename}")
 
@@ -529,6 +538,7 @@ def export_joiner_model_onnx_triton(
             "decoder_out": {0: "N"},
             "projected_decoder_out": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {decoder_proj_filename}")
 
@@ -573,6 +583,7 @@ def export_lconv_onnx(
             "src_key_padding_mask": {0: "N", 1: "T"},
             "lconv_out": {0: "N", 1: "T"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {lconv_filename}")
 
@@ -619,6 +630,7 @@ def export_lconv_onnx_triton(
             "lconv_input_lens": {0: "N"},
             "lconv_out": {0: "N", 1: "T"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {lconv_filename}")
 
@@ -669,6 +681,7 @@ def export_frame_reducer_onnx(
             "out": {0: "N", 1: "T"},
             "out_lens": {0: "N"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {frame_reducer_filename}")
 
@@ -710,6 +723,7 @@ def export_ctc_output_onnx(
             "encoder_out": {0: "N", 1: "T"},
             "ctc_output": {0: "N", 1: "T"},
         },
+        **get_onnx_export_kwargs(),
     )
     logging.info(f"Saved to {ctc_output_filename}")
 

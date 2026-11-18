@@ -16,7 +16,10 @@ lm_dir=data/lm
 avhubert_code_dir="$PWD/av_hubert"
 # Pre-trained base AvHubert checkpoint (no fine-tuning)
 avhubert_ckpts=download/avhubert-ckpts
-feats_dir=data/avhubert
+# Mean-face ROIs, AV-HuBERT layer 8: the released phone/layer-8 system
+feats_dir=data/avhubert_mf_l8
+roi_mode=meanface
+layer=8
 
 . shared/parse_options.sh || exit 1
 
@@ -36,17 +39,23 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
   log "Stage 0: Download data"
   mkdir -p $dl_dir
 
-  if [ ! -f $dl_dir/waves_grid/.completed ]; then
+  if [ ! -f $dl_dir/.downloaded ]; then
     lhotse download grid $dl_dir
   fi
 
   dlib_dir=$PWD/download/dlib
-  mkdir -p $dlib_dir 
+  mkdir -p $dlib_dir
 
   if [ ! -f $dlib_dir/shape_predictor_68_face_landmarks.dat ]; then
     wget http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2
     bzip2 -d shape_predictor_68_face_landmarks.dat.bz2
-    mv shape_predictor_68_face_landmarks.dat $dlib_dir    
+    mv shape_predictor_68_face_landmarks.dat $dlib_dir
+  fi
+
+  # Reference face for the mean-face ROI warp (local/meanface_roi.py)
+  if [ ! -f $PWD/download/20words_mean_face.npy ]; then
+    wget https://github.com/mpc001/Lipreading_using_Temporal_Convolutional_Networks/raw/master/preprocessing/20words_mean_face.npy \
+      -O $PWD/download/20words_mean_face.npy
   fi
 fi
 
@@ -69,10 +78,11 @@ if [ $stage -le 3 ] && [ $stop_stage -ge 3 ]; then
 	model=https://dl.fbaipublicfiles.com/avhubert/model/lrs3_vox/clean-pretrain/base_vox_iter5.pt
     wget $model -O $avhubert_ckpts/base_vox_iter5.pt
   fi
-  
-  mkdir -p data/avhubert
+
+  mkdir -p ${feats_dir}
   ./local/compute_avhubert_grid.py --avhubert-code-dir ${avhubert_code_dir} \
-	  --avhubert-ckpt ${avhubert_ckpts}/base_vox_iter5.pt --feats-dir ${feats_dir} 
+	  --avhubert-ckpt ${avhubert_ckpts}/base_vox_iter5.pt --feats-dir ${feats_dir} \
+	  --roi-mode ${roi_mode} --layer ${layer}
 fi
 
 if [ $stage -le 4 ] && [ $stop_stage -ge 4 ]; then
@@ -85,7 +95,7 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
   log "Stage 5: Prepare phone based lang"
   lang_dir=data/lang_phone
   mkdir -p $lang_dir
-  
+
   if [ ! -f $PWD/download/lexicon.txt ]; then
     curl -OL  https://raw.githubusercontent.com/hmeutzner/kaldi-avsr/refs/heads/master/chime2/input/lexicon.txt
     cat lexicon.txt | tr '[:upper:]' '[:lower:]' > $PWD/download/lexicon.txt
@@ -100,6 +110,14 @@ if [ $stage -le 5 ] && [ $stop_stage -ge 5 ]; then
 
   if [ ! -f $lang_dir/L_disambig.pt ]; then
     ./local/prepare_lang.py --lang-dir $lang_dir
+  fi
+
+  if [ ! -f $lang_dir/tokens_model.txt ]; then
+    # The model's output classes (lipreader.py): tokens.txt
+    # without the #N disambiguation symbols, plus the <sos/eos> class
+    # train.py adds after the last phone.
+    grep -v '^#' $lang_dir/tokens.txt > $lang_dir/tokens_model.txt
+    echo "<sos/eos> $(wc -l < $lang_dir/tokens_model.txt)" >> $lang_dir/tokens_model.txt
   fi
 
   if [ ! -f $lang_dir/L.fst ]; then
@@ -122,7 +140,7 @@ fi
 if [ $stage -le 6 ] && [ $stop_stage -ge 6 ]; then
   log "Stage 6: Prepare G"
   # Create FST grammar for the GRID
-  grammar_cmd="local/create_chime1_grammar.pl"
+  grammar_cmd="local/create_grid_grammar.pl"
   lang_dir=data/lang_phone
   $grammar_cmd data/lang_phone/words.txt | fstcompile --keep_isymbols=false --keep_osymbols=false \
    | fstarcsort --sort_type=ilabel \
@@ -184,10 +202,10 @@ fi
 if [ $stage -le 9 ] && [ $stop_stage -ge 9 ]; then
   log "Stage 9: Generate and Compile LG & HLG"
   lang_dir=data/lang_bpe_${vocab_size}
-  
+
   ./local/prepare_lang_fst.py  \
         --lang-dir $lang_dir \
         --ngram-G ${lm_dir}/G.fst.txt
-  
-  ./local/compile_hlg.py --lang-dir $lang_dir  
+
+  ./local/compile_hlg.py --lang-dir $lang_dir
 fi

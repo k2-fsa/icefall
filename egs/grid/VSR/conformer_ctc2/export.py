@@ -23,11 +23,13 @@
 Usage:
 ./conformer_ctc2/export.py \
   --exp-dir ./conformer_ctc2/exp \
-  --tokens ./data/lang_bpe_500/tokens.txt \
-  --epoch 20 \
-  --avg 10
+  --tokens ./data/lang_phone/tokens.txt \
+  --epoch 8 \
+  --avg 4 \
+  --jit false
 
-It will generate a file exp_dir/pretrained.pt
+It will generate a file exp_dir/pretrained.pt (the released phone/layer-8
+model is epoch 8, averaged over epochs 5 to 8)
 
 To use the generated file with `conformer_ctc2/decode.py`,
 you can do:
@@ -35,12 +37,17 @@ you can do:
     cd /path/to/exp_dir
     ln -s pretrained.pt epoch-9999.pt
 
-    cd /path/to/egs/librispeech/ASR
+    cd /path/to/egs/grid/VSR
     ./conformer_ctc2/decode.py \
         --exp-dir ./conformer_ctc2/exp \
+        --manifest-dir data/avhubert_mf_l8 \
+        --lang-dir data/lang_phone \
+        --method 1best \
         --epoch 9999 \
         --avg 1 \
-        --max-duration 100
+        --use-averaged-model false \
+        --on-the-fly-feats false \
+        --max-duration 384
 """
 
 import argparse
@@ -108,10 +115,22 @@ def get_parser():
     parser.add_argument(
         "--num-decoder-layers",
         type=int,
-        default=6,
+        default=3,
         help="""Number of decoder layer of transformer decoder.
-        Setting this to 0 will not create the decoder at all (pure CTC model)
+        Setting this to 0 will not create the decoder at all (pure CTC model).
+        Must match the checkpoint; the default tracks train.py/decode.py
+        (it was 6 here and 3 there until 2026-09-01).
         """,
+    )
+
+    parser.add_argument(
+        "--encoder-dim",
+        type=int,
+        default=128,
+        help="""Conformer attention dim; must match the checkpoint's training
+        value, same as train.py/decode.py. Defined here because
+        decode.get_params(), where this script reads the rest of the model
+        geometry, no longer has it (it became a decode.py CLI flag).""",
     )
 
     parser.add_argument(
@@ -152,6 +171,10 @@ def main():
     token_table = k2.SymbolTable.from_file(params.tokens)
 
     num_classes = num_tokens(token_table) + 1  # +1 for the blank
+    # Mirror train.py/decode.py: with a phone lexicon, <sos/eos> was given
+    # the next free class at training time (37 tokens -> 38 classes).
+    if "lang_bpe" not in str(params.tokens) and params.num_decoder_layers > 0:
+        num_classes += 1
 
     device = torch.device("cpu")
     if torch.cuda.is_available():

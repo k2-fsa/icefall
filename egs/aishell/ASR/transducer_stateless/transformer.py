@@ -204,6 +204,7 @@ class TransformerEncoderLayer(nn.Module):
         src: torch.Tensor,
         src_mask: Optional[torch.Tensor] = None,
         src_key_padding_mask: Optional[torch.Tensor] = None,
+        is_causal: bool = False,
     ) -> torch.Tensor:
         """
         Pass the input through the encoder layer.

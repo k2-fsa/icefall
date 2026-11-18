@@ -2,6 +2,8 @@
 
 set -ex
 
+pip list
+
 log() {
   # This function is from espnet
   local fname=${BASH_SOURCE[1]##*/}

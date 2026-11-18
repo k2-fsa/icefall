@@ -65,7 +65,9 @@ See ./onnx_pretrained-streaming.py for how to use the exported ONNX models.
 """
 
 import argparse
+import copy
 import logging
+import tempfile
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -73,7 +75,11 @@ import k2
 import onnx
 import torch
 import torch.nn as nn
-from decoder import Decoder
+from decoder import (
+    Decoder,
+    check_decoder_conv_as_matmul_onnx,
+    replace_decoder_conv_with_matmul,
+)
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from scaling_converter import convert_scaled_to_non_scaled
 from train import add_model_arguments, get_model, get_params
@@ -114,6 +120,17 @@ def get_parser():
         default=0,
         help="""1 to use int32_t as input types if applicable. 0 to use
         int64_t otherwise.""",
+    )
+
+    parser.add_argument(
+        "--is-rknn-export",
+        type=int,
+        default=0,
+        help="""1 if the exported models will be converted by rknn-toolkit2.
+        It keeps the padding masks as bool and avoids no-op Cast nodes, which
+        rknn-toolkit2 cannot convert (it aborts with "Meet unsupported conv,
+        input tensor name: ... input type: 6"). 0 to keep the previous
+        behavior.""",
     )
 
     parser.add_argument(
@@ -193,6 +210,17 @@ def get_parser():
     )
 
     parser.add_argument(
+        "--decoder-conv-as-matmul",
+        type=str2bool,
+        default=False,
+        help="""True to export the decoder's grouped Conv1d as an equivalent
+        MatMul (same outputs up to float rounding). With ONNX Runtime's CUDA
+        provider this removes the Conv kernel's per-node lock, which
+        serializes a decoder session shared by several threads when the
+        batch size changes between runs.""",
+    )
+
+    parser.add_argument(
         "--use-external-data",
         type=str2bool,
         default=False,
@@ -204,22 +232,176 @@ def get_parser():
     return parser
 
 
+def _load_float16_converter():
+    """Return the float16 conversion function.
+
+    onnxmltools <= 1.12 exposes it as onnxmltools.utils.float16_converter;
+    newer versions removed that module in favor of onnxconverter-common,
+    whose convert_float_to_float16() is the same implementation.
+    """
+    try:
+        from onnxmltools.utils.float16_converter import (  # noqa: F401
+            convert_float_to_float16,
+            convert_float_to_float16_model_path,
+        )
+    except ImportError:
+        from onnxconverter_common.float16 import (
+            convert_float_to_float16,
+            convert_float_to_float16_model_path,
+        )
+
+    return convert_float_to_float16, convert_float_to_float16_model_path
+
+
+def _fix_cast_nodes_after_fp16_conversion(model):
+    """Fix Cast nodes left inconsistent by convert_float_to_float16().
+
+    The converter (onnxconverter-common, which also backs
+    onnxmltools.utils.float16_converter) never updates the ``to`` attribute of
+    Cast nodes, yet it rewrites the declared type of every float32 tensor in
+    graph.value_info to float16. A Cast producing float32 is thus left with
+    ``to`` == float while its output is declared float16, and onnxruntime
+    (hence sherpa-onnx) refuses to load the exported model with
+
+      Type Error: Type (tensor(float16)) of output arg (/decoder/Cast_1_output_0)
+      of node (/decoder/Cast_1) does not match expected type (tensor(float)).
+
+    Such Cast nodes are common: e.g. the bool->float cast generated for
+    ``self.embedding(y.clamp(min=0)) * (y >= 0).unsqueeze(-1)`` in decoder.py.
+    Note that a model *trained* in fp16 exports with ``Cast(to=float16)``
+    there, which is why natively-fp16 models load fine and fp32-trained
+    ones converted by this script do not (see issue #2011).
+
+    The fix aligns ``to`` with the already-converted output type so the Cast
+    produces float16 directly, matching all its (already fp16) consumers.
+    Casts whose output is not declared float16 (e.g. ones the converter kept
+    in fp32) are left untouched.
+
+    See https://github.com/k2-fsa/icefall/issues/2011.
+    """
+    FLOAT = onnx.TensorProto.FLOAT
+    FLOAT16 = onnx.TensorProto.FLOAT16
+
+    def fix_graph(graph):
+        declared_fp16 = {
+            value_info.name
+            for value_info in list(graph.value_info) + list(graph.output)
+            if value_info.type.tensor_type.elem_type == FLOAT16
+        }
+        num_fixed = 0
+        for node in graph.node:
+            if node.op_type != "Cast":
+                continue
+            for attr in node.attribute:
+                if attr.name != "to" or attr.i != FLOAT:
+                    continue
+                if any(name in declared_fp16 for name in node.output):
+                    attr.i = FLOAT16
+                    num_fixed += 1
+        # recurse into sub-graphs, if any (If/Loop bodies)
+        for node in graph.node:
+            for attr in node.attribute:
+                if attr.HasField("g"):
+                    num_fixed += fix_graph(attr.g)
+                for sub_graph in attr.graphs:
+                    num_fixed += fix_graph(sub_graph)
+        return num_fixed
+
+    num_fixed = fix_graph(model.graph)
+    if num_fixed > 0:
+        logging.info(
+            f"Fixed {num_fixed} Cast node(s) whose 'to' attribute was left "
+            "float32 by the fp16 converter"
+        )
+    return model
+
+
+def _remove_noop_cast_nodes(model: onnx.ModelProto) -> int:
+    """Remove Cast nodes that don't change the element type.
+
+    PyTorch exports redundant Cast nodes in some cases, e.g. a bool->bool
+    cast from ``mask.to(torch.bool)`` when the mask is already bool.
+    rknn-toolkit2 cannot convert such nodes: it reports
+    "E RKNN: dataconvert type -1 is unsupport in current!" and aborts
+    (core dumped), so for --is-rknn-export 1 we drop them.  Removing a
+    no-op Cast does not change model semantics.
+
+    Returns the number of removed nodes.
+    """
+    model_with_types = onnx.shape_inference.infer_shapes(model)
+    elem_types = {}
+    for vi in (
+        list(model_with_types.graph.input)
+        + list(model_with_types.graph.value_info)
+        + list(model_with_types.graph.output)
+    ):
+        if vi.type.HasField("tensor_type"):
+            elem_types[vi.name] = vi.type.tensor_type.elem_type
+
+    graph = model.graph
+    output_names = {o.name for o in graph.output}
+
+    # name of a no-op Cast output -> name of its input
+    redirect = {}
+    for node in graph.node:
+        if node.op_type != "Cast":
+            continue
+        if len(node.input) != 1 or len(node.output) != 1:
+            continue
+        if node.output[0] in output_names:
+            # keep the node so graph outputs are not renamed
+            continue
+        to = None
+        for attr in node.attribute:
+            if attr.name == "to":
+                to = attr.i
+        in_type = elem_types.get(node.input[0])
+        if to is not None and in_type is not None and to == in_type:
+            redirect[node.output[0]] = node.input[0]
+
+    if not redirect:
+        return 0
+
+    def resolve(name: str) -> str:
+        """Follow chains of no-op casts and return the final tensor name."""
+        while name in redirect:
+            name = redirect[name]
+        return name
+
+    kept = []
+    for node in graph.node:
+        if len(node.output) == 1 and node.output[0] in redirect:
+            continue
+        for i, name in enumerate(node.input):
+            if name in redirect:
+                node.input[i] = resolve(name)
+        kept.append(node)
+
+    del graph.node[:]
+    graph.node.extend(kept)
+    return len(redirect)
+
+
 def export_onnx_fp16(onnx_fp32_path, onnx_fp16_path):
     import onnxmltools
-    from onnxmltools.utils.float16_converter import convert_float_to_float16
+
+    convert_float_to_float16, _ = _load_float16_converter()
 
     onnx_fp32_model = onnxmltools.utils.load_model(onnx_fp32_path)
     onnx_fp16_model = convert_float_to_float16(onnx_fp32_model, keep_io_types=True)
+    _fix_cast_nodes_after_fp16_conversion(onnx_fp16_model)
     onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
 
 
 def export_onnx_fp16_large_2gb(onnx_fp32_path, onnx_fp16_path):
     import onnxmltools
-    from onnxmltools.utils.float16_converter import convert_float_to_float16_model_path
+
+    _, convert_float_to_float16_model_path = _load_float16_converter()
 
     onnx_fp16_model = convert_float_to_float16_model_path(
         onnx_fp32_path, keep_io_types=True
     )
+    _fix_cast_nodes_after_fp16_conversion(onnx_fp16_model)
     onnxmltools.utils.save_model(onnx_fp16_model, onnx_fp16_path)
 
 
@@ -259,7 +441,11 @@ class OnnxEncoder(nn.Module):
     """A wrapper for Zipformer and the encoder_proj from the joiner"""
 
     def __init__(
-        self, encoder: Zipformer2, encoder_embed: nn.Module, encoder_proj: nn.Linear
+        self,
+        encoder: Zipformer2,
+        encoder_embed: nn.Module,
+        encoder_proj: nn.Linear,
+        is_rknn_export: int = 0,
     ):
         """
         Args:
@@ -267,6 +453,8 @@ class OnnxEncoder(nn.Module):
             A Zipformer encoder.
           encoder_proj:
             The projection layer for encoder from the joiner.
+          is_rknn_export:
+            1 to generate a graph that rknn-toolkit2 can convert; 0 otherwise.
         """
         super().__init__()
         self.encoder = encoder
@@ -275,12 +463,25 @@ class OnnxEncoder(nn.Module):
         self.chunk_size = encoder.chunk_size[0]
         self.left_context_len = encoder.left_context_frames[0]
         self.pad_length = 7 + 2 * 3
+        self.is_rknn_export = is_rknn_export
 
     def forward(
         self,
         x: torch.Tensor,
         states: List[torch.Tensor],
     ) -> Tuple[torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        """Encode a chunk of features given the current streaming states.
+
+        Args:
+          x:
+            A tensor of shape (N, T, feature_dim).
+          states:
+            The streaming states from the previous chunk.
+
+        Returns:
+          Return a tuple containing the encoded output of shape
+          (N, T, joiner_dim) and the updated streaming states.
+        """
         N = x.size(0)
         T = self.chunk_size * 2 + self.pad_length
         x_lens = torch.tensor([T] * N, device=x.device)
@@ -294,7 +495,16 @@ class OnnxEncoder(nn.Module):
         )
         assert x.size(1) == self.chunk_size, (x.size(1), self.chunk_size)
 
-        src_key_padding_mask = torch.zeros(N, self.chunk_size, dtype=torch.int32)
+        # For rknn export, keep the masks bool: with int32 masks rknn-toolkit2
+        # fails to convert the encoder with
+        #   E RKNN: Meet unsupported conv, input tensor name: ... input type: 6
+        # and aborts (core dumped). Otherwise keep the historical int32 masks.
+        if self.is_rknn_export:
+            mask_dtype = torch.bool
+        else:
+            mask_dtype = torch.int32
+
+        src_key_padding_mask = torch.zeros(N, self.chunk_size, dtype=mask_dtype)
 
         # processed_mask is used to mask out initial states
         processed_mask = torch.arange(left_context_len, device=x.device).expand(
@@ -302,9 +512,10 @@ class OnnxEncoder(nn.Module):
         )
         processed_lens = states[-1]  # (batch,)
         # (batch, left_context_size)
-        processed_mask = (
-            (processed_lens.unsqueeze(1) <= processed_mask).to(torch.int32).flip(1)
-        )
+        processed_mask = processed_lens.unsqueeze(1) <= processed_mask
+        if not self.is_rknn_export:
+            processed_mask = processed_mask.to(torch.int32)
+        processed_mask = processed_mask.flip(1)
         # Update processed lengths
         new_processed_lens = processed_lens + x_lens
         # (batch, left_context_size + chunk_size)
@@ -327,9 +538,15 @@ class OnnxEncoder(nn.Module):
         encoder_out = self.encoder_proj(encoder_out)
         # Now encoder_out is of shape (N, T, joiner_dim)
 
+        if self.is_rknn_export and new_processed_lens.dtype == states[-1].dtype:
+            # Skip the no-op cast: rknn-toolkit2 cannot convert it.
+            new_processed_lens_out = new_processed_lens
+        else:
+            new_processed_lens_out = new_processed_lens.to(states[-1].dtype)
+
         new_states = new_encoder_states + [
             new_cached_embed_left_pad,
-            new_processed_lens.to(states[-1].dtype),
+            new_processed_lens_out,
         ]
 
         return encoder_out, new_states
@@ -688,6 +905,7 @@ def export_joiner_model_onnx(
 
 @torch.no_grad()
 def main():
+    """Export a streaming zipformer transducer model to ONNX format."""
     args = get_parser().parse_args()
     args.exp_dir = Path(args.exp_dir)
 
@@ -803,7 +1021,17 @@ def main():
         encoder=model.encoder,
         encoder_embed=model.encoder_embed,
         encoder_proj=model.joiner.encoder_proj,
+        is_rknn_export=params.is_rknn_export,
     )
+
+    if params.decoder_conv_as_matmul:
+        # keep the original decoder to check the exported model against it
+        conv_decoder = OnnxDecoder(
+            decoder=copy.deepcopy(model.decoder),
+            decoder_proj=copy.deepcopy(model.joiner.decoder_proj),
+        )
+        replace_decoder_conv_with_matmul(model.decoder)
+        logging.info("Export the decoder conv as MatMul")
 
     decoder = OnnxDecoder(
         decoder=model.decoder,
@@ -860,6 +1088,26 @@ def main():
     )
     logging.info(f"Exported decoder to {decoder_filename}")
 
+    if params.decoder_conv_as_matmul:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            conv_filename = f"{tmp_dir}/decoder-conv.onnx"
+            export_decoder_model_onnx(
+                conv_decoder,
+                conv_filename,
+        opset_version=opset_version,
+        dynamic_batch=params.dynamic_batch == 1,
+        use_int32_inputs=params.use_int32_inputs,
+            )
+            max_diff, device = check_decoder_conv_as_matmul_onnx(
+                conv_filename,
+                str(decoder_filename),
+                vocab_size=model.decoder.vocab_size,
+            )
+        logging.info(
+            "Checked the decoder with MatMul against the decoder with Conv "
+            f"(onnxruntime on {device}): max abs diff {max_diff:.2e}"
+        )
+
     logging.info("Exporting joiner")
     joiner_filename = params.exp_dir / f"joiner-{suffix}.onnx"
     export_joiner_model_onnx(
@@ -869,6 +1117,23 @@ def main():
         dynamic_batch=params.dynamic_batch == 1,
     )
     logging.info(f"Exported joiner to {joiner_filename}")
+
+    if params.is_rknn_export:
+        if params.use_external_data:
+            logging.warning(
+                "--is-rknn-export 1: skip removing no-op Cast nodes since "
+                "--use-external-data is used. Note its other effects (bool "
+                "masks etc.) are still applied to the exported graph."
+            )
+        else:
+            for filename in (encoder_filename, decoder_filename, joiner_filename):
+                model = onnx.load(str(filename))
+                num_removed = _remove_noop_cast_nodes(model)
+                if num_removed > 0:
+                    onnx.save(model, str(filename))
+                logging.info(
+                    f"Removed {num_removed} no-op Cast node(s) from {filename}"
+                )
 
     if params.fp16:
         logging.info("Generate fp16 models")

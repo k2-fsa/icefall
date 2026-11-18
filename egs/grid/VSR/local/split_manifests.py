@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import os
 from pathlib import Path
 
@@ -19,6 +20,7 @@ recordings = load_manifest(recordings_path)
 recordings = recordings.filter(video_exists)
 
 supervisions = load_manifest(supervisions_path)
+
 
 # Split based on speaker ID extracted from recording ID
 def get_speaker_id(rec_id):
@@ -43,6 +45,6 @@ test_supervisions = supervisions.filter(lambda s: s.recording_id in test_rec_ids
 train_supervisions.to_file(output_dir / "grid_supervisions_train.jsonl.gz")
 test_supervisions.to_file(output_dir / "grid_supervisions_test.jsonl.gz")
 
-print(f"Done splitting RecordingSet by speaker.")
+print("Done splitting RecordingSet by speaker.")
 print(f"Train recordings: {len(train_recordings)}")
 print(f"Test recordings: {len(test_recordings)}")

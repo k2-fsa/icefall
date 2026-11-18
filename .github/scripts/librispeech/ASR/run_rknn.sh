@@ -234,7 +234,8 @@ function export_2023_06_26() {
     \
     --chunk-size 32 \
     --left-context-frames 128 \
-    --causal 1
+    --causal 1 \
+    --is-rknn-export 1
 
   ls -lh $d/
 
