@@ -400,7 +400,7 @@ def get_parser():
     )
 
     parser.add_argument(
-        "--logical-lr", type=float, default=4.2e-04, help="The base learning rate, this is the main thing to adjust, "
+        "--logical-lr", type=float, default=5.9e-04, help="The base learning rate, this is the main thing to adjust, "
         "but only slightly, e.g. try to reduce by 10%% or 20%% if you have much more data.  For changes in batch size "
         "or world-size, you do not have to adjust anything."
     )
