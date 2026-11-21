@@ -1898,6 +1898,19 @@ def _test_activation_dropout_and_linear():
                 assert isclose(x1.grad, x2.grad)
 
 
+# Optional fused GPU kernels (see fast_kernels.py); enabled with the env var
+# ZIPFORMER_FAST_KERNELS=1 (or a comma-separated subset of
+# balancer,softmax,actlin,swoosh).  No-op by default.
+try:
+    import sys as _sys
+
+    import fast_kernels as _fast_kernels
+
+    _fast_kernels.install(_sys.modules[__name__])
+except ImportError:
+    pass
+
+
 if __name__ == "__main__":
     logging.getLogger().setLevel(logging.INFO)
     torch.set_num_threads(1)
