@@ -1,0 +1,1 @@
+../../../librispeech/ASR/zipformer/test_scaling.py

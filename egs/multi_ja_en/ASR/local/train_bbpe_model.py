@@ -33,7 +33,7 @@ from pathlib import Path
 import sentencepiece as spm
 
 from icefall import byte_encode
-from icefall.utils import tokenize_by_ja_char
+from icefall.utils import str2bool, tokenize_by_ja_char
 
 
 def get_args():
@@ -41,9 +41,7 @@ def get_args():
     parser.add_argument(
         "--lang-dir",
         type=str,
-        help="""Input and output directory.
-        The generated bpe.model is saved to this directory.
-        """,
+        help="""Input directory.""",
     )
 
     parser.add_argument(
@@ -56,6 +54,27 @@ def get_args():
         "--vocab-size",
         type=int,
         help="Vocabulary size for BPE training",
+    )
+
+    parser.add_argument(
+        "--output-model",
+        type=str,
+        help="Path to save the trained BPE model.",
+        required=True,
+    )
+
+    parser.add_argument(
+        "--input-sentence-size",
+        type=int,
+        default=1000000,  # Added default value
+        help="Maximum number of sentences to load for BPE training.",
+    )
+
+    parser.add_argument(
+        "--shuffle-input-sentence",
+        type=str2bool,
+        default=True,  # Added default value
+        help="Whether to shuffle input sentences.",
     )
 
     return parser.parse_args()
@@ -71,17 +90,20 @@ def main():
     args = get_args()
     vocab_size = args.vocab_size
     lang_dir = Path(args.lang_dir)
+    output_model = Path(args.output_model)
+    input_sentence_size = args.input_sentence_size
+    shuffle_input_sentence = args.shuffle_input_sentence
 
     model_type = "unigram"
 
-    model_prefix = f"{lang_dir}/{model_type}_{vocab_size}"
-    model_file = Path(model_prefix + ".model")
-    if model_file.is_file():
-        print(f"{model_file} exists - skipping")
+    model_prefix = str(output_model.parent / f"{model_type}_{vocab_size}")
+    temp_model_file = Path(model_prefix + ".model")
+
+    if output_model.is_file():
+        print(f"{output_model} exists - skipping")
         return
 
     character_coverage = 1.0
-    input_sentence_size = 100000000
 
     user_defined_symbols = ["<blk>", "<sos/eos>"]
     unk_id = len(user_defined_symbols)
@@ -100,6 +122,7 @@ def main():
         model_type=model_type,
         model_prefix=model_prefix,
         input_sentence_size=input_sentence_size,
+        shuffle_input_sentence=shuffle_input_sentence,
         character_coverage=character_coverage,
         user_defined_symbols=user_defined_symbols,
         unk_id=unk_id,
@@ -107,7 +130,7 @@ def main():
         eos_id=-1,
     )
 
-    shutil.copyfile(model_file, f"{lang_dir}/bbpe.model")
+    shutil.move(str(temp_model_file), str(output_model))
 
 
 if __name__ == "__main__":

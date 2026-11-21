@@ -45,8 +45,8 @@ def get_parser():
 def main():
     args = get_parser()
 
-    for part in ["train", "dev"]:
-        path = args.manifest_dir / f"reazonspeech_cuts_{part}.jsonl.gz"
+    for part in ["dev", "test", "train"]:
+        path = args.manifest_dir / f"mls_eng_cuts_{part}.jsonl.gz"
         cuts: CutSet = load_manifest(path)
 
         print("\n---------------------------------\n")
