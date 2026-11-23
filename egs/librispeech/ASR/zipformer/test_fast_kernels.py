@@ -176,8 +176,10 @@ def test_balancer_channel_dim1():
 
 
 _SUBSAMPLING_SCRIPT = """
-import sys, torch
+import random, sys, torch
 import subsampling as sub  # imported first on purpose (no import cycle)
+# Balancer / Whiten draw from Python's random module even in eval mode
+random.seed(0)
 torch.manual_seed(0)
 m = sub.Conv2dSubsampling(80, 192, dropout=0.0).cuda()
 m.eval()  # deterministic (no layer-drop / random balancers)
