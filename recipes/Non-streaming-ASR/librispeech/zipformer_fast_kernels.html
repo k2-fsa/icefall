@@ -1,0 +1,367 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zipformer faster training with fused GPU kernels &mdash; icefall 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=03e43079" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=2709fde1"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" />
+    <link rel="next" title="Distillation with HuBERT" href="distillation.html" />
+    <link rel="prev" title="Zipformer CTC Blank Skip" href="zipformer_ctc_blankskip.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            icefall
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../for-dummies/index.html">Icefall for dummies tutorial</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../installation/index.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../docker/index.html">Docker</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../faqs.html">Frequently Asked Questions (FAQs)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../model-export/index.html">Model export</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../fst-based-forced-alignment/index.html">FST-based forced alignment</a></li>
+</ul>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="../../index.html">Recipes</a><ul class="current">
+<li class="toctree-l2 current"><a class="reference internal" href="../index.html">Non Streaming ASR</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="../aishell/index.html">aishell</a></li>
+<li class="toctree-l3 current"><a class="reference internal" href="index.html">LibriSpeech</a><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="tdnn_lstm_ctc.html">TDNN-LSTM-CTC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="conformer_ctc.html">Conformer CTC</a></li>
+<li class="toctree-l4"><a class="reference internal" href="pruned_transducer_stateless.html">Pruned transducer statelessX</a></li>
+<li class="toctree-l4"><a class="reference internal" href="zipformer_mmi.html">Zipformer MMI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="zipformer_ctc_blankskip.html">Zipformer CTC Blank Skip</a></li>
+<li class="toctree-l4 current"><a class="current reference internal" href="#">Zipformer faster training with fused GPU kernels</a></li>
+<li class="toctree-l4"><a class="reference internal" href="distillation.html">Distillation with HuBERT</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../timit/index.html">TIMIT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../yesno/index.html">YesNo</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../Streaming-ASR/index.html">Streaming ASR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../RNN-LM/index.html">RNN-LM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../TTS/index.html">TTS</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../Finetune/index.html">Fine-tune a pre-trained model</a></li>
+</ul>
+</li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../huggingface/index.html">Huggingface</a></li>
+</ul>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../decoding-with-langugage-models/index.html">Decoding with language models</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">icefall</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Recipes</a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Non Streaming ASR</a></li>
+          <li class="breadcrumb-item"><a href="index.html">LibriSpeech</a></li>
+      <li class="breadcrumb-item active">Zipformer faster training with fused GPU kernels</li>
+      <li class="wy-breadcrumbs-aside">
+              <a href="https://github.com/k2-fsa/icefall/blob/master/docs/source/recipes/Non-streaming-ASR/librispeech/zipformer_fast_kernels.rst" class="fa fa-github"> Edit on GitHub</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="zipformer-faster-training-with-fused-gpu-kernels">
+<h1>Zipformer faster training with fused GPU kernels<a class="headerlink" href="#zipformer-faster-training-with-fused-gpu-kernels" title="Link to this heading"></a></h1>
+<p>This page shows how to make Zipformer training faster, i.e., use less GPU
+time, with the optional fused GPU kernels in
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/zipformer/fast_kernels.py">zipformer/fast_kernels.py</a>.</p>
+<p>A Zipformer training step is limited by memory bandwidth: most of the GPU
+time goes to elementwise and copy kernels, not to matrix multiplications.
+<code class="docutils literal notranslate"><span class="pre">fast_kernels.py</span></code> replaces the most memory-bound parts of
+<a class="reference external" href="https://github.com/k2-fsa/icefall/blob/master/egs/librispeech/ASR/zipformer/scaling.py">zipformer/scaling.py</a>
+with fused <a class="reference external" href="https://github.com/triton-lang/triton">Triton</a> kernels and
+cheaper backward functions. They compute the same values as the reference
+code (up to floating-point rounding) and only change training speed.
+Decoding, model export and the saved checkpoints are not affected.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The optimizations are <strong>off by default</strong>. Without the environment variable
+below, training behaves exactly as before.</p>
+</div>
+<section id="enabling-the-optimizations">
+<h2>Enabling the optimizations<a class="headerlink" href="#enabling-the-optimizations" title="Link to this heading"></a></h2>
+<p>Set the environment variable <code class="docutils literal notranslate"><span class="pre">ZIPFORMER_FAST_KERNELS</span></code>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Value</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>unset, <code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
+<td><p>upstream behaviour (default)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">1</span></code> or <code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
+<td><p>enable all features listed below</p></td>
+</tr>
+<tr class="row-even"><td><p>comma-separated list, e.g., <code class="docutils literal notranslate"><span class="pre">balancer,softmax</span></code></p></td>
+<td><p>enable only the listed features</p></td>
+</tr>
+</tbody>
+</table>
+<p>The features are:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Feature</p></th>
+<th class="head"><p>What it replaces</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">actlin</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ActivationDropoutAndLinear</span></code>: one Triton kernel computes
+<code class="docutils literal notranslate"><span class="pre">swoosh(x)</span> <span class="pre">*</span> <span class="pre">dropout_mask</span></code> and writes the matmul dtype directly;
+fused backward</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">swoosh</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SwooshL</span></code> / <code class="docutils literal notranslate"><span class="pre">SwooshR</span></code> modules: a Triton kernel that keeps the input
+dtype (<code class="docutils literal notranslate"><span class="pre">k2.swoosh_l</span></code> / <code class="docutils literal notranslate"><span class="pre">k2.swoosh_r</span></code> return float32)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">softmax</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SoftmaxFunction</span></code> backward: PyTorch’s fused softmax backward instead of
+float32 elementwise operations</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">balancer</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BalancerFunction</span></code> backward: closed-form gradient (two small kernels)
+instead of re-running a float32 autograd graph</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">channels_last</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Conv2dSubsampling</span></code> runs in NHWC layout so that cuDNN’s fast depthwise
+convolution kernels are used</p></td>
+</tr>
+</tbody>
+</table>
+<div class="admonition hint">
+<p class="admonition-title">Hint</p>
+<p>The optimizations need a CUDA GPU and Triton, which is installed together
+with PyTorch on Linux. If either is missing, a warning is printed and the
+reference code is used.</p>
+</div>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Link to this heading"></a></h2>
+<p>Put the environment variable in front of the usual training command. The
+following example trains a Zipformer (medium) model with all optimizations on
+4 GPUs:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">CUDA_VISIBLE_DEVICES</span><span class="o">=</span><span class="s2">"0,1,2,3"</span>
+$<span class="w"> </span><span class="nv">ZIPFORMER_FAST_KERNELS</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>./zipformer/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--world-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-epochs<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--start-epoch<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-fp16<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>zipformer/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">1000</span>
+</pre></div>
+</div>
+<p>It works the same way for the other model sizes, for example the large model:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">ZIPFORMER_FAST_KERNELS</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>./zipformer/train.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--world-size<span class="w"> </span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-epochs<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--start-epoch<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--use-fp16<span class="w"> </span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>zipformer/exp-large<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-encoder-layers<span class="w"> </span><span class="m">2</span>,2,4,5,4,2<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--feedforward-dim<span class="w"> </span><span class="m">512</span>,768,1536,2048,1536,768<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--encoder-dim<span class="w"> </span><span class="m">192</span>,256,512,768,512,256<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--encoder-unmasked-dim<span class="w"> </span><span class="m">192</span>,192,256,320,256,192<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">1000</span>
+</pre></div>
+</div>
+<p>To enable only some of the optimizations:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">ZIPFORMER_FAST_KERNELS</span><span class="o">=</span>balancer,softmax<span class="w"> </span>./zipformer/train.py<span class="w"> </span>...
+</pre></div>
+</div>
+</section>
+<section id="decoding">
+<h2>Decoding<a class="headerlink" href="#decoding" title="Link to this heading"></a></h2>
+<p>Decoding needs no change; do not set the environment variable:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./zipformer/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">9</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>zipformer/exp<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>greedy_search
+</pre></div>
+</div>
+<p>For a model trained with non-default architecture options, pass the same
+options as in training, e.g., for the large model above:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>./zipformer/decode.py<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--epoch<span class="w"> </span><span class="m">30</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--avg<span class="w"> </span><span class="m">9</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--exp-dir<span class="w"> </span>zipformer/exp-large<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--num-encoder-layers<span class="w"> </span><span class="m">2</span>,2,4,5,4,2<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--feedforward-dim<span class="w"> </span><span class="m">512</span>,768,1536,2048,1536,768<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--encoder-dim<span class="w"> </span><span class="m">192</span>,256,512,768,512,256<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--encoder-unmasked-dim<span class="w"> </span><span class="m">192</span>,192,256,320,256,192<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--max-duration<span class="w"> </span><span class="m">600</span><span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--decoding-method<span class="w"> </span>greedy_search
+</pre></div>
+</div>
+</section>
+<section id="testing-the-kernels">
+<h2>Testing the kernels<a class="headerlink" href="#testing-the-kernels" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">zipformer/test_fast_kernels.py</span></code> compares every replacement against the
+reference implementation in <code class="docutils literal notranslate"><span class="pre">scaling.py</span></code> in float32 and bfloat16
+(a GPU is required):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>egs/librispeech/ASR
+$<span class="w"> </span>python3<span class="w"> </span>./zipformer/test_fast_kernels.py
+</pre></div>
+</div>
+</section>
+<section id="results">
+<h2>Results<a class="headerlink" href="#results" title="Link to this heading"></a></h2>
+<p>Zipformer medium (65.5 M parameters), LibriSpeech <code class="docutils literal notranslate"><span class="pre">train-clean-100</span></code>, fp16,
+<code class="docutils literal notranslate"><span class="pre">--max-duration</span> <span class="pre">1000</span></code>, one NVIDIA L40S GPU per run, 30 epochs, same seed:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"><p>upstream</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">ZIPFORMER_FAST_KERNELS=1</span></code></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>total training time</p></td>
+<td><p>7503 s</p></td>
+<td><p>5641 s (1.33x faster, 25% less GPU time)</p></td>
+</tr>
+<tr class="row-odd"><td><p>WER (test-clean / test-other), greedy search</p></td>
+<td><p>7.53 / 20.20</p></td>
+<td><p>7.43 / 20.31</p></td>
+</tr>
+<tr class="row-even"><td><p>WER (test-clean / test-other), modified beam search</p></td>
+<td><p>7.39 / 19.62</p></td>
+<td><p>7.27 / 19.73</p></td>
+</tr>
+</tbody>
+</table>
+<p>For a single training step (bf16, <code class="docutils literal notranslate"><span class="pre">--max-duration</span> <span class="pre">1000</span></code>), throughput goes
+from 1577 to 2161 seconds of audio per second (+36%).</p>
+<p>Zipformer large (148.4 M parameters, the architecture options shown in
+<a class="reference internal" href="#training">Training</a>), same data and settings, 4 epochs, the two runs at the same time
+on two NVIDIA L40S GPUs:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"></th>
+<th class="head"><p>upstream</p></th>
+<th class="head"><p><code class="docutils literal notranslate"><span class="pre">ZIPFORMER_FAST_KERNELS=1</span></code></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>total training time (4 epochs)</p></td>
+<td><p>1494 s</p></td>
+<td><p>1017 s (1.47x faster, 32% less GPU time)</p></td>
+</tr>
+<tr class="row-odd"><td><p>validation loss after epoch 3</p></td>
+<td><p>0.796</p></td>
+<td><p>0.642</p></td>
+</tr>
+<tr class="row-even"><td><p>peak GPU memory</p></td>
+<td><p>20.6 GB</p></td>
+<td><p>21.3 GB</p></td>
+</tr>
+</tbody>
+</table>
+<p>This run measures speed only: 4 epochs are too few to compare the final WER,
+and the validation losses differ by run-to-run noise this early in training.</p>
+<p>For a single training step of the large model (<code class="docutils literal notranslate"><span class="pre">--max-duration</span> <span class="pre">1000</span></code>),
+throughput goes from 1265 to 1675 seconds of audio per second with bf16
+(+32%) and from 1275 to 1765 with fp16 (+38%).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Dropout random numbers are drawn differently, so the losses are not
+bit-identical to upstream. The WER is the same within run-to-run noise.</p>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="zipformer_ctc_blankskip.html" class="btn btn-neutral float-left" title="Zipformer CTC Blank Skip" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="distillation.html" class="btn btn-neutral float-right" title="Distillation with HuBERT" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, icefall development team.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
