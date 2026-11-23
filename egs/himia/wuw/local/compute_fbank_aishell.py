@@ -1,0 +1,1 @@
+../../../aishell/ASR/local/compute_fbank_aishell.py
