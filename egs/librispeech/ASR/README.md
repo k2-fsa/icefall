@@ -34,7 +34,7 @@ The following table lists the differences among them.
 | `lstm_transducer_stateless`           | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model |
 | `lstm_transducer_stateless2`          | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model + gigaspeech (multi-dataset setup) |
 | `lstm_transducer_stateless3`          | LSTM | Embedding + Conv1d | Using LSTM with mechanisms in reworked model + gradient filter + delay penalty |
-| `zipformer`                           | Upgraded Zipformer | Embedding + Conv1d | The latest recipe |
+| `zipformer`                           | Upgraded Zipformer | Embedding + Conv1d | The latest recipe. Optional faster training: [docs](https://k2-fsa.github.io/icefall/recipes/Non-streaming-ASR/librispeech/zipformer_fast_kernels.html) |
 | `zipformer_adapter`                           | Upgraded Zipformer | Embedding + Conv1d | It supports domain adaptation of Zipformer using parameter efficient adapters |
 | `zipformer_adapter`                           | Upgraded Zipformer | Embedding + Conv1d | Finetune Zipformer with LoRA  |
 
