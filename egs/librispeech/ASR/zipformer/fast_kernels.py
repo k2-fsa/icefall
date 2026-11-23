@@ -7,6 +7,8 @@
 #     ZIPFORMER_FAST_KERNELS=balancer,softmax   # a subset
 # Features: balancer, softmax, actlin, swoosh, channels_last
 #
+# See README_fast_kernels.md for details, sample commands and results.
+#
 # All replacements are mathematically equivalent to the reference
 # implementations in scaling.py (up to floating point rounding); see
 # test_fast_kernels.py.

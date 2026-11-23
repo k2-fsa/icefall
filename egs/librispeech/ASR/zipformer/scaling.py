@@ -1898,9 +1898,10 @@ def _test_activation_dropout_and_linear():
                 assert isclose(x1.grad, x2.grad)
 
 
-# Optional fused GPU kernels (see fast_kernels.py); enabled with the env var
-# ZIPFORMER_FAST_KERNELS=1 (or a comma-separated subset of
-# balancer,softmax,actlin,swoosh).  No-op by default.
+# Optional fused GPU kernels for faster training (see fast_kernels.py and
+# README_fast_kernels.md); enabled with the env var ZIPFORMER_FAST_KERNELS=1
+# (or a comma-separated subset of balancer,softmax,actlin,swoosh,channels_last).
+# No-op by default.
 try:
     import sys as _sys
 
