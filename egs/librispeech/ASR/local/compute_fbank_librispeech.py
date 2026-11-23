@@ -129,6 +129,10 @@ def compute_fbank_librispeech(
                 recordings=m["recordings"],
                 supervisions=m["supervisions"],
             )
+            
+            # Resample audio to 16kHz to match Fbank extractor's expected sampling rate
+            logging.info(f"Resampling audio to 16000 Hz")
+            cut_set = cut_set.resample(16000)
 
             if "train" in partition:
                 if bpe_model:
