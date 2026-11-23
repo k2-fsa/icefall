@@ -1723,6 +1723,7 @@ def run(rank, world_size, args):
             train_dl=train_dl,
             optimizer=optimizer,
             sp=sp,
+            st_sp=st_sp,
             params=params,
         )
 
