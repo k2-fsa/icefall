@@ -1,0 +1,8 @@
+torch
+transformers
+wandb
+datasets
+accelerate>=0.26.0
+deepspeed
+flash-attn
+s3tokenizer
