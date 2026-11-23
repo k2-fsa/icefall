@@ -1899,7 +1899,7 @@ def _test_activation_dropout_and_linear():
 
 
 # Optional fused GPU kernels for faster training (see fast_kernels.py and
-# README_fast_kernels.md); enabled with the env var ZIPFORMER_FAST_KERNELS=1
+# https://k2-fsa.github.io/icefall/recipes/Non-streaming-ASR/librispeech/zipformer_fast_kernels.html); enabled with the env var ZIPFORMER_FAST_KERNELS=1
 # (or a comma-separated subset of balancer,softmax,actlin,swoosh,channels_last).
 # No-op by default.
 try:
