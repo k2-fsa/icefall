@@ -123,6 +123,22 @@ Decoding needs no change; do not set the environment variable:
       --max-duration 600 \
       --decoding-method greedy_search
 
+For a model trained with non-default architecture options, pass the same
+options as in training, e.g., for the large model above:
+
+.. code-block:: bash
+
+  $ ./zipformer/decode.py \
+      --epoch 30 \
+      --avg 9 \
+      --exp-dir zipformer/exp-large \
+      --num-encoder-layers 2,2,4,5,4,2 \
+      --feedforward-dim 512,768,1536,2048,1536,768 \
+      --encoder-dim 192,256,512,768,512,256 \
+      --encoder-unmasked-dim 192,192,256,320,256,192 \
+      --max-duration 600 \
+      --decoding-method greedy_search
+
 Testing the kernels
 -------------------
 
