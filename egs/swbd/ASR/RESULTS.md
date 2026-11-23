@@ -1,6 +1,19 @@
 ## Results
 ### Switchboard BPE training results (Conformer-CTC)
 
+#### 2023-12-05 (Narrowband Setup)
+
+The best WER, for the narrowband Switchboard system is presented below
+
+Results using attention decoder are given as:
+
+|                                |  eval2000-swbd  |  eval2000-callhome  | eval2000-avg |
+|--------------------------------|-----------------|---------------------|--------------|
+|         `conformer_ctc`        |      11.82      |         23.34       |    17.61     | 
+
+Decoding results and models can be found here:
+https://huggingface.co/zrjin/icefall-asr-swbd-narrowband-conformer-ctc-2023-12-3
+
 #### 2023-09-04
 
 The best WER, as of 2023-09-04, for the Switchboard is below
@@ -13,6 +26,7 @@ Results using attention decoder are given as:
 
 Decoding results and models can be found here:
 https://huggingface.co/zrjin/icefall-asr-swbd-conformer-ctc-2023-8-26
+
 #### 2023-06-27
 
 The best WER, as of 2023-06-27, for the Switchboard is below
