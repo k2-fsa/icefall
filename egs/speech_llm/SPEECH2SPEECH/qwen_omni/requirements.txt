@@ -1,0 +1,15 @@
+openai-whisper
+kaldialign
+lhotse
+sentencepiece
+pypinyin
+tensorboard
+librosa
+deepspeed
+transformers>=4.37.0
+flash-attn
+peft
+torchmetrics
+# triton==3.3.0 # may be violate with openai-whisper
+gradio
+sherpa-onnx
