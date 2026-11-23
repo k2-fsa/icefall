@@ -77,6 +77,12 @@ def compute_fbank_ami():
         prefix="ami-sdm",
         suffix="jsonl.gz",
     )
+    manifests_sdm = read_manifests_if_cached(
+        dataset_parts=["dev", "test"],
+        output_dir=src_dir,
+        prefix="ami-mdm",
+        suffix="jsonl.gz",
+    )
     # For GSS we already have cuts so we read them directly.
     manifests_gss = read_manifests_if_cached(
         dataset_parts=["train", "dev", "test"],
