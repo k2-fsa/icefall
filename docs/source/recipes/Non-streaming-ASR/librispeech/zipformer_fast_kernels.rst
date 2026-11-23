@@ -176,6 +176,33 @@ Zipformer medium (65.5 M parameters), LibriSpeech ``train-clean-100``, fp16,
 For a single training step (bf16, ``--max-duration 1000``), throughput goes
 from 1577 to 2161 seconds of audio per second (+36%).
 
+Zipformer large (148.4 M parameters, the architecture options shown in
+`Training`_), same data and settings, 4 epochs, the two runs at the same time
+on two NVIDIA L40S GPUs:
+
+.. list-table::
+   :header-rows: 1
+
+   * -
+     - upstream
+     - ``ZIPFORMER_FAST_KERNELS=1``
+   * - total training time (4 epochs)
+     - 1494 s
+     - 1017 s (1.47x faster, 32% less GPU time)
+   * - validation loss after epoch 3
+     - 0.796
+     - 0.642
+   * - peak GPU memory
+     - 20.6 GB
+     - 21.3 GB
+
+This run measures speed only: 4 epochs are too few to compare the final WER,
+and the validation losses differ by run-to-run noise this early in training.
+
+For a single training step of the large model (``--max-duration 1000``),
+throughput goes from 1265 to 1675 seconds of audio per second with bf16
+(+32%) and from 1275 to 1765 with fp16 (+38%).
+
 .. note::
 
    Dropout random numbers are drawn differently, so the losses are not
