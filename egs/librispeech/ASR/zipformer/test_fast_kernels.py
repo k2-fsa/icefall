@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+#
+# Copyright    2026  Uniphore        (authors: A Manickavela)
+#
+# See ../../../../LICENSE for clarification regarding multiple authors
 """Checks fast_kernels.py against the reference implementations in scaling.py.
 
   python3 ./zipformer/test_fast_kernels.py

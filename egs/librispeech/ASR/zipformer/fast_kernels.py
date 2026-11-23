@@ -1,4 +1,4 @@
-# Copyright    2026  (authors: icefall contributors)
+# Copyright    2026  Uniphore        (authors: A Manickavela)
 #
 # Fused Triton kernels / cheaper autograd functions for Zipformer training.
 #
