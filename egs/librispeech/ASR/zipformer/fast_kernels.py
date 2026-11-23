@@ -156,9 +156,15 @@ if HAVE_TRITON:
         G2 = gm * dm_ds2 + gr * drms_ds2
         a = G1 * inv_n
         b = 2.0 * G2 * inv_n
-        # rms over the reduced dims of (a + b x):  sqrt((a + b mean)^2 + b^2 var)
-        am = a + b * mean
-        lg_rms = tl.maximum(tl.sqrt(am * am + b * b * tl.maximum(var_raw, 0.0)), 1.0e-20)
+        # rms over the reduced dims of (a + b x):  sqrt((a + b mean)^2 + b^2 var),
+        # computed as a scaled hypot so that nothing overflows when var -> 0
+        # makes a and b huge.
+        am = tl.abs(a + b * mean)
+        bs = tl.abs(b) * tl.sqrt(tl.maximum(var_raw, 0.0))
+        hi = tl.maximum(am, bs)
+        lo = tl.minimum(am, bs)
+        ratio = lo / tl.maximum(hi, 1.0e-30)
+        lg_rms = tl.maximum(hi * tl.sqrt(1.0 + ratio * ratio), 1.0e-20)
         scale = grad_scale / lg_rms
         alpha = a * scale
         beta = b * scale
@@ -219,10 +225,11 @@ def act_mask_forward(x: Tensor, activation: str, mask: Optional[Tensor], out_dty
     N = x.numel()
     m, D1, D2, s0, s1, s2 = _mask_view(mask, x)
     grid = (triton.cdiv(N, _EW_BLOCK),)
-    _act_mask_fwd_kernel[grid](
-        x, m if m is not None else x, y, N, D1, D2, s0, s1, s2,
-        OFFSET=off, CONST=const, HAS_MASK=m is not None, BLOCK=_EW_BLOCK, num_warps=8,
-    )
+    with torch.cuda.device(x.device):
+        _act_mask_fwd_kernel[grid](
+            x, m if m is not None else x, y, N, D1, D2, s0, s1, s2,
+            OFFSET=off, CONST=const, HAS_MASK=m is not None, BLOCK=_EW_BLOCK, num_warps=8,
+        )
     return y
 
 
@@ -235,10 +242,11 @@ def act_mask_backward(x: Tensor, g: Tensor, activation: str, mask: Optional[Tens
     N = x.numel()
     m, D1, D2, s0, s1, s2 = _mask_view(mask, x)
     grid = (triton.cdiv(N, _EW_BLOCK),)
-    _act_mask_bwd_kernel[grid](
-        x, g, m if m is not None else x, gx, N, D1, D2, s0, s1, s2,
-        OFFSET=off, HAS_MASK=m is not None, BLOCK=_EW_BLOCK, num_warps=8,
-    )
+    with torch.cuda.device(x.device):
+        _act_mask_bwd_kernel[grid](
+            x, g, m if m is not None else x, gx, N, D1, D2, s0, s1, s2,
+            OFFSET=off, HAS_MASK=m is not None, BLOCK=_EW_BLOCK, num_warps=8,
+        )
     return gx
 
 
@@ -306,7 +314,9 @@ class FastActivationDropoutAndLinearFunction(torch.autograd.Function):
 class FastSoftmaxFunction(torch.autograd.Function):
     """Same as scaling.SoftmaxFunction (stores only the half-precision output);
     the backward is PyTorch's fused softmax-backward kernel which accumulates in
-    float32, instead of 5 separate float32 kernels on the (H, B, T, T) tensor."""
+    float32, instead of 5 separate float32 kernels on the (H, B, T, T) tensor.
+    If x is float32 but autocast stored a half-precision output, the gradient is
+    computed and returned in float32, as in the reference."""
 
     @staticmethod
     def forward(ctx, x: Tensor, dim: int):
@@ -314,14 +324,16 @@ class FastSoftmaxFunction(torch.autograd.Function):
         if torch.is_autocast_enabled():
             ans = ans.to(torch.get_autocast_gpu_dtype())
         ctx.save_for_backward(ans)
+        ctx.x_dtype = x.dtype
         ctx.dim = dim
         return ans
 
     @staticmethod
     def backward(ctx, ans_grad: Tensor):
         (ans,) = ctx.saved_tensors
+        dtype = ans.dtype if ctx.x_dtype == ans.dtype else torch.float32
         x_grad = torch._softmax_backward_data(
-            ans_grad.to(ans.dtype).contiguous(), ans.contiguous(), ctx.dim, ans.dtype
+            ans_grad.to(dtype).contiguous(), ans.to(dtype).contiguous(), ctx.dim, dtype
         )
         return x_grad, None
 
@@ -338,6 +350,8 @@ def balancer_backward(x: Tensor, x_grad: Tensor, min_mean, max_mean, min_rms, ma
         gm = x_grad.movedim(channel_dim, -1)
         out = balancer_backward(xm, gm, min_mean, max_mean, min_rms, max_rms, grad_scale, -1)
         return out.movedim(-1, channel_dim)
+    if x.numel() == 0:
+        return x_grad
     C = x.shape[-1]
     x2 = x.contiguous().view(-1, C)
     g2 = x_grad.contiguous().view(-1, C)
@@ -348,18 +362,115 @@ def balancer_backward(x: Tensor, x_grad: Tensor, min_mean, max_mean, min_rms, ma
     BLOCK_R = 32
     ROWS = 512
     grid = (triton.cdiv(R, ROWS), triton.cdiv(C, BLOCK_C))
-    _balancer_stats_kernel[grid](x2, stats, R, C, BLOCK_R=BLOCK_R, BLOCK_C=BLOCK_C,
-                                 ROWS_PER_PROG=ROWS, num_warps=4)
-    _balancer_apply_kernel[grid](
-        x2, g2, out, stats, R, C, 1.0 / R,
-        float(min_mean), float(max_mean), float(min_rms), float(max_rms), float(grad_scale),
-        BLOCK_R=BLOCK_R, BLOCK_C=BLOCK_C, ROWS_PER_PROG=ROWS, num_warps=4,
-    )
+    with torch.cuda.device(x.device):
+        _balancer_stats_kernel[grid](x2, stats, R, C, BLOCK_R=BLOCK_R, BLOCK_C=BLOCK_C,
+                                     ROWS_PER_PROG=ROWS, num_warps=4)
+        _balancer_apply_kernel[grid](
+            x2, g2, out, stats, R, C, 1.0 / R,
+            float(min_mean), float(max_mean), float(min_rms), float(max_rms), float(grad_scale),
+            BLOCK_R=BLOCK_R, BLOCK_C=BLOCK_C, ROWS_PER_PROG=ROWS, num_warps=4,
+        )
     return out.view(x_grad.shape)
 
 
+def channels_last_enabled() -> bool:
+    """True if Conv2dSubsampling should use channels_last (NHWC) conv weights.
+    Called by subsampling.Conv2dSubsampling.__init__.
+
+    The Conv2dSubsampling frontend (3 convs + ConvNeXt with a 7x7 depthwise conv
+    at the full input frame rate) is faster in NHWC: cuDNN's NHWC depthwise
+    kernels are ~2.5x faster than the NCHW native kernels. Converting the conv
+    weights at construction time (before the optimizer / DDP see them) makes all
+    conv outputs channels_last."""
+    return (
+        "channels_last" in enabled_features()
+        and HAVE_TRITON
+        and torch.cuda.is_available()
+    )
+
+
+def make_actlin_function(ref):
+    """ActivationDropoutAndLinearFunction replacement: fused path for CUDA
+    tensors, the reference `ref` otherwise."""
+
+    class ActivationDropoutAndLinearDispatch:
+        @staticmethod
+        def apply(x, *args):
+            fn = FastActivationDropoutAndLinearFunction if x.is_cuda else ref
+            return fn.apply(x, *args)
+
+    return ActivationDropoutAndLinearDispatch
+
+
+def make_swoosh_forward(name: str, ref, logaddexp):
+    """SwooshL / SwooshR forward: Triton kernel for CUDA tensors, the formula
+    for scripting / tracing (as in scaling.py), the reference `ref` otherwise."""
+
+    @torch.jit.ignore
+    def eager(self, x: Tensor) -> Tensor:
+        if not x.is_cuda:
+            return ref(self, x)
+        if not x.requires_grad:
+            return act_mask_forward(x, name, None, x.dtype)
+        return FastSwooshFunction.apply(x, name)
+
+    # TorchScript cannot use closed-over floats, hence the literal constants.
+    if name == "SwooshL":
+
+        def forward(self, x: Tensor) -> Tensor:
+            if torch.jit.is_scripting() or torch.jit.is_tracing():
+                zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+                return logaddexp(zero, x - 4.0) - 0.08 * x - 0.035
+            return eager(self, x)
+
+    else:
+
+        def forward(self, x: Tensor) -> Tensor:
+            if torch.jit.is_scripting() or torch.jit.is_tracing():
+                zero = torch.tensor(0.0, dtype=x.dtype, device=x.device)
+                return logaddexp(zero, x - 1.0) - 0.08 * x - 0.313261687
+            return eager(self, x)
+
+    return forward
+
+
+def make_balancer_function(ref):
+    """BalancerFunction replacement whose backward is balancer_backward() for
+    CUDA tensors with at least 2 dims (the reference `ref` otherwise). Like the
+    reference, an exception in the backward is logged and the gradient is
+    returned unmodified."""
+
+    class FastBalancerFunction(torch.autograd.Function):
+        @staticmethod
+        def forward(ctx, x, min_mean, max_mean, min_rms, max_rms, grad_scale, channel_dim):
+            if channel_dim < 0:
+                channel_dim += x.ndim
+            ctx.channel_dim = channel_dim
+            ctx.save_for_backward(x)
+            ctx.config = (min_mean, max_mean, min_rms, max_rms, grad_scale, channel_dim)
+            return x
+
+        @staticmethod
+        def backward(ctx, x_grad):
+            (x,) = ctx.saved_tensors
+            if not x.is_cuda or x.ndim < 2:
+                # rank-1: the reference reduces over all elements (mean over dims=[])
+                return ref.backward(ctx, x_grad)
+            try:
+                x_grad = balancer_backward(x, x_grad, *ctx.config[:5], channel_dim=ctx.channel_dim)
+            except Exception as e:
+                logging.info(
+                    f"Caught exception in Balancer backward: {e}, "
+                    f"size={list(x_grad.shape)}, will continue."
+                )
+            return x_grad, None, None, None, None, None, None
+
+    return FastBalancerFunction
+
+
 def install(scaling_module):
-    """Monkey-patch the reference implementations in scaling.py."""
+    """Monkey-patch the reference implementations in scaling.py.
+    (channels_last is applied by subsampling.py, see channels_last_enabled().)"""
     feats = enabled_features()
     if not feats:
         return
@@ -372,63 +483,15 @@ def install(scaling_module):
         S.SoftmaxFunction = FastSoftmaxFunction
 
     if "actlin" in feats:
-        S.ActivationDropoutAndLinearFunction = FastActivationDropoutAndLinearFunction
+        S.ActivationDropoutAndLinearFunction = make_actlin_function(
+            S.ActivationDropoutAndLinearFunction
+        )
 
     if "swoosh" in feats:
-        RefSwooshL, RefSwooshR = S.SwooshL.forward, S.SwooshR.forward
-
-        def _mk(name, ref):
-            def forward(self, x: Tensor) -> Tensor:
-                if (torch.jit.is_scripting() or torch.jit.is_tracing() or not x.is_cuda):
-                    return ref(self, x)
-                if not x.requires_grad:
-                    return act_mask_forward(x, name, None, x.dtype)
-                return FastSwooshFunction.apply(x, name)
-            return forward
-
-        S.SwooshL.forward = _mk("SwooshL", RefSwooshL)
-        S.SwooshR.forward = _mk("SwooshR", RefSwooshR)
+        S.SwooshL.forward = make_swoosh_forward("SwooshL", S.SwooshL.forward, S.logaddexp)
+        S.SwooshR.forward = make_swoosh_forward("SwooshR", S.SwooshR.forward, S.logaddexp)
 
     if "balancer" in feats:
-        Ref = S.BalancerFunction
-
-        class FastBalancerFunction(torch.autograd.Function):
-            @staticmethod
-            def forward(ctx, x, min_mean, max_mean, min_rms, max_rms, grad_scale, channel_dim):
-                if channel_dim < 0:
-                    channel_dim += x.ndim
-                ctx.channel_dim = channel_dim
-                ctx.save_for_backward(x)
-                ctx.config = (min_mean, max_mean, min_rms, max_rms, grad_scale, channel_dim)
-                return x
-
-            @staticmethod
-            def backward(ctx, x_grad):
-                (x,) = ctx.saved_tensors
-                cfg = ctx.config
-                if x.is_cuda:
-                    gx = balancer_backward(x, x_grad, *cfg[:5], channel_dim=ctx.channel_dim)
-                    return gx, None, None, None, None, None, None
-                return Ref.backward(ctx, x_grad)
-
-        S.BalancerFunction = FastBalancerFunction
-
-    if "channels_last" in feats:
-        # Run the Conv2dSubsampling frontend (3 convs + ConvNeXt with a 7x7
-        # depthwise conv at the full input frame rate) in NHWC: cuDNN's NHWC
-        # depthwise kernels are ~2.5x faster than the NCHW native kernels.
-        # Converting the 4-d conv weights at construction time (before the
-        # optimizer / DDP see them) makes all conv outputs channels_last.
-        import subsampling as _sub
-
-        _orig_init = _sub.Conv2dSubsampling.__init__
-
-        def _init(self, *args, **kwargs):
-            _orig_init(self, *args, **kwargs)
-            for m in self.modules():
-                if isinstance(m, torch.nn.Conv2d):
-                    m.weight.data = m.weight.data.contiguous(memory_format=torch.channels_last)
-
-        _sub.Conv2dSubsampling.__init__ = _init
+        S.BalancerFunction = make_balancer_function(S.BalancerFunction)
 
     logging.info(f"Zipformer fast kernels enabled: {sorted(feats)}")

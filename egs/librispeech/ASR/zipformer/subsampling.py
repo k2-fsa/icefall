@@ -35,6 +35,13 @@ from scaling import (
 )
 from torch import Tensor, nn
 
+try:
+    from fast_kernels import channels_last_enabled
+except ImportError:
+
+    def channels_last_enabled() -> bool:
+        return False
+
 
 class ConvNeXt(nn.Module):
     """
@@ -285,6 +292,14 @@ class Conv2dSubsampling(nn.Module):
         # getting large, there is an unnecessary degree of freedom.
         self.out_norm = BiasNorm(out_channels)
         self.dropout = Dropout3(dropout, shared_dim=1)
+
+        if channels_last_enabled():
+            # optional, ZIPFORMER_FAST_KERNELS: see fast_kernels.py
+            for m in self.modules():
+                if isinstance(m, nn.Conv2d):
+                    m.weight.data = m.weight.data.contiguous(
+                        memory_format=torch.channels_last
+                    )
 
     def forward(
         self, x: torch.Tensor, x_lens: torch.Tensor
