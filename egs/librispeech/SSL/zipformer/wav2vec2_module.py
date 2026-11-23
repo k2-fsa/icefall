@@ -22,10 +22,13 @@ import math
 from typing import List, Tuple
 
 import numpy as np
+import random
+from scaling import penalize_abs_values_gt
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from utils import Fp32GroupNorm, Fp32LayerNorm, TransposeLast
+
 
 
 class ConvFeatureExtractionModel(nn.Module):
@@ -104,5 +107,9 @@ class ConvFeatureExtractionModel(nn.Module):
 
         for conv in self.conv_layers:
             x = conv(x)
+
+        if self.training and random.random() < 0.2:
+            x = penalize_abs_values_gt(x, limit=1000.0, penalty=1.0e-05,
+                                       name=(self.name if hasattr(self, 'name') else 'ConvFeatureExtractionModel'))
 
         return x
