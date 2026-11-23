@@ -29,12 +29,12 @@ from lhotse.dataset import (
     CutConcatenate,
     CutMix,
     DynamicBucketingSampler,
-    K2Speech2TextTranslationDataset,
     PrecomputedFeatures,
     SimpleCutSampler,
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.dataset.speech_translation import K2Speech2TextTranslationDataset
 from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 

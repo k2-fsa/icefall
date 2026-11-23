@@ -115,7 +115,7 @@ from beam_search import (
     greedy_search_batch,
     modified_beam_search,
 )
-from train_asr import add_model_arguments, get_params, get_transducer_model
+from train import add_model_arguments, get_params, get_transducer_model
 
 from icefall.checkpoint import (
     average_checkpoints,
@@ -456,7 +456,6 @@ def decode_one_batch(
             encoder_out=encoder_out,
             encoder_out_lens=encoder_out_lens,
             beam=params.beam_size,
-            use_hat=True,
         )
         for hyp in sp.decode(hyp_tokens):
             hyps.append(hyp.split())
