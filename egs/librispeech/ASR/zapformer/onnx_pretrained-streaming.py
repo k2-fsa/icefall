@@ -190,13 +190,26 @@ class OnnxModel:
 
         num_encoders = len(num_encoder_layers)
 
+        # The norm caches start from learned per-layer values ("ballast"),
+        # not from zero; export-onnx-streaming.py writes them to the metadata.
+        norm_init_stats = [
+            float(v) for v in encoder_meta["norm_init_stats"].split(",")
+        ]
+        norm_init_len = [
+            float(v) for v in encoder_meta["norm_init_len"].split(",")
+        ]
+        assert len(norm_init_stats) == sum(num_encoder_layers), norm_init_stats
+        assert len(norm_init_len) == sum(num_encoder_layers), norm_init_len
+
         self.states = []
+        layer_idx = 0
         for i in range(num_encoders):
             num_layers = num_encoder_layers[i]
             key_dim = query_head_dims[i] * num_heads[i]
             embed_dim = encoder_dims[i]
             value_dim = value_head_dims[i] * num_heads[i]
-            conv_left_pad = conv_params[i] - 1
+            # stacks with conv_params == 0 have no conv module: zero-width cache
+            conv_left_pad = max(conv_params[i] - 1, 0)
 
             for layer in range(num_layers):
                 # (left_context_len, batch, key_dim)
@@ -212,9 +225,14 @@ class OnnxModel:
                     batch_size, embed_dim, conv_left_pad
                 ).numpy()
                 # cached_norm_stats: (batch,)
-                cached_norm_stats = torch.zeros(batch_size).numpy()
+                cached_norm_stats = torch.full(
+                    (batch_size,), norm_init_stats[layer_idx]
+                ).numpy()
                 # cached_norm_len: (batch,)
-                cached_norm_len = torch.zeros(batch_size).numpy()
+                cached_norm_len = torch.full(
+                    (batch_size,), norm_init_len[layer_idx]
+                ).numpy()
+                layer_idx += 1
                 # cached_attn_wm_sum: (1, batch, value_dim)
                 cached_attn_wm_sum = torch.zeros(
                     1, batch_size, value_dim
