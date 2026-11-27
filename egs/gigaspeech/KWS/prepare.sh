@@ -30,24 +30,12 @@ if [ $stage -le 0 ] && [ $stop_stage -ge 0 ]; then
     ./prepare.sh --stage 11 --stop-stage 11
     popd
     pushd data/fbank
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_DEV.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_DEV.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_TEST.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_TEST.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_L.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_L.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_M.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_M.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_S.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_S.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_cuts_XS.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/gigaspeech_feats_XS.lca) .
-    ln -svf $(realpath ../ASR/data/fbank/XL_split) .
-    ln -svf $(realpath ../ASR/data/fbank/musan_cuts.jsonl.gz) .
-    ln -svf $(realpath ../ASR/data/fbank/musan_feats) .
+    ln -svf $(realpath ../../../ASR/data/fbank/gigaspeech_cuts_DEV.jsonl.gz) .
+    ln -svf $(realpath ../../../ASR/data/fbank/gigaspeech_cuts_TEST.jsonl.gz) .
+    ln -svf $(realpath ../../../ASR/data/fbank/gigaspeech_XL_split) .
     popd
     pushd data
-    ln -svf $(realpath ../ASR/data/lang_bpe_500) .
+    ln -svf $(realpath ../../ASR/data/lang_bpe_500) .
     popd
     touch data/fbank/.gigaspeech.done
   else
@@ -60,12 +48,14 @@ if [ $stage -le 1 ] && [ $stop_stage -ge 1 ]; then
   mkdir -p data/fbank
   if [ ! -e data/fbank/.fluent_speech_commands.done ]; then
     pushd data
-    git clone https://github.com/pkufool/open-commands.git
+    if [ ! -d open-commands ]; then
+      git clone https://github.com/pkufool/open-commands.git
+    fi
     ln -svf $(realpath ./open-commands/EN/small/commands.txt) commands_small.txt
     ln -svf $(realpath ./open-commands/EN/large/commands.txt) commands_large.txt
     pushd open-commands
-    ./script/prepare.sh --stage 2 --stop-stage 2
-    ./script/prepare.sh --stage 6 --stop-stage 6
+    ./scripts/prepare.sh --stage 2 --stop-stage 2
+    ./scripts/prepare.sh --stage 6 --stop-stage 6
     popd
     popd
     pushd data/fbank

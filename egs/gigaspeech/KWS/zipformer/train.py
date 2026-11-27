@@ -1189,7 +1189,12 @@ def run(rank, world_size, args):
     def remove_short_utt(c: Cut):
         # In ./zipformer.py, the conv module uses the following expression
         # for subsampling
-        T = ((c.num_frames - 7) // 2 + 1) // 2
+        # When using on-the-fly feature extraction, c.num_frames is None,
+        # so we estimate it from the duration (Fbank frame_shift = 0.01s).
+        num_frames = (
+            c.num_frames if c.num_frames is not None else round(c.duration / 0.01)
+        )
+        T = ((num_frames - 7) // 2 + 1) // 2
         return T > 0
 
     gigaspeech = GigaSpeechAsrDataModule(args)
