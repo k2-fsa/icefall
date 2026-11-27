@@ -194,10 +194,10 @@ class SPEECH_LLM(nn.Module):
 
     def forward(
         self,
-        fbank: torch.Tensor = None,
-        input_ids: torch.LongTensor = None,
-        attention_mask: torch.Tensor = None,
-        labels: torch.LongTensor = None,
+        fbank: torch.Tensor,
+        input_ids: torch.LongTensor,
+        attention_mask: torch.Tensor,
+        labels: torch.LongTensor,
     ):
         encoder_outs = self.encoder(fbank)
 
