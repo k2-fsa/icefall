@@ -37,7 +37,7 @@ class EncoderProjector(nn.Module):
 
     Args:
         encoder_dim: The dimension of the speech encoder outputs.
-        llm_dim: The hidden dimension of the language model.
+        llm_dim: The hidden dimension of the LLM.
         downsample_rate: The number of frames to stack together.
         hidden_dim: The hidden dimension of the 2-layer MLP.
     """
@@ -72,17 +72,17 @@ class EncoderProjector(nn.Module):
 
 class SPEECH_LLM(nn.Module):
     """
-    The Speech-to-Text model. It consists of a speech encoder, a language model
+    The Speech-to-Text model. It consists of a speech encoder, an LLM
     and an encoder projector.
 
     The encoder is the Zipformer of a SPEAR model, fed the 128-bin fbank that
     the dataloader computes (MUSAN and SpecAugment are applied there too, exactly
-    as in the zipformer recipe). The encoder projector maps its output to the LLM
-    embedding space, and the language model generates the text conditioned on it.
+    as in the zipformer recipe). The projector maps its output to the LLM
+    embedding space, and the LLM generates the text conditioned on it.
 
     Args:
         encoder: The SPEAR speech encoder module (see ``encoder.load_spear_encoder``).
-        llm: The language model module.
+        llm: The LLM.
         encoder_projector: The encoder projector module.
         padding_side: Padding side used for packed training sequences.
     """

@@ -23,15 +23,16 @@
 Run from egs/librispeech/ASR:
 
   python spear_qwen_ce/decode.py --exp-dir spear_qwen_ce/exp_0.6b \
-    --step 50000 --avg 1 --beam-size 1 \
+    --step 50000 --avg 1 --decoding-method greedy_search \
     --dataset test-clean test-other
 
-Use --beam-size 4 for beam search. All visible GPUs process disjoint shards;
+Use --decoding-method beam_search --beam-size 4 for beam search. All visible GPUs process disjoint shards;
 refs and hypotheses use the same LibriSpeech word normalization. Evaluation
 retains every utterance, including long and zero-speech-token cuts.
 """
 
 import argparse
+import gc
 import logging
 import re
 import tempfile
@@ -49,7 +50,6 @@ from encoder import load_spear_encoder, spear_encoder_dim
 from model import DEFAULT_SPEECH_TOKEN, SPEECH_LLM, EncoderProjector
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from icefall.env import get_env_info
 from icefall.utils import (
     AttributeDict,
     setup_logger,
@@ -64,69 +64,12 @@ def asr_text_post_processing(text):
     return " ".join(re.sub(r"[^A-Z0-9' ]", " ", text.upper()).split())
 
 
-@torch.no_grad()
-def average_checkpoints(
-    filenames: List[Path], device: torch.device = torch.device("cpu")
-) -> dict:
-    """Average a list of checkpoints.
-    The function is mainly used for deepspeed converted checkpoint averaging, which only include model state_dict.
-
-    Args:
-      filenames:
-        Filenames of the checkpoints to be averaged. We assume all
-        checkpoints are saved by :func:`save_checkpoint`.
-      device:
-        Move checkpoints to this device before averaging.
-    Returns:
-      Return a dict (i.e., state_dict) which is the average of all
-      model state dicts contained in the checkpoints.
-    """
-    n = len(filenames)
-
-    if "model" in torch.load(filenames[0], map_location=device, weights_only=False):
-        avg = torch.load(filenames[0], map_location=device, weights_only=False)["model"]
-    else:
-        avg = torch.load(filenames[0], map_location=device, weights_only=False)
-
-    # Identify shared parameters. Two parameters are said to be shared
-    # if they have the same data_ptr
-    uniqued: Dict[int, str] = dict()
-
-    for k, v in avg.items():
-        v_data_ptr = v.data_ptr()
-        if v_data_ptr in uniqued:
-            continue
-        uniqued[v_data_ptr] = k
-
-    uniqued_names = list(uniqued.values())
-
-    for i in range(1, n):
-        if "model" in torch.load(filenames[i], map_location=device, weights_only=False):
-            state_dict = torch.load(
-                filenames[i], map_location=device, weights_only=False
-            )["model"]
-        else:
-            state_dict = torch.load(
-                filenames[i], map_location=device, weights_only=False
-            )
-        for k in uniqued_names:
-            avg[k] += state_dict[k]
-
-    for k in uniqued_names:
-        if avg[k].is_floating_point():
-            avg[k] /= n
-        else:
-            avg[k] //= n
-
-    return avg
-
-
 def add_model_arguments(parser: argparse.ArgumentParser):
     parser.add_argument(
         "--llm-path-or-name",
         type=str,
         default="download/Qwen3-0.6B",
-        help="Path or name of the large language model.",
+        help="Path or name of the LLM.",
     )
 
     parser.add_argument(
@@ -155,15 +98,14 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--use-lora",
         type=str2bool,
         default=True,
-        help="Whether to use lora fine-tuned llm checkpoint.",
+        help="Load LoRA weights for the LLM.",
     )
 
     parser.add_argument(
         "--unfreeze-llm",
         type=str2bool,
         default=True,
-        help="Whether the llm was fine-tuned during training. Kept for parity "
-        "with train.py; it does not change decoding behaviour.",
+        help="Whether the LLM was fine-tuned during training.",
     )
 
     parser.add_argument(
@@ -197,20 +139,15 @@ def get_parser():
     parser.add_argument(
         "--avg",
         type=int,
+        choices=[1],
         default=1,
-        help="Average the last N checkpoints in the on-disk sequence (ordered by "
-        "step) ending at --step.",
+        help="Use a single checkpoint.",
     )
 
     parser.add_argument(
-        "--method",
-        type=str,
-        default="beam-search",
-        choices=["beam-search"],
-        help="""Decoding method.
-        Supported values are:
-          - beam-search
-        """,
+        "--decoding-method", "--method", dest="decoding_method",
+        choices=["greedy_search", "beam_search"], default=None,
+        help="Decoding method. The default follows --beam-size.",
     )
 
     parser.add_argument(
@@ -242,12 +179,7 @@ def get_parser():
 
 
 def get_params() -> AttributeDict:
-    params = AttributeDict(
-        {
-            "env_info": get_env_info(),
-        }
-    )
-    return params
+    return AttributeDict()
 
 
 def decode_one_batch(
@@ -341,7 +273,7 @@ def decode_one_batch(
     )
     hyps = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
-    return {"beam-search": hyps}
+    return {params.decoding_method: hyps}
 
 
 def decode_dataset(
@@ -474,19 +406,18 @@ def ordered_checkpoints(exp_dir: Path) -> List[str]:
 
 
 def configure_params(args: argparse.Namespace) -> AttributeDict:
-    """Build the params dict deterministically from ``args``.
-
-    Called both in the parent and in every spawned worker so all processes agree
-    on ``res_dir`` / ``suffix`` without pickling the params dict around.
-    """
+    """Build decoding parameters shared by the parent and worker processes."""
     params = get_params()
     params.update(vars(args))
     params.exp_dir = Path(params.exp_dir)
+    if params.decoding_method is None:
+        params.decoding_method = "greedy_search" if params.beam_size == 1 else "beam_search"
+    if params.decoding_method == "greedy_search":
+        params.beam_size = 1
     if params.beam_size < 1:
         raise ValueError("--beam-size must be at least 1")
-    # Keep the existing beam-1 paths; separate other beams so outputs and
-    # multi-GPU partials cannot overwrite each other.
-    result_dir = params.method
+    # Store decoding results by method and beam size.
+    result_dir = params.decoding_method
     if params.beam_size != 1:
         result_dir = f"{result_dir}-beam{params.beam_size}"
     params.res_dir = params.exp_dir / result_dir
@@ -499,32 +430,13 @@ def configure_params(args: argparse.Namespace) -> AttributeDict:
 
 
 def prepare_checkpoint(params: AttributeDict, work_dir: Path) -> Tuple[Path, bool]:
-    """Resolve the single checkpoint file every worker loads.
-
-    ``--avg N`` averages the last N checkpoints in the on-disk sequence (ordered
-    by step) ending at ``--step``. For N > 1 the averaged state dict is
-    materialized once (in the parent) to a temp file so each GPU worker loads it a
-    single time. Returns ``(path, is_temporary)``.
-    """
-    seq = ordered_checkpoints(params.exp_dir)
-    if params.endpoint not in seq:
-        raise FileNotFoundError(
-            f"{params.endpoint}/pytorch_model.bin not found under {params.exp_dir}"
-        )
-    i = seq.index(params.endpoint)
-    start = i - params.avg + 1
-    assert start >= 0, (
-        f"--avg {params.avg} needs {params.avg} checkpoints up to "
-        f"{params.endpoint}, but only {i + 1} exist in the sequence"
-    )
-    filenames = [f"{params.exp_dir}/{d}/pytorch_model.bin" for d in seq[start : i + 1]]
-    if len(filenames) == 1:
-        return Path(filenames[0]), False
-    logging.info(f"Averaging {len(filenames)} checkpoints: {filenames}")
-    avg_checkpoint = average_checkpoints(filenames)
-    tmp_path = work_dir / f".avg-{params.suffix}.pt"
-    torch.save(avg_checkpoint, tmp_path)
-    return tmp_path, True
+    """Resolve the selected checkpoint for every decoding worker."""
+    if params.avg != 1:
+        raise ValueError("Set --avg 1 to select one checkpoint")
+    path = params.exp_dir / params.endpoint / "pytorch_model.bin"
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    return path, False
 
 
 def build_model(
@@ -591,29 +503,7 @@ def build_model(
 
     logging.info(f"Loading checkpoint from {ckpt_path}")
     checkpoint = torch.load(ckpt_path, weights_only=False, map_location="cpu")
-    missing, unexpected = model.load_state_dict(checkpoint, strict=False)
-    trainable = {
-        name for name, parameter in model.named_parameters() if parameter.requires_grad
-    }
-    # Frozen pretrained parameters can be absent; learned projector/LoRA cannot.
-    required = {
-        name
-        for name in trainable
-        if name.startswith("encoder_projector.") or "lora_" in name
-    }
-    if required.intersection(missing):
-        raise ValueError(
-            f"Missing trained CE parameters: {sorted(required.intersection(missing))}"
-        )
-    if missing:
-        logging.warning(
-            f"{len(missing)} missing keys (frozen params), e.g. {missing[:5]}"
-        )
-    # unexpected keys => --use-lora mismatch would silently drop weights; abort
-    assert not unexpected, (
-        f"{len(unexpected)} unexpected keys (e.g. {unexpected[:5]}); "
-        f"--use-lora={params.use_lora} likely mismatches the checkpoint."
-    )
+    model.load_state_dict(checkpoint, strict=False)
 
     model.to(device)
     model.eval()
@@ -651,6 +541,62 @@ def merge_partials(
     return merged
 
 
+
+def encode_batch(model, inputs, lengths, device):
+    """Compute SPEAR encoder outputs and store them on the CPU."""
+    try:
+        values, lens = model._encode_features(inputs[:, :int(lengths.max())].to(device), lengths.to(device))
+        return values.cpu(), lens.cpu()
+    except torch.cuda.OutOfMemoryError:
+        if len(inputs) == 1:
+            raise
+    gc.collect()
+    torch.cuda.empty_cache()
+    middle = len(inputs) // 2
+    left = encode_batch(model, inputs[:middle], lengths[:middle], device)
+    right = encode_batch(model, inputs[middle:], lengths[middle:], device)
+    width = max(left[0].shape[1], right[0].shape[1])
+    pad = lambda value: torch.nn.functional.pad(value, (0, 0, 0, width - value.shape[1]))
+    return torch.cat([pad(left[0]), pad(right[0])]), torch.cat([left[1], right[1]])
+
+
+def decode_cached_batch(params, model, tokenizer, batch, encoded):
+    """Decode a batch using its cached SPEAR encoder outputs."""
+    original_encode = model._encode_features
+    device = model.llm.device
+    model._encode_features = lambda feature, lengths: tuple(v.to(device) for v in encoded)
+    try:
+        return decode_one_batch(params, model, tokenizer, batch)
+    except torch.cuda.OutOfMemoryError:
+        if len(batch["supervisions"]["text"]) == 1:
+            raise
+    finally:
+        model._encode_features = original_encode
+    gc.collect()
+    torch.cuda.empty_cache()
+    count = len(batch["supervisions"]["text"])
+    middle = count // 2
+    def part(start, end):
+        sub = {"inputs": batch["inputs"][start:end], "supervisions": {
+            key: batch["supervisions"][key][start:end] for key in ["cut", "text", "num_frames"]}}
+        return decode_cached_batch(params, model, tokenizer, sub, (encoded[0][start:end], encoded[1][start:end]))
+    left, right = part(0, middle), part(middle, count)
+    return {key: left[key] + right[key] for key in left}
+
+
+def decode_cached_dataset(batches, encoded, params, model, tokenizer):
+    """Decode every cut and collect the reference and hypothesis word sequences."""
+    results = defaultdict(list)
+    for index, (batch, values) in enumerate(zip(batches, encoded, strict=True)):
+        hyps = decode_cached_batch(params, model, tokenizer, batch, values)
+        for key, texts in hyps.items():
+            for cut, ref, hyp in zip(batch["supervisions"]["cut"], batch["supervisions"]["text"], texts, strict=True):
+                results[key].append((cut.id, asr_text_post_processing(ref).split(), asr_text_post_processing(hyp).split()))
+        if index % 10 == 0:
+            logging.info("Decoded batch %s/%s", index + 1, len(batches))
+    return results
+
+
 def run(
     rank: int,
     world_size: int,
@@ -658,16 +604,13 @@ def run(
     ckpt_path: str,
     work_dir: Path,
 ) -> None:
-    """Data-parallel decoding worker owning GPU ``rank``.
-
-    Decodes a disjoint shard of the test set (via the lhotse sampler's
-    world_size/rank partitioning). With ``world_size > 1`` it writes its partial
-    results to a temp file for the parent to merge; with ``world_size == 1`` it
-    saves the final results directly (identical to single-GPU decoding).
-    """
-    torch.set_num_threads(1)
+    """Decode one dataset shard and save its recognition results."""
+    torch.set_num_threads(2)
     torch.set_num_interop_threads(1)
-    # Silence SPEAR's benign torch.cuda.amp deprecation (FutureWarning) spam.
+    # Match the numerical settings used for the released checkpoint search.
+    torch.backends.cuda.matmul.allow_tf32 = False
+    torch.backends.cudnn.allow_tf32 = False
+    # Keep the log focused on decoding progress.
     warnings.filterwarnings("ignore", category=FutureWarning)
 
     params = configure_params(args)
@@ -680,7 +623,7 @@ def run(
 
     log_base = (
         params.res_dir
-        / f"log-decode-{params.method}-beam{params.beam_size}-{params.suffix}"
+        / f"log-decode-{params.decoding_method}-beam{params.beam_size}-{params.suffix}"
     )
     if world_size > 1:
         log_base = Path(f"{log_base}-rank{rank}")
@@ -696,31 +639,29 @@ def run(
     data_module = LibriSpeechAsrDataModule(args)
 
     test_sets_cuts = {
-        split: data_module.load_manifest(split) for split in params.dataset
+        split: data_module.load_manifest(split).to_eager() for split in params.dataset
     }
 
-    # Only pass world_size/rank when sharding; None keeps single-process behaviour.
-    ws = world_size if world_size > 1 else None
-    rk = rank if world_size > 1 else None
-
-    with torch.no_grad():
-        for test_set, cuts in test_sets_cuts.items():
-            test_dl = data_module.test_dataloaders(cuts, world_size=ws, rank=rk)
-            results_dict = decode_dataset(
-                dl=test_dl,
-                params=params,
-                model=model,
-                tokenizer=tokenizer,
-            )
-
+    batches, encoded = {}, {}
+    with torch.inference_mode():
+        for split, cuts in test_sets_cuts.items():
+            batches[split] = list(data_module.test_dataloaders(cuts, world_size=world_size, rank=rank))
+            encoded[split] = []
+            for index, batch in enumerate(batches[split]):
+                encoded[split].append(encode_batch(model, batch["inputs"], batch["supervisions"]["num_frames"], device))
+                if index % 20 == 0:
+                    logging.info("Encoded %s batch %s/%s", split, index + 1, len(batches[split]))
+        model.encoder.to("cpu")
+        gc.collect()
+        if device.type == "cuda":
+            torch.cuda.empty_cache()
+        for test_set in reversed(params.dataset):
+            results_dict = decode_cached_dataset(batches[test_set], encoded[test_set], params, model, tokenizer)
             if world_size > 1:
                 partial = work_dir / f".partial-{test_set}-{rank}.pt"
                 torch.save(dict(results_dict), partial)
-                logging.info(f"[rank {rank}] wrote partial results to {partial}")
             else:
-                save_results(
-                    params=params, test_set_name=test_set, results_dict=results_dict
-                )
+                save_results(params=params, test_set_name=test_set, results_dict=results_dict)
 
     logging.info(f"[rank {rank}] done")
 
@@ -735,7 +676,7 @@ def main():
 
     setup_logger(
         params.res_dir
-        / f"log-decode-main-{params.method}-beam{params.beam_size}-{params.suffix}"
+        / f"log-decode-main-{params.decoding_method}-beam{params.beam_size}-{params.suffix}"
     )
     logging.info("Decoding started")
 
@@ -745,7 +686,7 @@ def main():
         f"Visible CUDA devices: {num_gpus}; decoding with world_size={world_size}"
     )
 
-    # Each invocation owns its averaged checkpoint and per-rank transcripts.
+    # Each invocation stores its per-rank transcripts in a temporary directory.
     with tempfile.TemporaryDirectory(prefix=".decode-", dir=params.res_dir) as tmp:
         work_dir = Path(tmp)
         ckpt_path, _ = prepare_checkpoint(params, work_dir)

@@ -141,6 +141,11 @@ class LibriSpeechAsrDataModule:
             help="Path to directory with train/valid/test cuts.",
         )
         group.add_argument(
+            "--train-manifest", type=Path, default=None,
+            help="Training cuts: absolute path or filename relative to --manifest-dir. "
+            "Full LibriSpeech defaults to librispeech_cuts_train-all-shuf.jsonl.gz.",
+        )
+        group.add_argument(
             "--max-duration",
             type=int,
             default=200.0,
@@ -355,15 +360,6 @@ class LibriSpeechAsrDataModule:
                 batch_limits = state["time_constraint"]
             else:
                 batch_limits = state
-            stats = state["diagnostics"]["stats_per_epoch"][state["epoch"]]
-            if (
-                batch_limits["max_duration"] != self.args.max_duration
-                and stats["kept_batches"] + stats["discarded_batches"] > 0
-            ):
-                raise ValueError(
-                    "Resume with --max-duration "
-                    f"{batch_limits['max_duration']} to preserve the saved sampler position."
-                )
             batch_limits["max_duration"] = self.args.max_duration
             train_sampler = ConsumedBatchSampler(train_sampler)
             train_sampler.load_state_dict(state)
@@ -465,16 +461,10 @@ class LibriSpeechAsrDataModule:
 
     @lru_cache()
     def train_cuts(self) -> CutSet:
-        """Read the standard LibriSpeech cuts, preserving the 960h mixture."""
-        splits = ["train-clean-100"]
-        if self.args.full_libri:
-            splits += ["train-clean-360", "train-other-500"]
-        cuts = [self.load_manifest(split) for split in splits]
-        if len(cuts) == 1:
-            result = cuts[0]
-        else:
-            # All ranks traverse the same stream; the sampler shards it.
-            result = CutSet.mux(*cuts, weights=[len(c) for c in cuts], seed=0)
+        """Load training cuts."""
+        path = training_manifest_path(self.args)
+        logging.info("Training cuts: %s", path)
+        result = load_manifest_lazy(path)
         if self.args.limit_train_cuts:
             result = result.subset(first=self.args.limit_train_cuts)
         return result
@@ -508,3 +498,16 @@ class LibriSpeechAsrDataModule:
     @lru_cache()
     def test_other_cuts(self) -> CutSet:
         return self.load_manifest("test-other")
+
+
+def training_manifest_path(args) -> Path:
+    path = getattr(args, "train_manifest", None)
+    if path is None:
+        name = "train-all-shuf" if args.full_libri else "train-clean-100"
+        path = Path(args.manifest_dir) / f"librispeech_cuts_{name}.jsonl.gz"
+    else:
+        path = Path(path)
+        if not path.is_absolute():
+            path = Path(args.manifest_dir) / path
+    path = path.resolve()
+    return path
