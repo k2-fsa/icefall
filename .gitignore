@@ -36,3 +36,4 @@ node_modules
 .DS_Store
 *.fst
 *.arpa
+.venv/
