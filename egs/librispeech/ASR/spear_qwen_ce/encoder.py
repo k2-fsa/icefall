@@ -13,13 +13,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Load the SPEAR speech encoder (a local ``trust_remote_code`` HF snapshot).
+"""Load a local SPEAR snapshot and encode 128-bin FBank features.
 
-transformers 4.57's dynamic-module loader doesn't copy a local custom-code
-model's sibling ``.py`` files, so ``from_pretrained(local_dir,
-trust_remote_code=True)`` dies with ``FileNotFoundError`` on relative imports.
-Workaround: register the model dir as a synthetic package, exec its modules in
-dependency order, then ``SpearModel.from_pretrained`` -- no dynamic cache.
+Snapshot modules are imported in dependency order through a local package.
 """
 
 import importlib.util
@@ -69,16 +65,12 @@ def load_spear_encoder(model_dir: str) -> nn.Module:
 
     modeling = sys.modules[f"{_PKG}.modeling_spear"]
     model_cls = modeling.SpearModel
-    # SPEAR has no tied weights but transformers >=4.57.6 reads
-    # all_tied_weights_keys on load; default to {}.
+    # Set the tied-weight metadata used by Transformers.
     if not hasattr(model_cls, "all_tied_weights_keys"):
         model_cls.all_tied_weights_keys = {}
     model = model_cls.from_pretrained(str(model_dir))
 
-    # RelPositionalEncoding.pe is a plain (non-buffer) attr rebuilt lazily in
-    # forward, so it's absent from the checkpoint; under the DLC image's
-    # accelerate meta-init it's left on the meta device and extend_pe then crashes
-    # ("Cannot copy out of meta tensor"). Drop it so forward rebuilds it for real.
+    # Rebuild positional embeddings on the target device during forward.
     for m in model.modules():
         pe = getattr(m, "pe", None)
         if torch.is_tensor(pe) and pe.is_meta:

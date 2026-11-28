@@ -56,10 +56,8 @@ from torch.utils.tensorboard import SummaryWriter
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from icefall.dist import get_local_rank, get_rank, get_world_size
-from icefall.env import get_env_info
 from icefall.utils import AttributeDict, MetricsTracker, setup_logger, str2bool
 
-CE_RECIPE_VERSION = 3
 
 
 def add_model_arguments(parser: argparse.ArgumentParser):
@@ -67,7 +65,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--llm-path-or-name",
         type=str,
         default="download/Qwen3-0.6B",
-        help="Path or name of the large language model.",
+        help="Path or name of the LLM.",
     )
 
     parser.add_argument(
@@ -102,7 +100,7 @@ def add_model_arguments(parser: argparse.ArgumentParser):
         "--use-lora",
         type=str2bool,
         default=True,
-        help="Whether to use lora to fine-tune the LLM (requires `peft`).",
+        help="Use LoRA to fine-tune the LLM.",
     )
 
     parser.add_argument(
@@ -290,8 +288,6 @@ def get_params() -> AttributeDict:
             "reset_interval": 200,
             "valid_interval": 5000,
             "save_interval": 2000,
-            "ce_recipe_version": CE_RECIPE_VERSION,
-            "env_info": get_env_info(),
         }
     )
 
@@ -830,17 +826,7 @@ def run(rank, world_size, args):
         checkpoint = torch.load(
             params.pretrained_model_path, map_location="cpu", weights_only=False
         )
-        missing_keys, unexpected_keys = model.load_state_dict(checkpoint, strict=False)
-        if missing_keys:
-            logging.warning(
-                f"{len(missing_keys)} keys missing when loading "
-                f"{params.pretrained_model_path}, e.g. {missing_keys[:5]}"
-            )
-        if unexpected_keys:
-            logging.warning(
-                f"{len(unexpected_keys)} unexpected keys when loading "
-                f"{params.pretrained_model_path}, e.g. {unexpected_keys[:5]}"
-            )
+        model.load_state_dict(checkpoint, strict=False)
 
     num_param = sum([p.numel() for p in model.parameters()])
     logging.info(f"Number of model parameters: {num_param}")
@@ -864,7 +850,7 @@ def run(rank, world_size, args):
             continue
         if name.startswith("encoder."):
             spear_params.append(param)
-        else:  # encoder_projector.* + llm LoRA adapters
+        else:  # encoder_projector.* + LLM LoRA adapters
             fast_params.append(param)
     assert fast_params, "projector + LLM adapters must always be trainable."
     if spear_params:
@@ -878,9 +864,6 @@ def run(rank, world_size, args):
 
     ds_config = get_deepspeed_config(params)
     config_path = Path(params.exp_dir) / "deepspeed_config.json"
-    if tag is not None and config_path.exists():
-        if json.loads(config_path.read_text()) != ds_config:
-            raise ValueError("DeepSpeed configuration differs from the saved run")
     if rank == 0:
         config_path.write_text(json.dumps(ds_config, indent=2) + "\n")
     # Pass one config source; DeepSpeed rejects args.deepspeed_config + config.
