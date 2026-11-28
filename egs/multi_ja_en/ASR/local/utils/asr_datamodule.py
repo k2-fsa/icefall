@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 import argparse
 import inspect
 import logging
@@ -23,6 +22,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import torch
 from lhotse import CutSet, Fbank, FbankConfig, load_manifest, load_manifest_lazy
 from lhotse.dataset import (
     CutConcatenate,
@@ -34,12 +34,21 @@ from lhotse.dataset import (
     SpecAugment,
 )
 from lhotse.dataset.input_strategies import OnTheFlyFeatures
+from lhotse.utils import fix_random_seed
 from torch.utils.data import DataLoader
 
 from icefall.utils import str2bool
 
 
-class ReazonSpeechAsrDataModule:
+class _SeedWorkers:
+    def __init__(self, seed: int):
+        self.seed = seed
+
+    def __call__(self, worker_id: int):
+        fix_random_seed(self.seed + worker_id)
+
+
+class MultiDatasetAsrDataModule:
     """
     DataModule for k2 ASR experiments.
     It assumes there is always one train and valid dataloader,
@@ -70,7 +79,7 @@ class ReazonSpeechAsrDataModule:
         group.add_argument(
             "--manifest-dir",
             type=Path,
-            default=Path("data/fbank"),
+            default=Path("data/manifests"),
             help="Path to directory with train/dev/test cuts.",
         )
         group.add_argument(
@@ -192,6 +201,32 @@ class ReazonSpeechAsrDataModule:
 
         transforms = []
         input_transforms = []
+        if self.args.enable_musan:
+            logging.info("Enable MUSAN")
+            logging.info("About to get Musan cuts")
+            cuts_musan = load_manifest(
+                self.args.manifest_dir / "musan/musan_cuts.jsonl.gz"
+            )
+            transforms.append(
+                CutMix(cuts=cuts_musan, p=0.5, snr=(10, 20), preserve_id=True)
+            )
+        else:
+            logging.info("Disable MUSAN")
+
+        # Cut concatenation should be the first transform in the list,
+        # so that if we e.g. mix noise in, it will fill the gaps between
+        # different utterances.
+
+        if self.args.concatenate_cuts:
+            logging.info(
+                f"Using cut concatenation with duration factor "
+                f"{self.args.duration_factor} and gap {self.args.gap}."
+            )
+            transforms = [
+                CutConcatenate(
+                    duration_factor=self.args.duration_factor, gap=self.args.gap
+                )
+            ] + transforms
 
         if self.args.enable_spec_aug:
             logging.info("Enable SpecAugment")
@@ -250,6 +285,8 @@ class ReazonSpeechAsrDataModule:
                 max_duration=self.args.max_duration,
                 shuffle=self.args.shuffle,
                 num_buckets=self.args.num_buckets,
+                buffer_size=self.args.num_buckets * 2000,
+                shuffle_buffer_size=self.args.num_buckets * 5000,
                 drop_last=self.args.drop_last,
             )
         else:
@@ -265,12 +302,17 @@ class ReazonSpeechAsrDataModule:
             logging.info("Loading sampler state dict")
             train_sampler.load_state_dict(sampler_state_dict)
 
+        seed = 42
+        worker_init_fn = _SeedWorkers(seed)
+
         train_dl = DataLoader(
             train,
             sampler=train_sampler,
             batch_size=None,
+            pin_memory=True,
             num_workers=self.args.num_workers,
-            persistent_workers=False,
+            persistent_workers=True,
+            worker_init_fn=worker_init_fn,
         )
 
         return train_dl
@@ -332,24 +374,3 @@ class ReazonSpeechAsrDataModule:
             num_workers=self.args.num_workers,
         )
         return test_dl
-
-    @lru_cache()
-    def train_cuts(self) -> CutSet:
-        logging.info("About to get train cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "reazonspeech_cuts_train.jsonl.gz"
-        )
-
-    @lru_cache()
-    def valid_cuts(self) -> CutSet:
-        logging.info("About to get dev cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "reazonspeech_cuts_dev.jsonl.gz"
-        )
-
-    @lru_cache()
-    def test_cuts(self) -> List[CutSet]:
-        logging.info("About to get test cuts")
-        return load_manifest_lazy(
-            self.args.manifest_dir / "reazonspeech_cuts_test.jsonl.gz"
-        )
